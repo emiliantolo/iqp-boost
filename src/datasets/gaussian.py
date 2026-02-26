@@ -9,8 +9,8 @@ class GaussianMixtureDataset(BinaryDataset):
     """
     Generates samples from a grid of 2D isotropic Gaussians.
     
-    The continuous 2D samples are discretized to binary representation
-    for use in quantum circuits.
+    The continuous 2D samples are discretized to binary representation for quantum circuits.
+    Valid patterns are those close to the true cluster centers (soft membership based on proximity).
     """
 
     def __init__(self, grid_size: int = 3, spread: float = 0.3, 
@@ -30,6 +30,9 @@ class GaussianMixtureDataset(BinaryDataset):
         self.separation = separation
         self.grid_bits = grid_bits
         self.n_qubits = 2 * grid_bits
+        
+        # Gaussian uses proximity-based validity, not exact membership
+        self._valid_patterns = set()  # Not used; marked to skip base class check
         
         # Create grid of Gaussian centers
         self.centers = []

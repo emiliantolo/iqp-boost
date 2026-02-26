@@ -10,6 +10,7 @@ class ParityDataset(BinaryDataset):
     Generates even parity bitstrings.
     
     Each sample is a binary string where the sum of bits is even.
+    Valid patterns are all 2^(n_qubits-1) even-parity bitstrings.
     """
 
     def __init__(self, n_qubits: int = 5):
@@ -21,6 +22,29 @@ class ParityDataset(BinaryDataset):
         """
         super().__init__()
         self.n_qubits = n_qubits
+        
+        # Pre-compute all valid even-parity patterns
+        self._valid_patterns = self._enumerate_valid_patterns()
+
+    def _enumerate_valid_patterns(self) -> set:
+        """
+        Enumerate all 2^(n_qubits-1) valid even-parity bitstrings.
+        
+        Returns:
+            Set of tuples representing all even-parity patterns
+        """
+        patterns = set()
+        n_combinations = 2 ** (self.n_qubits - 1)
+        
+        # Generate all combinations of first n_qubits-1 bits
+        for i in range(n_combinations):
+            bits = np.array([(i >> j) & 1 for j in range(self.n_qubits - 1)], dtype=np.int8)
+            # Add parity bit to make total sum even
+            parity_bit = bits.sum() % 2
+            full_pattern = np.concatenate([bits, [parity_bit]])
+            patterns.add(tuple(full_pattern.astype(int)))
+        
+        return patterns
 
     def generate(self, n_samples: int, seed: int = 0) -> np.ndarray:
         """
@@ -47,35 +71,7 @@ class ParityDataset(BinaryDataset):
         self.data = np.array(samples, dtype=np.int8)
         return self.data
 
-    def is_valid(self, sample: np.ndarray) -> bool:
-        """Check if a sample has even parity."""
-        return sample.sum() % 2 == 0
 
-    def validity_rate(self, samples: np.ndarray) -> float:
-        """Compute fraction of samples that have even parity."""
-        valid = sum(self.is_valid(s) for s in samples)
-        return valid / len(samples)
-
-    def coverage_rate(self, ground_truth: np.ndarray, samples: np.ndarray) -> float:
-        """
-        Compute fraction of unique even parity strings represented in samples.
-        
-        Args:
-            ground_truth: Not used for parity (coverage computed from theoretical space)
-            samples: Model-generated samples
-            
-        Returns:
-            Coverage rate (fraction of possible even parity strings in samples)
-        """
-        n_possible_strings = 2 ** (self.n_qubits - 1)
-        
-        # Get unique valid parity strings from samples
-        parity_strings = set()
-        for s in samples:
-            if self.is_valid(s):
-                parity_strings.add(tuple(s))
-        
-        return len(parity_strings) / n_possible_strings
 
     def visualize(self, sample: np.ndarray, ax=None):
         """
