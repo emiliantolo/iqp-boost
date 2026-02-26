@@ -26,56 +26,54 @@ class BinaryShapesDataset(BinaryDataset):
         ]
         self.N = grid_shape[0] * grid_shape[1]
 
-    def _draw_square(self, grid: np.ndarray, rng: np.random.Generator):
-        rows, cols = self.grid_shape
-        side = rng.integers(3, min(rows, cols) + 1) # Min 3x3 to actually have a hollow center
-        
-        r = rng.integers(0, rows - side + 1)
-        c = rng.integers(0, cols - side + 1)
-        
-        # Outline only
+    def _draw_square_exact(self, grid: np.ndarray, r: int, c: int, side: int):
         grid[r, c:c+side] = 1 # Top
         grid[r+side-1, c:c+side] = 1 # Bottom
         grid[r:r+side, c] = 1 # Left
         grid[r:r+side, c+side-1] = 1 # Right
-        
-    def _draw_rectangle(self, grid: np.ndarray, rng: np.random.Generator):
+
+    def _draw_square(self, grid: np.ndarray, rng: np.random.Generator):
         rows, cols = self.grid_shape
-        h = rng.integers(3, rows + 1) # Min 3 to be hollow
-        w = rng.integers(3, cols + 1) # Min 3 to be hollow
+        side = rng.integers(3, min(rows, cols) + 1) # Min 3x3 to actually have a hollow center
+        r = rng.integers(0, rows - side + 1)
+        c = rng.integers(0, cols - side + 1)
+        self._draw_square_exact(grid, r, c, side)
         
-        r = rng.integers(0, rows - h + 1)
-        c = rng.integers(0, cols - w + 1)
-        
-        # Outline only
+    def _draw_rectangle_exact(self, grid: np.ndarray, r: int, c: int, h: int, w: int):
         grid[r, c:c+w] = 1 # Top
         grid[r+h-1, c:c+w] = 1 # Bottom
         grid[r:r+h, c] = 1 # Left
         grid[r:r+h, c+w-1] = 1 # Right
+
+    def _draw_rectangle(self, grid: np.ndarray, rng: np.random.Generator):
+        rows, cols = self.grid_shape
+        h = rng.integers(3, rows + 1) # Min 3 to be hollow
+        w = rng.integers(3, cols + 1) # Min 3 to be hollow
+        r = rng.integers(0, rows - h + 1)
+        c = rng.integers(0, cols - w + 1)
+        self._draw_rectangle_exact(grid, r, c, h, w)
         
+    def _draw_bar_horizontal_exact(self, grid: np.ndarray, r: int, c: int, length: int):
+        grid[r, c:c+length] = 1
+
     def _draw_bar_horizontal(self, grid: np.ndarray, rng: np.random.Generator):
         rows, cols = self.grid_shape
         length = rng.integers(2, cols + 1)
         r = rng.integers(0, rows)
         c = rng.integers(0, cols - length + 1)
-        grid[r, c:c+length] = 1
+        self._draw_bar_horizontal_exact(grid, r, c, length)
             
+    def _draw_bar_vertical_exact(self, grid: np.ndarray, r: int, c: int, length: int):
+        grid[r:r+length, c] = 1
+
     def _draw_bar_vertical(self, grid: np.ndarray, rng: np.random.Generator):
         rows, cols = self.grid_shape
         length = rng.integers(2, rows + 1)
         r = rng.integers(0, rows - length + 1)
         c = rng.integers(0, cols)
-        grid[r:r+length, c] = 1
+        self._draw_bar_vertical_exact(grid, r, c, length)
 
-    def _draw_triangle(self, grid: np.ndarray, rng: np.random.Generator):
-        rows, cols = self.grid_shape
-        # Right triangle outline
-        base = rng.integers(3, min(rows, cols) + 1)
-        r = rng.integers(0, rows - base + 1)
-        c = rng.integers(0, cols - base + 1)
-        
-        direction = rng.choice(['bl', 'br', 'tl', 'tr'])
-        
+    def _draw_triangle_exact(self, grid: np.ndarray, r: int, c: int, base: int, direction: str):
         if direction == 'bl':
             grid[r:r+base, c] = 1 # Left leg
             grid[r+base-1, c:c+base] = 1 # Bottom leg
@@ -93,59 +91,66 @@ class BinaryShapesDataset(BinaryDataset):
             grid[r, c:c+base] = 1 # Top leg
             for i in range(base): grid[r+i, c+base-1-i] = 1
 
+    def _draw_triangle(self, grid: np.ndarray, rng: np.random.Generator):
+        rows, cols = self.grid_shape
+        # Right triangle outline
+        base = rng.integers(3, min(rows, cols) + 1)
+        r = rng.integers(0, rows - base + 1)
+        c = rng.integers(0, cols - base + 1)
+        direction = rng.choice(['bl', 'br', 'tl', 'tr'])
+        self._draw_triangle_exact(grid, r, c, base, direction)
+
+    def _draw_cross_exact(self, grid: np.ndarray, r_center: int, c_center: int, size: int):
+        grid[r_center, c_center - size // 2 : c_center + size // 2 + 1] = 1
+        grid[r_center - size // 2 : r_center + size // 2 + 1, c_center] = 1
+
     def _draw_cross(self, grid: np.ndarray, rng: np.random.Generator):
         rows, cols = self.grid_shape
         size = rng.integers(3, min(rows, cols) + 1)
         if size % 2 == 0:
             size -= 1 # Keep odd for perfect center intersection
-            
         r_center = rng.integers(size // 2, rows - size // 2)
         c_center = rng.integers(size // 2, cols - size // 2)
-        
-        # Two intersecting 1D lines
-        grid[r_center, c_center - size // 2 : c_center + size // 2 + 1] = 1
-        grid[r_center - size // 2 : r_center + size // 2 + 1, c_center] = 1
+        self._draw_cross_exact(grid, r_center, c_center, size)
+
+    def _draw_x_shape_exact(self, grid: np.ndarray, r_center: int, c_center: int, size: int):
+        for i in range(-size//2, size//2 + 1):
+            try:
+                grid[r_center + i, c_center + i] = 1
+                grid[r_center + i, c_center - i] = 1
+            except IndexError:
+                pass
 
     def _draw_x_shape(self, grid: np.ndarray, rng: np.random.Generator):
         rows, cols = self.grid_shape
         size = rng.integers(3, min(rows, cols) + 1)
         if size % 2 == 0:
             size -= 1
-            
         r_center = rng.integers(size // 2, rows - size // 2)
         c_center = rng.integers(size // 2, cols - size // 2)
-        
-        # Diagonal cross
-        for i in range(-size//2, size//2 + 1):
-            grid[r_center + i, c_center + i] = 1
-            grid[r_center + i, c_center - i] = 1
+        self._draw_x_shape_exact(grid, r_center, c_center, size)
+
+    def _draw_diamond_exact(self, grid: np.ndarray, r_center: int, c_center: int, size: int):
+        radius = size // 2
+        for i in range(radius + 1):
+            try:
+                grid[r_center - radius + i, c_center + i] = 1
+                grid[r_center + radius - i, c_center + i] = 1
+                grid[r_center - radius + i, c_center - i] = 1
+                grid[r_center + radius - i, c_center - i] = 1
+            except IndexError:
+                pass
 
     def _draw_diamond(self, grid: np.ndarray, rng: np.random.Generator):
         rows, cols = self.grid_shape
         size = rng.integers(3, min(rows, cols) + 1)
         if size % 2 == 0:
             size -= 1
-            
         r_center = rng.integers(size // 2, rows - size // 2)
         c_center = rng.integers(size // 2, cols - size // 2)
-        
-        radius = size // 2
-        for i in range(radius + 1):
-            grid[r_center - radius + i, c_center + i] = 1
-            grid[r_center + radius - i, c_center + i] = 1
-            grid[r_center - radius + i, c_center - i] = 1
-            grid[r_center + radius - i, c_center - i] = 1
+        self._draw_diamond_exact(grid, r_center, c_center, size)
 
-    def _draw_l_shape(self, grid: np.ndarray, rng: np.random.Generator):
-        rows, cols = self.grid_shape
-        h = rng.integers(3, rows + 1)
-        w = rng.integers(3, cols + 1)
-        
-        r = rng.integers(0, rows - h + 1)
-        c = rng.integers(0, cols - w + 1)
-        
-        direction = rng.choice(['bl', 'br', 'tl', 'tr'])
-        
+    def _draw_l_shape_exact(self, grid: np.ndarray, r: int, c: int, h: int, w: int, direction: str):
         if direction == 'bl':
             grid[r:r+h, c] = 1 # Vertical left
             grid[r+h-1, c:c+w] = 1 # Horizontal bottom
@@ -159,16 +164,16 @@ class BinaryShapesDataset(BinaryDataset):
             grid[r:r+h, c+w-1] = 1 # Vertical right
             grid[r, c:c+w] = 1 # Horizontal top
 
-    def _draw_u_shape(self, grid: np.ndarray, rng: np.random.Generator):
+    def _draw_l_shape(self, grid: np.ndarray, rng: np.random.Generator):
         rows, cols = self.grid_shape
         h = rng.integers(3, rows + 1)
         w = rng.integers(3, cols + 1)
-        
         r = rng.integers(0, rows - h + 1)
         c = rng.integers(0, cols - w + 1)
-        
-        direction = rng.choice(['up', 'down', 'left', 'right'])
-        
+        direction = rng.choice(['bl', 'br', 'tl', 'tr'])
+        self._draw_l_shape_exact(grid, r, c, h, w, direction)
+
+    def _draw_u_shape_exact(self, grid: np.ndarray, r: int, c: int, h: int, w: int, direction: str):
         if direction == 'up': # Open top
             grid[r:r+h, c] = 1 # Left 
             grid[r:r+h, c+w-1] = 1 # Right
@@ -186,17 +191,117 @@ class BinaryShapesDataset(BinaryDataset):
             grid[r+h-1, c:c+w] = 1
             grid[r:r+h, c+w-1] = 1 # Right
 
-    def generate(self, n_samples: int, seed: int = None) -> np.ndarray:
+    def _draw_u_shape(self, grid: np.ndarray, rng: np.random.Generator):
+        rows, cols = self.grid_shape
+        h = rng.integers(3, rows + 1)
+        w = rng.integers(3, cols + 1)
+        r = rng.integers(0, rows - h + 1)
+        c = rng.integers(0, cols - w + 1)
+        direction = rng.choice(['up', 'down', 'left', 'right'])
+        self._draw_u_shape_exact(grid, r, c, h, w, direction)
+
+    def _generate_all(self) -> np.ndarray:
+        rows, cols = self.grid_shape
+        all_grids = []
+
+        def add_grid(draw_fn, *args):
+            grid = np.zeros(self.grid_shape, dtype=np.int8)
+            draw_fn(grid, *args)
+            if np.any(grid):
+                all_grids.append(grid.flatten())
+
+        for shape_type in self.shape_types:
+            if shape_type == 'square':
+                max_side = min(rows, cols)
+                if max_side >= 3:
+                    for side in range(3, max_side + 1):
+                        for r in range(rows - side + 1):
+                            for c in range(cols - side + 1):
+                                add_grid(self._draw_square_exact, r, c, side)
+
+            elif shape_type == 'rectangle':
+                for h in range(3, rows + 1):
+                    for w in range(3, cols + 1):
+                        for r in range(rows - h + 1):
+                            for c in range(cols - w + 1):
+                                add_grid(self._draw_rectangle_exact, r, c, h, w)
+
+            elif shape_type == 'bar_horizontal':
+                for length in range(2, cols + 1):
+                    for r in range(rows):
+                        for c in range(cols - length + 1):
+                            add_grid(self._draw_bar_horizontal_exact, r, c, length)
+
+            elif shape_type == 'bar_vertical':
+                for length in range(2, rows + 1):
+                    for r in range(rows - length + 1):
+                        for c in range(cols):
+                            add_grid(self._draw_bar_vertical_exact, r, c, length)
+
+            elif shape_type == 'triangle':
+                max_base = min(rows, cols)
+                if max_base >= 3:
+                    for base in range(3, max_base + 1):
+                        for r in range(rows - base + 1):
+                            for c in range(cols - base + 1):
+                                for direction in ['bl', 'br', 'tl', 'tr']:
+                                    add_grid(self._draw_triangle_exact, r, c, base, direction)
+
+            elif shape_type in ['cross', 'diamond', 'x_shape']:
+                max_size = min(rows, cols)
+                if max_size >= 3:
+                    for size in range(3, max_size + 1):
+                        if size % 2 == 0:
+                            continue
+                        for r_center in range(size // 2, rows - size // 2):
+                            for c_center in range(size // 2, cols - size // 2):
+                                if shape_type == 'cross':
+                                    add_grid(self._draw_cross_exact, r_center, c_center, size)
+                                elif shape_type == 'diamond':
+                                    add_grid(self._draw_diamond_exact, r_center, c_center, size)
+                                elif shape_type == 'x_shape':
+                                    add_grid(self._draw_x_shape_exact, r_center, c_center, size)
+
+            elif shape_type == 'l_shape':
+                for h in range(3, rows + 1):
+                    for w in range(3, cols + 1):
+                        for r in range(rows - h + 1):
+                            for c in range(cols - w + 1):
+                                for direction in ['bl', 'br', 'tl', 'tr']:
+                                    add_grid(self._draw_l_shape_exact, r, c, h, w, direction)
+
+            elif shape_type == 'u_shape':
+                for h in range(3, rows + 1):
+                    for w in range(3, cols + 1):
+                        for r in range(rows - h + 1):
+                            for c in range(cols - w + 1):
+                                for direction in ['up', 'down', 'left', 'right']:
+                                    add_grid(self._draw_u_shape_exact, r, c, h, w, direction)
+
+        if not all_grids:
+            return np.zeros((0, self.N), dtype=np.int8)
+
+        # Remove duplicates (e.g. from square and rectangle overlaps, or identical configurations)
+        all_grids_np = np.stack(all_grids)
+        unique_grids = np.unique(all_grids_np, axis=0)
+        return unique_grids
+
+    def generate(self, n_samples: int = None, seed: int = None) -> np.ndarray:
         """
-        Generates n_samples by drawing exactly one hollow shape on 2D grids.
+        Generates binary strings representing exactly one hollow shape on a 2D grid.
+        If n_samples is None, generates all possible valid shapes exactly once.
 
         Args:
-            n_samples (int): Number of binary strings to generate.
+            n_samples (int, optional): Number of samples to generate. None for all possible.
             seed (int, optional): Random seed for reproducibility.
 
         Returns:
-            np.ndarray: Matrix of shape (n_samples, rows * cols) with elements 0 or 1.
+            np.ndarray: Matrix of shape (num_samples, rows * cols) with elements 0 or 1.
         """
+        if n_samples is None:
+            self.data = self._generate_all()
+            return self.data
+
         rng = np.random.default_rng(seed)
         data = np.zeros((n_samples, self.N), dtype=np.int8)
         
