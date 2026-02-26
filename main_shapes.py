@@ -1,14 +1,13 @@
-"""Ensemble boosting on BAS (Bars and Stripes) dataset."""
+"""Complete ensemble boosting on Binary Shapes dataset."""
 
 import iqpopt as iqp
 import iqpopt.gen_qml as gen
 from iqpopt.gen_qml.utils import median_heuristic
-from src.datasets.bas import BarsAndStripesDataset
+from src.datasets.shapes import BinaryShapesDataset
 from src.ensemble import BoostedEnsemble
 from src.reporting import (
-    report_metrics_table, get_plot_config, OutputManager, plot_data_ensemble_loss,
-    plot_metrics_progression, report_baseline, report_final, report_rejection,
-    report_step, report_gradient_snr
+    plot_data_ensemble_loss, report_metrics_table, get_plot_config, OutputManager, plot_metrics_progression,
+    report_gradient_snr, report_baseline, report_final, report_rejection, report_step
 )
 from src.core import (
     setup_iqp_circuit, sample_ensemble, evaluate_samples,
@@ -23,24 +22,24 @@ import matplotlib.pyplot as plt
 
 
 CONFIG = {
-    'dims': (3, 3),
-    'n_samples_train': 1000,
-    'data_seed': 321,
-    'sigma_factor': 0.4,
+    'grid_shape': (5, 5),
+    'n_samples_train': 500,
+    'data_seed': 42,
+    'sigma_factor': 0.01,
     'n_ops': 1000,
     'n_samples': 1000,
-    'n_models': 8,
+    'n_models': 4,
     'learning_rate': 0.01,
-    'epochs_per_step': 200,
+    'epochs_per_step': 100,
     'cache_ensemble_traces': False,
     'ensemble_samples_coeff': 1.0,
     'init_baseline': 'covariance',
     'init_later': 'random',
     'lambda_dual': 1.0,
     'weight_strategy': 'line_search',
-    'eval_samples': 1000,
-    'keep_models_for_diagnosis': False,  # Set True to keep all models regardless of MMD
-    'stop_on_reject': False,  # Set True to stop on first rejection
+    'eval_samples': 500,
+    'keep_models_for_diagnosis': True,
+    'stop_on_reject': False,
     'compute_kl': True,
     'rng_seed': 42,
 }
@@ -59,21 +58,24 @@ def main():
         print(f"  {key}: {value}")
     print("="*80)
     
-    dims = CONFIG['dims']
-    n_qubits = dims[0] * dims[1]
+    grid_shape = CONFIG['grid_shape']
+    n_qubits = grid_shape[0] * grid_shape[1]
     
-    # Create BAS dataset
-    bas_dataset = BarsAndStripesDataset(height=dims[0], width=dims[1])
-    x_train = bas_dataset.generate(n_samples=CONFIG['n_samples_train'], seed=CONFIG['data_seed'])
+    # Create Binary Shapes dataset
+    print("\nGenerating Binary Shapes data...")
+    shapes_dataset = BinaryShapesDataset(grid_shape=grid_shape)
+    x_train = shapes_dataset.generate(n_samples=CONFIG['n_samples_train'], seed=CONFIG['data_seed'])
+    print(f"Generated {len(x_train)} shapes samples, {x_train.shape[1]} qubits")
     
-    # Create BAS-specific validator functions
-    def bas_validity(samples):
-        return bas_dataset.validity_rate(samples)
+    # Create Shapes-specific validator functions
+    def shapes_validity(samples):
+        return shapes_dataset.validity_rate(samples)
     
-    def bas_coverage(ground_truth, samples):
-        return bas_dataset.coverage_rate(ground_truth, samples)
+    def shapes_coverage(ground_truth, samples):
+        return shapes_dataset.coverage_rate(ground_truth, samples)
     
-    circuit, gates, gate_desc = setup_iqp_circuit(n_qubits, topology='neighbour', distance=3, max_weight=2)
+    # circuit, gates, gate_desc = setup_iqp_circuit(n_qubits, topology='neighbour', distance=3, max_weight=2)
+    circuit, gates, gate_desc = setup_iqp_circuit(n_qubits, topology='local', max_weight=2)
     print(f"Gate structure: {gate_desc}")
     
     sigma_base = median_heuristic(x_train)
@@ -96,7 +98,7 @@ def main():
     eval_samples = CONFIG['eval_samples']
     rng = np.random.default_rng(0)
     baseline_samples = circuit.sample(trainer_baseline.final_params, shots=eval_samples)
-    baseline_stats = evaluate_samples(x_train, baseline_samples, sigma, bas_validity, bas_coverage,
+    baseline_stats = evaluate_samples(x_train, baseline_samples, sigma, shapes_validity, shapes_coverage,
                                      compute_kl=CONFIG['compute_kl'])
     print()
     report_baseline(baseline_stats['mmd'], baseline_stats)
@@ -116,7 +118,7 @@ def main():
                               stepsize=CONFIG['learning_rate'], monitor_interval=monitor_interval,
                               init_strategy=CONFIG['init_baseline'], turbo=10)
     ens_samples = sample_ensemble(ensemble, circuit, eval_samples, rng)
-    ens_stats = evaluate_samples(x_train, ens_samples, sigma, bas_validity, bas_coverage,
+    ens_stats = evaluate_samples(x_train, ens_samples, sigma, shapes_validity, shapes_coverage,
                                 compute_kl=CONFIG['compute_kl'])
     
     report_step(0, CONFIG['n_models'], ens_stats['mmd'])
@@ -155,7 +157,7 @@ def main():
         
         # Evaluate ensemble
         ens_samples = sample_ensemble(ensemble, circuit, eval_samples, rng)
-        ens_stats = evaluate_samples(x_train, ens_samples, sigma, bas_validity, bas_coverage,
+        ens_stats = evaluate_samples(x_train, ens_samples, sigma, shapes_validity, shapes_coverage,
                                 compute_kl=CONFIG['compute_kl'])
         
         # Check acceptance
@@ -214,7 +216,7 @@ def main():
             jax.clear_caches()
 
     final_ensemble_samples = sample_ensemble(ensemble, circuit, eval_samples, rng)
-    final_stats = evaluate_samples(x_train, final_ensemble_samples, sigma, bas_validity, bas_coverage,
+    final_stats = evaluate_samples(x_train, final_ensemble_samples, sigma, shapes_validity, shapes_coverage,
                                   compute_kl=CONFIG['compute_kl'])
     
     report_final(baseline_stats['mmd'], final_stats['mmd'], len(ensemble.models), final_stats)
@@ -225,66 +227,51 @@ def main():
     model_rows = []
     for i, model_params in enumerate(ensemble.models):
         model_samples = circuit.sample(model_params, shots=eval_samples)
-        model_stats = evaluate_samples(x_train, model_samples, sigma, bas_validity, bas_coverage,
+        model_stats = evaluate_samples(x_train, model_samples, sigma, shapes_validity, shapes_coverage,
                                       compute_kl=CONFIG['compute_kl'])
         model_rows.append((f"Model {i}", model_stats))
     
     report_metrics_table(baseline_stats, final_stats, model_rows, "FINAL MODEL COMPARISON")
 
+    # Plotting
     if get_plot_config()['plot_data_loss']:
-        # Pass baseline losses as-is (epochs 0 to len-1)
         plot_data_ensemble_loss(ensemble, ensemble_metrics_history, baseline_stats, output, 
                                 baseline_train_losses=base_losses, accepted_steps=accepted_steps,
                                 all_mmd_values=all_mmd_values, all_step_positions=all_step_positions)
-        
-        # Plot metrics progression (for BAS, use validity instead of f_score)
-        bas_metric_configs = [
+        # Plot metrics progression
+        shapes_metric_configs = [
             ('mmd', 'MMD²', 1, 'blue', 'o'),
             ('validity', 'Validity (%)', 100, 'green', 's'),
             ('coverage', 'Coverage (%)', 100, 'purple', '^'),
             ('kl', 'KL(data || model)', 1, 'orange', 'd'),
         ]
-        plot_metrics_progression(ensemble_metrics_history, baseline_stats, output, bas_metric_configs)
+        plot_metrics_progression(ensemble_metrics_history, baseline_stats, output, shapes_metric_configs)
+    
+    # Visualization of sample shapes from each model
+    print(f"\nGenerating shape visualizations...")
+    try:
+        n_models_to_show = min(3, len(ensemble.models))
+        fig, axes = plt.subplots(n_models_to_show, 4, figsize=(14, 4*n_models_to_show))
+        if n_models_to_show == 1:
+            axes = axes.reshape(1, -1)
         
-        # Plot 3: BAS Pattern Distribution (histogram of patterns)
-        fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-        
-        # Convert samples to pattern indices
-        def samples_to_indices(samples):
-            return np.array([int(''.join(map(str, s)), 2) for s in samples])
-        
-        gt_indices = samples_to_indices(x_train)
-        baseline_indices = samples_to_indices(baseline_samples)
-        ensemble_indices = samples_to_indices(final_ensemble_samples)
-        
-        n_bins = min(50, 2**n_qubits)  # Limit bins for readability
-        
-        # Ground truth histogram
-        axes[0].hist(gt_indices, bins=n_bins, color='blue', alpha=0.7, edgecolor='black')
-        axes[0].set_title('Ground Truth\nPattern Distribution')
-        axes[0].set_xlabel('Pattern Index')
-        axes[0].set_ylabel('Frequency')
-        axes[0].grid(True, alpha=0.3)
-        
-        # Baseline histogram
-        axes[1].hist(baseline_indices, bins=n_bins, color='purple', alpha=0.7, edgecolor='black')
-        axes[1].set_title('Baseline Model\nPattern Distribution')
-        axes[1].set_xlabel('Pattern Index')
-        axes[1].set_ylabel('Frequency')
-        axes[1].grid(True, alpha=0.3)
-        
-        # Final ensemble histogram
-        axes[2].hist(ensemble_indices, bins=n_bins, color='green', alpha=0.7, edgecolor='black')
-        axes[2].set_title('Final Ensemble\nPattern Distribution')
-        axes[2].set_xlabel('Pattern Index')
-        axes[2].set_ylabel('Frequency')
-        axes[2].grid(True, alpha=0.3)
+        for model_idx in range(n_models_to_show):
+            # Sample from this model
+            model_samples = circuit.sample(ensemble.models[model_idx], shots=eval_samples)
+            
+            # Show 4 random samples
+            indices = np.random.choice(len(model_samples), size=4, replace=False)
+            for i, sample_idx in enumerate(indices):
+                shapes_dataset.visualize(model_samples[sample_idx], ax=axes[model_idx, i])
+                axes[model_idx, i].set_title(f"Model {model_idx}\nSample {sample_idx}")
         
         plt.tight_layout()
-        plot_path = output.get_path('bas_distribution.pdf')
-        plt.savefig(plot_path, format='pdf', bbox_inches='tight')
-        print(f"Saved BAS distribution plot to: {plot_path}")
+        plot_path = output.get_path("shapes_samples.png")
+        plt.savefig(plot_path, format='png', bbox_inches='tight', dpi=100)
+        print(f"Saved shape samples visualization to: {plot_path}")
         plt.close()
+    except Exception as e:
+        print(f"Could not save shape visualization: {e}")
     
     # Close output manager
     output.__exit__(None, None, None)

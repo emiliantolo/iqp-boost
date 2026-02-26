@@ -1,9 +1,9 @@
-"""Ensemble boosting on BAS (Bars and Stripes) dataset."""
+"""Ensemble boosting on Parity dataset."""
 
 import iqpopt as iqp
 import iqpopt.gen_qml as gen
 from iqpopt.gen_qml.utils import median_heuristic
-from src.datasets.bas import BarsAndStripesDataset
+from src.datasets.parity import ParityDataset
 from src.ensemble import BoostedEnsemble
 from src.reporting import (
     report_metrics_table, get_plot_config, OutputManager, plot_data_ensemble_loss,
@@ -23,22 +23,22 @@ import matplotlib.pyplot as plt
 
 
 CONFIG = {
-    'dims': (3, 3),
-    'n_samples_train': 1000,
+    'dim': 6,
+    'n_samples_train': 2000,
     'data_seed': 321,
-    'sigma_factor': 0.4,
+    'sigma_factor': 0.01,
     'n_ops': 1000,
     'n_samples': 1000,
     'n_models': 8,
     'learning_rate': 0.01,
-    'epochs_per_step': 200,
+    'epochs_per_step': 250,
     'cache_ensemble_traces': False,
     'ensemble_samples_coeff': 1.0,
     'init_baseline': 'covariance',
-    'init_later': 'random',
+    'init_later': 'random',  # 'covariance' or 'random'
     'lambda_dual': 1.0,
     'weight_strategy': 'line_search',
-    'eval_samples': 1000,
+    'eval_samples': 2000,
     'keep_models_for_diagnosis': False,  # Set True to keep all models regardless of MMD
     'stop_on_reject': False,  # Set True to stop on first rejection
     'compute_kl': True,
@@ -59,26 +59,26 @@ def main():
         print(f"  {key}: {value}")
     print("="*80)
     
-    dims = CONFIG['dims']
-    n_qubits = dims[0] * dims[1]
+    dim = CONFIG['dim']
+    n_qubits = dim
     
-    # Create BAS dataset
-    bas_dataset = BarsAndStripesDataset(height=dims[0], width=dims[1])
-    x_train = bas_dataset.generate(n_samples=CONFIG['n_samples_train'], seed=CONFIG['data_seed'])
+    # Create Parity dataset
+    parity_dataset = ParityDataset(n_qubits=n_qubits)
+    x_train = parity_dataset.generate(n_samples=CONFIG['n_samples_train'], seed=CONFIG['data_seed'])
     
-    # Create BAS-specific validator functions
-    def bas_validity(samples):
-        return bas_dataset.validity_rate(samples)
+    # Create parity-specific validator functions
+    def parity_validity(samples):
+        return parity_dataset.validity_rate(samples)
     
-    def bas_coverage(ground_truth, samples):
-        return bas_dataset.coverage_rate(ground_truth, samples)
-    
+    def parity_coverage(ground_truth, samples):
+        return parity_dataset.coverage_rate(ground_truth, samples)
+
     circuit, gates, gate_desc = setup_iqp_circuit(n_qubits, topology='neighbour', distance=3, max_weight=2)
     print(f"Gate structure: {gate_desc}")
     
     sigma_base = median_heuristic(x_train)
     sigma = CONFIG['sigma_factor'] * sigma_base
-    print(f"sigma_base={sigma_base:.4f}, sigma={sigma:.4f}")
+    print(f"sigma_base={sigma_base:.8f}, sigma={sigma:.8f}")
 
     key = jax.random.PRNGKey(CONFIG['rng_seed'])
     epochs_base = CONFIG['epochs_per_step'] * CONFIG['n_models']
@@ -96,7 +96,7 @@ def main():
     eval_samples = CONFIG['eval_samples']
     rng = np.random.default_rng(0)
     baseline_samples = circuit.sample(trainer_baseline.final_params, shots=eval_samples)
-    baseline_stats = evaluate_samples(x_train, baseline_samples, sigma, bas_validity, bas_coverage,
+    baseline_stats = evaluate_samples(x_train, baseline_samples, sigma, parity_validity, parity_coverage,
                                      compute_kl=CONFIG['compute_kl'])
     print()
     report_baseline(baseline_stats['mmd'], baseline_stats)
@@ -107,7 +107,7 @@ def main():
         n_ops=CONFIG['n_ops'], n_samples=CONFIG['n_samples'],
         cache_ensemble_traces=CONFIG['cache_ensemble_traces'], 
         ensemble_samples_coeff=CONFIG['ensemble_samples_coeff'],
-        lambda_dual=CONFIG['lambda_dual'],
+        lambda_dual=CONFIG['lambda_dual']
     )
     print("Training ensemble...")
     eval_key = jax.random.PRNGKey(123)
@@ -116,7 +116,7 @@ def main():
                               stepsize=CONFIG['learning_rate'], monitor_interval=monitor_interval,
                               init_strategy=CONFIG['init_baseline'], turbo=10)
     ens_samples = sample_ensemble(ensemble, circuit, eval_samples, rng)
-    ens_stats = evaluate_samples(x_train, ens_samples, sigma, bas_validity, bas_coverage,
+    ens_stats = evaluate_samples(x_train, ens_samples, sigma, parity_validity, parity_coverage,
                                 compute_kl=CONFIG['compute_kl'])
     
     report_step(0, CONFIG['n_models'], ens_stats['mmd'])
@@ -146,8 +146,8 @@ def main():
         
         # All boosted models use init_later
         key = ensemble.step(ground_truth=x_train, key=key, steps=CONFIG['epochs_per_step'],
-                stepsize=CONFIG['learning_rate'], verbose=True,
-                monitor_interval=monitor_interval, init_strategy=CONFIG['init_later'])
+                    stepsize=CONFIG['learning_rate'], verbose=True,
+                    monitor_interval=monitor_interval, init_strategy=CONFIG['init_later'])
         
         # Optimize weights
         weight_strategy = CONFIG.get('weight_strategy', 'greedy')
@@ -155,7 +155,7 @@ def main():
         
         # Evaluate ensemble
         ens_samples = sample_ensemble(ensemble, circuit, eval_samples, rng)
-        ens_stats = evaluate_samples(x_train, ens_samples, sigma, bas_validity, bas_coverage,
+        ens_stats = evaluate_samples(x_train, ens_samples, sigma, parity_validity, parity_coverage,
                                 compute_kl=CONFIG['compute_kl'])
         
         # Check acceptance
@@ -214,7 +214,7 @@ def main():
             jax.clear_caches()
 
     final_ensemble_samples = sample_ensemble(ensemble, circuit, eval_samples, rng)
-    final_stats = evaluate_samples(x_train, final_ensemble_samples, sigma, bas_validity, bas_coverage,
+    final_stats = evaluate_samples(x_train, final_ensemble_samples, sigma, parity_validity, parity_coverage,
                                   compute_kl=CONFIG['compute_kl'])
     
     report_final(baseline_stats['mmd'], final_stats['mmd'], len(ensemble.models), final_stats)
@@ -225,7 +225,7 @@ def main():
     model_rows = []
     for i, model_params in enumerate(ensemble.models):
         model_samples = circuit.sample(model_params, shots=eval_samples)
-        model_stats = evaluate_samples(x_train, model_samples, sigma, bas_validity, bas_coverage,
+        model_stats = evaluate_samples(x_train, model_samples, sigma, parity_validity, parity_coverage,
                                       compute_kl=CONFIG['compute_kl'])
         model_rows.append((f"Model {i}", model_stats))
     
@@ -237,16 +237,16 @@ def main():
                                 baseline_train_losses=base_losses, accepted_steps=accepted_steps,
                                 all_mmd_values=all_mmd_values, all_step_positions=all_step_positions)
         
-        # Plot metrics progression (for BAS, use validity instead of f_score)
-        bas_metric_configs = [
+        # Plot metrics progression (for parity, use validity instead of f_score)
+        parity_metric_configs = [
             ('mmd', 'MMD²', 1, 'blue', 'o'),
             ('validity', 'Validity (%)', 100, 'green', 's'),
             ('coverage', 'Coverage (%)', 100, 'purple', '^'),
             ('kl', 'KL(data || model)', 1, 'orange', 'd'),
         ]
-        plot_metrics_progression(ensemble_metrics_history, baseline_stats, output, bas_metric_configs)
+        plot_metrics_progression(ensemble_metrics_history, baseline_stats, output, parity_metric_configs)
         
-        # Plot 3: BAS Pattern Distribution (histogram of patterns)
+        # Plot 3: Parity Pattern Distribution (histogram of patterns)
         fig, axes = plt.subplots(1, 3, figsize=(15, 4))
         
         # Convert samples to pattern indices
@@ -257,7 +257,7 @@ def main():
         baseline_indices = samples_to_indices(baseline_samples)
         ensemble_indices = samples_to_indices(final_ensemble_samples)
         
-        n_bins = min(50, 2**n_qubits)  # Limit bins for readability
+        n_bins = min(128, 2**n_qubits)  # Limit bins for readability
         
         # Ground truth histogram
         axes[0].hist(gt_indices, bins=n_bins, color='blue', alpha=0.7, edgecolor='black')
@@ -281,9 +281,9 @@ def main():
         axes[2].grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plot_path = output.get_path('bas_distribution.pdf')
+        plot_path = output.get_path('parity_distribution.pdf')
         plt.savefig(plot_path, format='pdf', bbox_inches='tight')
-        print(f"Saved BAS distribution plot to: {plot_path}")
+        print(f"Saved parity distribution plot to: {plot_path}")
         plt.close()
     
     # Close output manager
