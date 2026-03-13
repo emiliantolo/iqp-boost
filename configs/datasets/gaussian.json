@@ -1,0 +1,62 @@
+{
+  "output": {
+    "base_dir": "out",
+    "suite_name": "orig_gaussian"
+  },
+  "runs": [
+    {
+      "name": "gaussian",
+      "dataset": {
+        "name": "gaussian",
+        "params": {
+          "grid_size": 4,
+          "grid_bits": 4,
+          "spread": 0.3,
+          "separation": 3.0
+        }
+      },
+      "plot": {
+        "kind": "gaussian_summary",
+        "params": {
+          "filename": "ensemble_model_distributions.pdf"
+        }
+      },
+      "metric_configs": [
+        ["mmd", "MMD²", 1, "blue", "o"],
+        ["f_score", "F1 Score (%)", 100, "green", "s"],
+        ["coverage", "Coverage (%)", 100, "purple", "^"],
+        ["kl", "KL(data || model)", 1, "orange", "d"]
+      ],
+      "config": {
+        "dims": [4, 4],
+        "train_samples": 1000,
+        "data_seed": 42,
+        "n_samples": 1000,
+        "n_models": 16,
+        "learning_rate": 0.01,
+        "epochs_per_step": 250,
+        "caching_level": "none",
+        "ensemble_samples_coeff": 1.0,
+        "lambda_dual": 1.0,
+        "sigma_factor": [0.5],
+        "n_ops": 1000,
+        "weight_strategy": "line_search",
+        "baseline": "standalone",
+        "shots": 1000,
+        "keep_models_for_diagnosis": false,
+        "stop_on_reject": false,
+        "gaussian_separation": 3.0,
+        "gaussian_spread": 0.3,
+        "grid_bits": 4,
+        "init_baseline": "random",
+        "init_later": "random",
+        "rng_seed": 42,
+        "circuit_config": {
+          "topology": "random",
+          "n_gates": 16
+        },
+        "turbo": 10
+      }
+    }
+  ]
+}

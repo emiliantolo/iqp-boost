@@ -1,0 +1,51 @@
+{
+  "output": {
+    "base_dir": "out",
+    "suite_name": "orig_parity"
+  },
+  "runs": [
+    {
+      "name": "parity",
+      "dataset": {
+        "name": "parity",
+        "params": {
+          "n_qubits": 6
+        }
+      },
+      "plot": {
+        "kind": "histogram",
+        "params": {
+          "filename": "parity_distribution.pdf"
+        }
+      },
+      "config": {
+        "dim": 6,
+        "train_samples": 2000,
+        "data_seed": 321,
+        "n_samples": 1000,
+        "n_models": 8,
+        "learning_rate": 0.01,
+        "epochs_per_step": 250,
+        "caching_level": "none",
+        "ensemble_samples_coeff": 1.0,
+        "init_baseline": "covariance",
+        "init_later": "random",
+        "lambda_dual": 1.0,
+        "sigma_factor": 0.3,
+        "n_ops": 1000,
+        "weight_strategy": "line_search",
+        "baseline": "standalone",
+        "shots": 2000,
+        "keep_models_for_diagnosis": false,
+        "stop_on_reject": false,
+        "rng_seed": 42,
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 3,
+          "max_weight": 2
+        },
+        "turbo": 10
+      }
+    }
+  ]
+}

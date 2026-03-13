@@ -1,0 +1,51 @@
+{
+  "output": {
+    "base_dir": "out",
+    "suite_name": "orig_bas_3x3"
+  },
+  "runs": [
+    {
+      "name": "bas_3x3",
+      "dataset": {
+        "name": "bas",
+        "params": {
+          "dims": [3, 3]
+        }
+      },
+      "plot": {
+        "kind": "histogram",
+        "params": {
+          "filename": "bas_distribution.pdf"
+        }
+      },
+      "config": {
+        "dims": [3, 3],
+        "train_samples": 1000,
+        "data_seed": 321,
+        "n_samples": 1000,
+        "n_models": 10,
+        "learning_rate": 0.01,
+        "epochs_per_step": 250,
+        "caching_level": "none",
+        "ensemble_samples_coeff": 1.0,
+        "init_baseline": "covariance",
+        "init_later": "random",
+        "lambda_dual": 0.75,
+        "sigma_factor": [0.35],
+        "n_ops": 1000,
+        "weight_strategy": "line_search",
+        "baseline": "standalone",
+        "shots": 1000,
+        "keep_models_for_diagnosis": false,
+        "stop_on_reject": false,
+        "rng_seed": 42,
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 3,
+          "max_weight": 2
+        },
+        "turbo": 10
+      }
+    }
+  ]
+}

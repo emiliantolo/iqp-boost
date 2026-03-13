@@ -1,0 +1,54 @@
+{
+  "output": {
+    "base_dir": "out",
+    "suite_name": "orig_shapes"
+  },
+  "runs": [
+    {
+      "name": "shapes",
+      "dataset": {
+        "name": "shapes",
+        "params": {
+          "grid_shape": [5, 5]
+        }
+      },
+      "plot": {
+        "kind": "sample_grid",
+        "params": {
+          "filename": "shapes_samples.png",
+          "n_models_to_show": 3,
+          "samples_per_model": 4
+        }
+      },
+      "config": {
+        "grid_shape": [5, 5],
+        "train_samples": 1000,
+        "data_seed": 42,
+        "n_samples": 1000,
+        "n_models": 5,
+        "learning_rate": 0.1,
+        "epochs_per_step": 200,
+        "caching_level": "none",
+        "ensemble_samples_coeff": 1.0,
+        "init_baseline": "covariance",
+        "init_later": "random",
+        "lambda_dual": 1.0,
+        "sigma_factor": [0.1, 0.2, 0.3, 0.4, 0.5],
+        "n_ops": 10000,
+        "weight_strategy": "line_search",
+        "baseline": "standalone",
+        "shots": 1000,
+        "keep_models_for_diagnosis": true,
+        "stop_on_reject": false,
+        "rng_seed": 42,
+        "circuit_config": {
+          "topology": "local",
+          "max_weight": 2,
+          "n_ancilla": 0
+        },
+        "skip_sampling": true,
+        "turbo": 10
+      }
+    }
+  ]
+}

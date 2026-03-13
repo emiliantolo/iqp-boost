@@ -31,9 +31,6 @@ class GaussianMixtureDataset(BinaryDataset):
         self.grid_bits = grid_bits
         self.n_qubits = 2 * grid_bits
         
-        # Gaussian uses proximity-based validity, not exact membership
-        self._valid_patterns = set()  # Not used; marked to skip base class check
-        
         # Create grid of Gaussian centers
         self.centers = []
         for i in range(grid_size):
@@ -44,6 +41,7 @@ class GaussianMixtureDataset(BinaryDataset):
         
         # Normalization bounds (set during discretization)
         self._norm_bounds = None
+        self.pattern_to_clusters = {}  # Maps binary pattern to set of original cluster indices
 
     def generate(self, n_samples: int, seed: int = 0) -> np.ndarray:
         """
@@ -58,26 +56,42 @@ class GaussianMixtureDataset(BinaryDataset):
         """
         rng = np.random.default_rng(seed)
         
-        # Sample uniformly from each Gaussian
+        # Sample from each Gaussian
         n_gaussians = len(self.centers)
         samples_per_gaussian = n_samples // n_gaussians
         remainder = n_samples % n_gaussians
         
-        samples_2d = []
+        all_samples_2d = []
+        cluster_ids = []
         for idx, center in enumerate(self.centers):
             k = samples_per_gaussian + (1 if idx < remainder else 0)
             cluster_samples = rng.normal(center, self.spread, size=(k, 2))
-            samples_2d.append(cluster_samples)
+            all_samples_2d.append(cluster_samples)
+            cluster_ids.extend([idx] * k)
         
-        samples_2d = np.vstack(samples_2d)
+        samples_2d = np.vstack(all_samples_2d)
+        cluster_ids = np.array(cluster_ids)
+        
         perm = rng.permutation(len(samples_2d))
         samples_2d = samples_2d[perm]
+        cluster_ids = cluster_ids[perm]
         
         # Store continuous data for reference
         self.data_continuous = samples_2d
         
         # Discretize to binary
         self.data = self._discretize_to_binary(samples_2d)
+        
+        # Populate valid patterns and cluster mapping for discrete metrics
+        self._valid_patterns = set()
+        self.pattern_to_clusters = {}
+        for i in range(len(self.data)):
+            pat = tuple(self.data[i].astype(int))
+            self._valid_patterns.add(pat)
+            if pat not in self.pattern_to_clusters:
+                self.pattern_to_clusters[pat] = set()
+            self.pattern_to_clusters[pat].add(cluster_ids[i])
+            
         return self.data
 
     def _discretize_to_binary(self, samples_2d: np.ndarray) -> np.ndarray:
@@ -145,53 +159,30 @@ class GaussianMixtureDataset(BinaryDataset):
         
         return np.column_stack([x_data, y_data])
 
-    def validity_rate(self, samples: np.ndarray, threshold_std: float = 2.0) -> float:
+    def validity_rate(self, samples: np.ndarray) -> float:
         """
-        Measure how many samples are close to one of the true cluster centers.
-        
-        Args:
-            samples: Binary samples to validate
-            threshold_std: Distance threshold in standard deviations
-            
-        Returns:
-            Fraction of samples within threshold of any cluster center
+        Measure how many samples are valid discretized patterns 
+        (present in the training set).
         """
-        # Convert binary samples to continuous
-        samples_2d = self.binary_to_continuous(samples)
-        
-        # Compute distances to all centers
-        distances = np.linalg.norm(samples_2d[:, None, :] - self.centers[None, :, :], axis=2)
-        nearest_dist = np.min(distances, axis=1)
-        
-        threshold = threshold_std * self.spread
-        valid = np.sum(nearest_dist < threshold)
-        return valid / len(samples)
+        if self._valid_patterns is None:
+            return 0.0
+        return super().validity_rate(samples)
 
-    def coverage_rate(self, ground_truth: np.ndarray, samples: np.ndarray, 
-                     threshold_std: float = 2.0) -> float:
+    def coverage_rate(self, ground_truth: np.ndarray, samples: np.ndarray) -> float:
         """
-        Measure what fraction of the true Gaussian clusters are well-represented.
-        
-        Args:
-            ground_truth: Not used (coverage computed from true centers)
-            samples: Binary samples to evaluate
-            threshold_std: Distance threshold in standard deviations
-            
-        Returns:
-            Fraction of cluster centers that have samples nearby
+        Measure what fraction of the true Gaussian clusters (modes) 
+        are represented in the samples via discretized patterns.
         """
-        # Convert binary samples to continuous
-        samples_2d = self.binary_to_continuous(samples)
+        if len(samples) == 0:
+            return 0.0
         
-        threshold = threshold_std * self.spread
-        covered = 0
+        covered_clusters = set()
+        for s in samples:
+            pat = tuple(s.astype(int))
+            if pat in self.pattern_to_clusters:
+                covered_clusters.update(self.pattern_to_clusters[pat])
         
-        for center in self.centers:
-            distances = np.linalg.norm(samples_2d - center[None, :], axis=1)
-            if np.any(distances < threshold):
-                covered += 1
-        
-        return covered / len(self.centers)
+        return len(covered_clusters) / len(self.centers)
 
     def visualize(self, sample: np.ndarray, ax=None):
         """

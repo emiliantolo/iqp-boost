@@ -1,0 +1,79 @@
+{
+  "output": {
+    "base_dir": "out",
+    "suite_name": "bas3x3_blobs_suite"
+  },
+  "defaults": {
+    "train_samples": 1000,
+    "data_seed": 321,
+    "n_samples": 1000,
+    "n_models": 10,
+    "learning_rate": 0.01,
+    "epochs_per_step": 250,
+    "caching_level": "none",
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_dual": 1.0,
+    "sigma_factor": [0.35],
+    "n_ops": 1000,
+    "weight_strategy": "line_search",
+    "baseline": ["standalone", "data_only"],
+    "shots": 1000,
+    "acceptance_metric": "training_mmd",
+    "keep_models_for_diagnosis": false,
+    "stop_on_reject": false,
+    "rng_seed": 42,
+    "circuit_config": {
+      "topology": "neighbour",
+      "distance": 2,
+      "max_weight": 2
+    },
+    "turbo": 10
+  },
+  "runs": [
+    {
+      "name": "bas_3x3",
+      "dataset": {
+        "name": "bas",
+        "params": {
+          "dims": [3, 3]
+        }
+      },
+      "plot": {
+        "kind": "histogram",
+        "params": {
+          "filename": "bas_distribution.pdf"
+        }
+      },
+      "config": {
+        "dims": [3, 3],
+        "n_models": 32,
+        "learning_rate": 0.01,
+        "epochs_per_step": 250,
+        "sigma_factor": [0.4]
+      }
+    },
+    {
+      "name": "blobs",
+      "dataset": {
+        "name": "blobs"
+      },
+      "plot": {
+        "kind": "sample_grid",
+        "params": {
+          "n_models_to_show": 4,
+          "samples_per_model": 4,
+          "filename": "blobs_samples.png"
+        }
+      },
+      "config": {
+        "dims": [4, 4],
+        "learning_rate": 0.025,
+        "n_samples": 2000,
+        "n_models": 32,
+        "epochs_per_step": 200,
+        "sigma_factor": [0.75]
+      }
+    }
+  ]
+}
