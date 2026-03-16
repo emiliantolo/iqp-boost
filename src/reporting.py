@@ -84,14 +84,16 @@ def report_circuit(gate_desc: str):
 
 def save_circuit_plot(circuit, output_manager, filename: str = 'circuit_structure.pdf'):
     """Save a PennyLane-rendered plot of the IQP circuit."""
-    init_coefs = np.zeros(len(circuit.init_gates)) if circuit.init_gates else None
-    fig, _ = qml.draw_mpl(
-        lambda params: circuit.iqp_circuit(params, init_coefs)
-    )(jnp.zeros(circuit.n_gates))
-    plot_path = output_manager.get_path(filename)
-    fig.savefig(plot_path, format='pdf', bbox_inches='tight', dpi=150)
-    print(f"Saved circuit structure plot to: {plot_path}")
-
+    try:
+        init_coefs = np.zeros(len(circuit.init_gates)) if circuit.init_gates else None
+        fig, _ = qml.draw_mpl(
+            lambda params: circuit.iqp_circuit(params, init_coefs)
+        )(jnp.zeros(circuit.n_gates))
+        plot_path = output_manager.get_path(filename)
+        fig.savefig(plot_path, format='pdf', bbox_inches='tight', dpi=150)
+        print(f"Saved circuit structure plot to: {plot_path}")
+    except Exception as e:
+        print(f"Failed to save circuit plot: {e}")
 
 def report_kernel(sigma: float | list, n_ops: int, n_qubits: int):
     """Report kernel configuration."""
@@ -104,7 +106,7 @@ def report_kernel(sigma: float | list, n_ops: int, n_qubits: int):
     var_between = (n_qubits ** 2) * np.var(ps)
     print("Expected sampled operator size:")
     for p in ps:
-        print(f"  - p={n_qubits * p:.6f}, std={n_qubits * np.sqrt(p * (1 - p)):.6f}")
+        print(f"  - p={n_qubits * p:.6f}, std={np.sqrt(n_qubits * p * (1 - p)):.6f}")
     print(f"  mean: {n_qubits * ps.mean():.6f}")
     print(f"  std: {np.sqrt(var_within + var_between):.6f}")
 
