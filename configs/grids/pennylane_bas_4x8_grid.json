@@ -1,0 +1,851 @@
+{
+    "output": {
+        "base_dir": "out",
+        "suite_name": "pennylane_bas_4x8_grid"
+    },
+    "defaults": {
+        "train_samples": 500,
+        "data_seed": 42,
+        "model_type": 0,
+        "n_layers": 3,
+        "loss_type": "MMD",
+        "loss_params": {
+            "kernel": "rbf",
+            "sigma": 1.0
+        },
+        "sigma": 1.0,
+        "boosting_stages": 50,
+        "base_samples": 500,
+        "global_seed": 42
+    },
+    "runs": [
+        {
+            "name": "star_expanded_lr0.01_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "star_expanded_lr0.01_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "star_expanded_lr0.01_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "star_expanded_lr0.05_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "star_expanded_lr0.05_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "star_expanded_lr0.05_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "star_expanded_lr0.1_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "star_expanded_lr0.1_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "star_expanded_lr0.1_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "star_joint_lr0.01_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "star_joint_lr0.01_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "star_joint_lr0.01_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "star_joint_lr0.05_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "star_joint_lr0.05_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "star_joint_lr0.05_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "star_joint_lr0.1_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "star_joint_lr0.1_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "star_joint_lr0.1_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "star",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "ring_expanded_lr0.01_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "ring_expanded_lr0.01_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "ring_expanded_lr0.01_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "ring_expanded_lr0.05_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "ring_expanded_lr0.05_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "ring_expanded_lr0.05_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "ring_expanded_lr0.1_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "ring_expanded_lr0.1_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "ring_expanded_lr0.1_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "expanded",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "ring_joint_lr0.01_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "ring_joint_lr0.01_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "ring_joint_lr0.01_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.01,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "ring_joint_lr0.05_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "ring_joint_lr0.05_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "ring_joint_lr0.05_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.05,
+                "sampling_proportion": 0.8
+            }
+        },
+        {
+            "name": "ring_joint_lr0.1_sp0.3",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.3
+            }
+        },
+        {
+            "name": "ring_joint_lr0.1_sp0.5",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.5
+            }
+        },
+        {
+            "name": "ring_joint_lr0.1_sp0.8",
+            "dataset": {
+                "name": "pennylane_bas",
+                "params": {
+                    "dims": [
+                        4,
+                        8
+                    ]
+                }
+            },
+            "config": {
+                "circuit_config": {
+                    "topology": "ring",
+                    "ancilla_topology_mode": "joint",
+                    "n_ancilla": 0,
+                    "distance": 1,
+                    "max_weight": 2
+                },
+                "learning_rate": 0.1,
+                "sampling_proportion": 0.8
+            }
+        }
+    ]
+}
