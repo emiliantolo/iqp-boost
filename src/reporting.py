@@ -24,17 +24,25 @@ def set_plot_config(config_dict: dict):
 
 def report_step(step: int, n_models: int,
                 training_mmd: float = None, sampled_mmd: float = None,
-                data_loss: float = None, ens_loss: float = None):
+                sampled_tvd: float = None,
+                data_loss: float = None, ens_loss: float = None,
+                alpha_opt: float = None, oracle_tvd: float = None):
     """Report single boosting step result."""
     parts = [f"[Step {step}/{n_models-1}]"]
     if training_mmd is not None:
         parts.append(f"train_MMD={training_mmd:.4f}")
     if sampled_mmd is not None:
         parts.append(f"sample_MMD={sampled_mmd:.4f}")
+    if sampled_tvd is not None:
+        parts.append(f"TVD={sampled_tvd:.4f}")
     if data_loss is not None:
         parts.append(f"data={data_loss:.4f}")
     if ens_loss is not None:
         parts.append(f"ens={ens_loss:.4f}")
+    if alpha_opt is not None:
+        parts.append(f"alpha_opt={alpha_opt:.4f}")
+    if oracle_tvd is not None:
+        parts.append(f"oracle_top{step+1}_TVD={oracle_tvd:.4f}")
     print("  " + " ".join(parts))
 
 
@@ -84,6 +92,7 @@ def report_circuit(gate_desc: str):
 
 def save_circuit_plot(circuit, output_manager, filename: str = 'circuit_structure.pdf'):
     """Save a PennyLane-rendered plot of the IQP circuit."""
+    fig = None
     try:
         init_coefs = np.zeros(len(circuit.init_gates)) if circuit.init_gates else None
         fig, _ = qml.draw_mpl(
@@ -94,6 +103,9 @@ def save_circuit_plot(circuit, output_manager, filename: str = 'circuit_structur
         print(f"Saved circuit structure plot to: {plot_path}")
     except Exception as e:
         print(f"Failed to save circuit plot: {e}")
+    finally:
+        if fig is not None:
+            plt.close(fig)
 
 def report_kernel(sigma: float | list, n_ops: int, n_qubits: int):
     """Report kernel configuration."""
@@ -157,6 +169,9 @@ def report_metrics_table(baseline_stats: dict, ensemble_stats: dict, model_list:
         if key not in stats or stats[key] is None:
             return "n/a"
         value = stats[key]
+        import math
+        if isinstance(value, float) and math.isnan(value):
+            return "n/a"
         if mode == 'float4':
             return f"{value:.4f}"
         if mode == 'float3':
@@ -336,7 +351,7 @@ def plot_data_ensemble_loss(ensemble, ensemble_metrics_history, baseline_stats, 
         
         ax.set_xlabel("Epoch (cumulative)")
         ax.set_ylabel("Loss")
-        ax.set_title("Dual MMD Losses (▲ data, ▼ ensemble)")
+        ax.set_title("Dual MMD Losses (^ data, v ensemble)")
         ax.grid(True, alpha=0.2)
         ax.legend(loc='best', fontsize='small')
     

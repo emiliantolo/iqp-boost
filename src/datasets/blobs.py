@@ -87,16 +87,6 @@ class BlobsDataset(BinaryDataset):
 
     def coverage_rate(self, ground_truth: np.ndarray, samples: np.ndarray) -> float:
         """
-        Compute what fraction of the modes (cluster labels) are well-represented
-        in the generated samples.
+        Compute coverage over unique valid bitstrings (support coverage).
         """
-        if len(samples) == 0:
-            return 0.0
-            
-        covered_labels = set()
-        for s in samples:
-            t = tuple(s.astype(int))
-            if t in self.pattern_to_label:
-                covered_labels.add(self.pattern_to_label[t])
-                
-        return len(covered_labels) / len(self.unique_labels)
+        return super().coverage_rate(ground_truth, samples)

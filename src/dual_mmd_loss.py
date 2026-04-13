@@ -250,14 +250,20 @@ def dual_mmd_loss(params: jnp.ndarray, iqp_circuit: IqpSimulator, ground_truth: 
                 ensemble_terms.ops[sigma_idx] = (all_ops, visible_ops)
 
         # 2. Weighted ensemble targets
-        key, subkey = jax.random.split(key, 2)
-        tr_ens, corr_ens, term_ens_ens = _weighted_ensemble(
-            ensemble_terms, weights, sigma_idx, n_samples,
-            stochastic_ops=stochastic_ops, ensemble_models=ensemble_models,
-            iqp_circuit=iqp_circuit, all_ops=all_ops, key=subkey, 
-            init_coefs=init_coefs, indep_estimates=indep_estimates,
-            max_batch_ops=max_batch_ops, max_batch_samples=max_batch_samples
-        )
+        if len(weights) > 0:
+            key, subkey = jax.random.split(key, 2)
+            tr_ens, corr_ens, term_ens_ens = _weighted_ensemble(
+                ensemble_terms, weights, sigma_idx, n_samples,
+                stochastic_ops=stochastic_ops, ensemble_models=ensemble_models,
+                iqp_circuit=iqp_circuit, all_ops=all_ops, key=subkey, 
+                init_coefs=init_coefs, indep_estimates=indep_estimates,
+                max_batch_ops=max_batch_ops, max_batch_samples=max_batch_samples
+            )
+        else:
+            n_ops_cur = all_ops.shape[0]
+            tr_ens = jnp.zeros(n_ops_cur)
+            corr_ens = jnp.zeros(n_ops_cur)
+            term_ens_ens = jnp.float64(0.0)
 
         if return_traces:
             key, subkey = jax.random.split(key, 2)

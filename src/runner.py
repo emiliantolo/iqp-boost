@@ -11,7 +11,7 @@ from src.reporting import (
     report_loss_components, report_acceptance, save_circuit_plot
 )
 from src.core import (
-    setup_iqp_circuit, get_params_init
+    setup_iqp_circuit, get_params_init, compute_lambda_schedule
 )
 from src.utils import compute_mmd, compute_kl_divergence, compute_metrics, compute_precision_recall_f1, compute_jsd, compute_tvd
 from src.dual_mmd_loss import gradient_snr, dual_mmd_loss, EnsembleTerms
@@ -21,19 +21,26 @@ import gc
 
 
 def evaluate_samples(ground_truth: np.ndarray, samples: np.ndarray, sigma: float | list,
-                     validity_fn: callable, coverage_fn: callable) -> dict:
-    """Evaluate all metrics: MMD, KL, validity, coverage, precision, recall, F1."""
+                     validity_fn: callable = None, coverage_fn: callable = None) -> dict:
+    """Evaluate all metrics: MMD, KL, validity, coverage, precision, recall, F1.
+
+    When validity_fn / coverage_fn are None (e.g. for datasets where
+    validity is not meaningful) those metrics and F1 are reported as NaN.
+    """
     mmd = compute_mmd(ground_truth, samples, sigma)
 
-    # Use the first sigma for precision computation
-    sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
-    precision_sigma = sigmas[0]
-
-    metrics = compute_metrics(ground_truth, samples, validity_fn, coverage_fn)
-    prf_metrics = compute_precision_recall_f1(ground_truth, samples, precision_sigma)
     kl = compute_kl_divergence(ground_truth, samples)
     jsd = compute_jsd(ground_truth, samples)
     tvd = compute_tvd(ground_truth, samples)
+
+    if validity_fn is not None and coverage_fn is not None:
+        metrics = compute_metrics(ground_truth, samples, validity_fn, coverage_fn)
+        sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
+        prf_metrics = compute_precision_recall_f1(ground_truth, samples, sigmas[0])
+    else:
+        metrics = {'validity_rate': float('nan'), 'coverage': float('nan')}
+        prf_metrics = {'precision': float('nan'), 'recall': float('nan'),
+                       'support_match': float('nan'), 'f_score': float('nan')}
 
     return {
         'mmd': mmd,
@@ -211,7 +218,9 @@ def train_ensemble_model_0(ensemble: BoostedEnsemble, x_train: np.ndarray, key: 
 
 def train_boosting_step(ensemble: BoostedEnsemble, x_train: np.ndarray, key: jax.Array,
                         config: dict, monitor_interval: int | None, turbo_opt: int | None,
-                        snapshot: dict, rng: np.random.Generator) -> tuple:
+                        snapshot: dict, step: int = 0,
+                        validity_fn: callable = None,
+                        coverage_fn: callable = None) -> tuple:
     """Train a new model in the context of the existing ensemble."""
     key, step_key = jax.random.split(key)
     step_key, init_key = jax.random.split(step_key)
@@ -288,12 +297,38 @@ def train_boosting_step(ensemble: BoostedEnsemble, x_train: np.ndarray, key: jax
         n_data=len(x_train),
     )
 
+    # Sample-based strategies (TVD / validity / coverage) need samples drawn from
+    # the OLD ensemble and from the new model *before* add_model() mutates the ensemble.
+    # Use a separate step-derived RNG so weight search sampling doesn't consume
+    # the evaluation RNG (which would cause metric fluctuations between steps).
+    weight_strategy = config.get('weight_strategy', 'greedy')
+    alpha_n_grid = int(config.get('alpha_n_grid', 11))
+    alpha_objective_weight = float(config.get('alpha_objective_weight', 0.5))
+    _sample_based = {'tvd_line_search', 'validity_line_search', 'coverage_line_search', 'sum_line_search'}
+    samples_old_for_search = None
+    samples_new_for_search = None
+    if weight_strategy in _sample_based and ensemble.models:
+        search_rng = np.random.default_rng(config.get('rng_seed', 0) + step * 7919)
+        n_shots_search = int(config.get('shots', 1000))
+        samples_old_for_search = ensemble.sample(n_shots_search, search_rng)
+        # Backward-compatible sampling: older simulator versions don't accept
+        # a `wires` keyword, so sample full register and slice visible wires.
+        try:
+            samples_new_for_search = ensemble.iqp_circuit.sample(
+                trainer.final_params, shots=n_shots_search, wires=ensemble.wires
+            )
+        except TypeError:
+            samples_new_for_search = ensemble.iqp_circuit.sample(
+                trainer.final_params, shots=n_shots_search
+            )
+        if ensemble.wires is not None and samples_new_for_search.shape[1] != len(ensemble.wires):
+            samples_new_for_search = samples_new_for_search[:, ensemble.wires]
+
     key, subkey = jax.random.split(key, 2)
     alpha_initial = ensemble.add_model(trainer.final_params, subkey)
 
     # Apply Weight Strategy
     alpha = alpha_initial
-    weight_strategy = config.get('weight_strategy', 'greedy')
     if weight_strategy == 'line_search':
         alpha = ensemble.apply_weight_strategy('line_search',
                                              trs_old=traces.get('trs_ens'),
@@ -302,6 +337,33 @@ def train_boosting_step(ensemble: BoostedEnsemble, x_train: np.ndarray, key: jax
                                              trs_corr_old=traces.get('trs_corr_ens'),
                                              trs_corr_new=traces.get('trs_corr_iqp'),
                                              ground_truth=x_train)
+    elif weight_strategy == 'tvd_line_search':
+        alpha = ensemble.apply_weight_strategy('tvd_line_search',
+                                             samples_old=samples_old_for_search,
+                                             samples_new=samples_new_for_search,
+                                             ground_truth=x_train)
+    elif weight_strategy == 'validity_line_search':
+        alpha = ensemble.apply_weight_strategy('validity_line_search',
+                                             samples_old=samples_old_for_search,
+                                             samples_new=samples_new_for_search,
+                                             validity_fn=validity_fn,
+                                             alpha_n_grid=alpha_n_grid)
+    elif weight_strategy == 'coverage_line_search':
+        alpha = ensemble.apply_weight_strategy('coverage_line_search',
+                                             samples_old=samples_old_for_search,
+                                             samples_new=samples_new_for_search,
+                                             ground_truth=x_train,
+                                             coverage_fn=coverage_fn,
+                                             alpha_n_grid=alpha_n_grid)
+    elif weight_strategy == 'sum_line_search':
+        alpha = ensemble.apply_weight_strategy('sum_line_search',
+                                             samples_old=samples_old_for_search,
+                                             samples_new=samples_new_for_search,
+                                             ground_truth=x_train,
+                                             validity_fn=validity_fn,
+                                             coverage_fn=coverage_fn,
+                                             alpha_n_grid=alpha_n_grid,
+                                             validity_weight=alpha_objective_weight)
     elif weight_strategy == 'fully_corrective':
         alpha = ensemble.apply_weight_strategy('fully_corrective',
                                              trs_data=traces.get('trs_data'))
@@ -334,6 +396,7 @@ def run_data_only_ensemble_baseline(
     monitor_interval: int | None,
     turbo_opt: int | None,
     skip_sampling: bool,
+    final_eval_sampling: bool,
     acceptance_metric: str,
     min_alpha_accept: float,
     validity_fn: callable,
@@ -358,8 +421,7 @@ def run_data_only_ensemble_baseline(
         max_batch_samples=config.get('max_batch_samples', None),
     )
 
-    # Use the same sampling RNG policy as the boosting run for comparable evaluation noise.
-    rng = np.random.default_rng(0)
+    rng_seed = int(cfg.get('rng_seed', 0))
 
     key, trainer_m0, alpha_0 = train_ensemble_model_0(ensemble, x_train, key, cfg, monitor_interval, turbo_opt)
     m0_training_mmd = compute_ensemble_training_mmd(ensemble, x_train)
@@ -367,8 +429,17 @@ def run_data_only_ensemble_baseline(
     if skip_sampling:
         ens_stats = {'mmd': m0_training_mmd}
     else:
-        ens_samples = ensemble.sample(shots, rng)
+        eval_rng = np.random.default_rng(rng_seed)
+        ens_samples = ensemble.sample(shots, eval_rng)
         ens_stats = evaluate_samples(x_train, ens_samples, sigma, validity_fn, coverage_fn)
+
+    report_step(
+        0,
+        n_models,
+        training_mmd=m0_training_mmd,
+        sampled_mmd=ens_stats['mmd'] if not skip_sampling else None,
+        alpha_opt=alpha_0,
+    )
 
     history = {k: [v] for k, v in ens_stats.items()}
     history['step'] = [0]
@@ -382,10 +453,12 @@ def run_data_only_ensemble_baseline(
         print(f"[Data-only Step {step}] Training Model {step}...")
         snapshot = ensemble.snapshot_state()
 
-        key, alpha = train_boosting_step(ensemble, x_train, key, cfg, monitor_interval, turbo_opt, snapshot, rng)
+        key, alpha = train_boosting_step(ensemble, x_train, key, cfg, monitor_interval, turbo_opt,
+                                          snapshot, step=step,
+                                          validity_fn=validity_fn, coverage_fn=coverage_fn)
 
         if alpha <= min_alpha_accept:
-            print(f"  [Data-only Step {step}] REJECTED (alpha={alpha:.3e} <= {min_alpha_accept:.1e})")
+            print(f"  [Data-only Step {step}] REJECTED (alpha_opt={alpha:.3e} <= {min_alpha_accept:.1e})")
             ensemble.restore_state(snapshot)
             continue
 
@@ -393,8 +466,17 @@ def run_data_only_ensemble_baseline(
         if skip_sampling:
             ens_stats = {'mmd': mixture_training_mmd}
         else:
-            ens_samples = ensemble.sample(shots, rng)
+            eval_rng = np.random.default_rng(rng_seed + step * 7919)
+            ens_samples = ensemble.sample(shots, eval_rng)
             ens_stats = evaluate_samples(x_train, ens_samples, sigma, validity_fn, coverage_fn)
+
+        report_step(
+            step,
+            n_models,
+            training_mmd=mixture_training_mmd,
+            sampled_mmd=ens_stats['mmd'] if not skip_sampling else None,
+            alpha_opt=alpha,
+        )
 
         if acceptance_metric == 'training_mmd':
             current_accept_metric = mixture_training_mmd
@@ -429,10 +511,11 @@ def run_data_only_ensemble_baseline(
         prev_ens_stats = ens_stats
         prev_training_mmd = mixture_training_mmd
 
-    if skip_sampling:
+    if skip_sampling and not final_eval_sampling:
         final_stats = {'mmd': history['training_loss'][-1] if history['training_loss'] else float('nan')}
     else:
-        final_samples = ensemble.sample(shots, rng)
+        final_eval_rng = np.random.default_rng(rng_seed + n_models * 7919)
+        final_samples = ensemble.sample(shots, final_eval_rng)
         final_stats = evaluate_samples(x_train, final_samples, sigma, validity_fn, coverage_fn)
 
     return key, ensemble, history, final_stats
@@ -467,6 +550,7 @@ def run_boosting_experiment(
     validity_fn: callable,
     coverage_fn: callable,
     custom_viz_fn: callable = None,
+    top_k_tvd_fn: callable = None,
     metric_configs: list = None,
     baseline_epochs: int | None = None,
     output_base_dir: str = 'out',
@@ -521,13 +605,14 @@ def run_boosting_experiment(
         report_kernel(sigma, n_ops, n_qubits)
 
         key = jax.random.PRNGKey(config['rng_seed'])
+        rng_seed = int(config['rng_seed'])
 
         plot_cfg = get_plot_config()
         monitor_interval = plot_cfg['plot_interval'] if plot_cfg['plot_data_loss'] else None
         turbo_opt = config.get('turbo', None)
-
-        rng = np.random.default_rng(0)
         skip_sampling = config.get('skip_sampling', False)
+        final_eval_sampling = bool(config.get('final_eval_sampling', False))
+        final_sampling_enabled = (not skip_sampling) or final_eval_sampling
         sampling_enabled = not skip_sampling
         min_alpha_accept = float(config.get('min_alpha_accept', 1e-10))
         acceptance_metric = config.get(
@@ -561,14 +646,17 @@ def run_boosting_experiment(
             baseline_train_losses = getattr(trainer_base, "losses", [])
             baseline_final_loss = float(baseline_train_losses[-1]) if len(baseline_train_losses) > 0 else float('nan')
 
-            if skip_sampling:
+            if not final_sampling_enabled:
                 print(f"  [skip_sampling=True] Skipping baseline state vector evaluation. Using training loss: {baseline_final_loss:.6f}")
                 baseline_samples = None
                 standalone_stats = {'mmd': baseline_final_loss, 'training_loss': baseline_final_loss}
                 report_baseline(baseline_final_loss, standalone_stats)
             else:
-                baseline_samples = circuit.sample(baseline_params, shots=shots)
-                if wires is not None:
+                try:
+                    baseline_samples = circuit.sample(baseline_params, shots=shots, wires=wires)
+                except TypeError:
+                    baseline_samples = circuit.sample(baseline_params, shots=shots)
+                if wires is not None and baseline_samples.shape[1] != len(wires):
                     baseline_samples = baseline_samples[:, wires]
                 standalone_stats = evaluate_samples(x_train, baseline_samples, sigma, validity_fn, coverage_fn)
                 standalone_stats['training_loss'] = baseline_final_loss
@@ -591,6 +679,7 @@ def run_boosting_experiment(
                 monitor_interval=monitor_interval,
                 turbo_opt=turbo_opt,
                 skip_sampling=skip_sampling,
+                final_eval_sampling=final_eval_sampling,
                 acceptance_metric=acceptance_metric,
                 min_alpha_accept=min_alpha_accept,
                 validity_fn=validity_fn,
@@ -621,7 +710,8 @@ def run_boosting_experiment(
             ens_samples = None
             ens_stats = {'mmd': m0_training_mmd}
         else:
-            ens_samples = ensemble.sample(shots, rng)
+            eval_rng = np.random.default_rng(rng_seed)
+            ens_samples = ensemble.sample(shots, eval_rng)
             ens_stats = evaluate_samples(x_train, ens_samples, sigma, validity_fn, coverage_fn)
 
         report_step(
@@ -629,6 +719,9 @@ def run_boosting_experiment(
             config['n_models'],
             training_mmd=m0_training_mmd,
             sampled_mmd=ens_stats['mmd'] if sampling_enabled else None,
+            sampled_tvd=ens_stats.get('tvd') if sampling_enabled else None,
+            alpha_opt=alpha_0,
+            oracle_tvd=top_k_tvd_fn(1) if top_k_tvd_fn else None,
         )
         prev_ens_stats = ens_stats
         prev_training_mmd = m0_training_mmd
@@ -642,15 +735,26 @@ def run_boosting_experiment(
         # 5. Boosting Loop (Model 1, 2, ...)
         for step in range(1, config['n_models']):
             print(f"\n[Step {step}] Training Model {step}...")
+
+            # Apply lambda annealing schedule if configured
+            current_lambda = compute_lambda_schedule(
+                step, config['n_models'],
+                base_lambda=config.get('lambda_dual', 1.0),
+                schedule=config.get('lambda_schedule', None),
+            )
+            if current_lambda != ensemble.lambda_dual:
+                ensemble.lambda_dual = current_lambda
+                print(f"  lambda_dual: {current_lambda:.4f}")
+
             snapshot = ensemble.snapshot_state()
 
             key, alpha = train_boosting_step(ensemble, x_train, key, config, monitor_interval, turbo_opt,
-                                            snapshot, rng)
+                                            snapshot, step=step, validity_fn=validity_fn, coverage_fn=coverage_fn)
 
             # Zero-weight models do not change the mixture; reject early to avoid
             # sample-noise acceptance and empty per-model sample rows.
             if alpha <= min_alpha_accept:
-                print(f"  [Step {step}] REJECTED (alpha={alpha:.3e} <= {min_alpha_accept:.1e})")
+                print(f"  [Step {step}] REJECTED (alpha_opt={alpha:.3e} <= {min_alpha_accept:.1e})")
                 ensemble.restore_state(snapshot)
                 continue
 
@@ -661,7 +765,8 @@ def run_boosting_experiment(
                 ens_samples = None
                 ens_stats = {'mmd': mixture_training_mmd}
             else:
-                ens_samples = ensemble.sample(shots, rng)
+                eval_rng = np.random.default_rng(rng_seed + step * 7919)
+                ens_samples = ensemble.sample(shots, eval_rng)
                 ens_stats = evaluate_samples(x_train, ens_samples, sigma, validity_fn, coverage_fn)
 
             report_step(
@@ -669,6 +774,9 @@ def run_boosting_experiment(
                 config['n_models'],
                 training_mmd=mixture_training_mmd,
                 sampled_mmd=ens_stats['mmd'] if sampling_enabled else None,
+                sampled_tvd=ens_stats.get('tvd') if sampling_enabled else None,
+                alpha_opt=alpha,
+                oracle_tvd=top_k_tvd_fn(step + 1) if top_k_tvd_fn else None,
             )
 
             # Check acceptance using configured comparison metric
@@ -712,7 +820,7 @@ def run_boosting_experiment(
                     return dual_mmd_loss(
                         params, iqp_circuit, x_train, snr_terms, ensemble.weights[:-1],
                         sigma, n_ops, snr_mmd_samples, key,
-                        lambda_dual=config['lambda_dual'],
+                        lambda_dual=ensemble.lambda_dual,
                         wires=ensemble.wires,
                         max_batch_ops=ensemble.max_batch_ops,
                         max_batch_samples=ensemble.max_batch_samples
@@ -744,8 +852,8 @@ def run_boosting_experiment(
                 print(f"Baseline used as reference: {reference_label}")
                 break
 
-        # Final reporting — sample once, reuse everywhere
-        if skip_sampling:
+        # Final reporting - sample once, reuse everywhere
+        if not final_sampling_enabled:
             print("\n[skip_sampling=True] Skipping final state vector sampling. Using final training losses.")
             final_ensemble_samples, final_counts, per_model_samples = None, None, []
             
@@ -768,8 +876,9 @@ def run_boosting_experiment(
             report_metrics_table(reference_stats, final_stats, model_rows, "FINAL MODEL COMPARISON (Analytical)")
             output.save_results_csv(ensemble_metrics_history, baseline_stats=reference_stats)
         else:
+            final_eval_rng = np.random.default_rng(rng_seed + config['n_models'] * 7919)
             final_ensemble_samples, final_counts, per_model_samples = ensemble.sample(
-                shots, rng, return_details=True)
+                shots, final_eval_rng, return_details=True)
             final_stats = evaluate_samples(x_train, final_ensemble_samples, sigma, validity_fn, coverage_fn)
 
             report_final(reference_stats['mmd'], final_stats['mmd'], len(ensemble.models), final_stats)
@@ -802,18 +911,22 @@ def run_boosting_experiment(
             if sampling_enabled:
                 if metric_configs is None:
                     metric_configs = [
-                        ('mmd', 'Sampled MMD²', 1, 'blue', 's'),
+                        ('mmd', 'Sampled MMD^2', 1, 'blue', 's'),
                         ('tvd', 'TVD', 1, 'green', '^'),
                         ('coverage', 'Coverage (%)', 100, 'purple', 'v'),
                         ('validity', 'Validity (%)', 100, 'orange', 'd'),
                     ]
                 plot_metrics_progression(ensemble_metrics_history, reference_stats, output, metric_configs)
 
-        # Custom Visualization — pass pre-sampled data to avoid redundant sampling
-        if not skip_sampling and custom_viz_fn is not None:
+        # Custom Visualization -- always attempt if a viz callback is set.
+        # The viz function handles None samples gracefully (e.g. Ising Lorenz).
+        if custom_viz_fn is not None:
             try:
-                custom_viz_fn(output, x_train, baseline_samples, final_ensemble_samples,
-                              per_model_samples, ensemble.weights)
+                custom_viz_fn(output, x_train,
+                              baseline_samples if final_sampling_enabled else None,
+                              final_ensemble_samples if final_sampling_enabled else None,
+                              per_model_samples if final_sampling_enabled else [],
+                              ensemble.weights)
             except Exception as e:
                 print(f"Custom visualization failed: {e}")
 

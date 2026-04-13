@@ -204,6 +204,231 @@ def compute_optimal_alpha_samples(
     return float(np.clip(alpha_opt, alpha_min, alpha_max))
 
 
+def compute_optimal_alpha_tvd_samples(
+    samples_old: np.ndarray,
+    samples_new: np.ndarray,
+    ground_truth: np.ndarray,
+    alpha_min: float = 0.0,
+    alpha_max: float = 1.0,
+) -> float:
+    """Find optimal mixing alpha minimising empirical TVD w.r.t. ground_truth.
+
+    Minimises TVD(p_data, (1-alpha)*p_old + alpha*p_new) over alpha in
+    [alpha_min, alpha_max].  All three distributions are evaluated on the
+    same bin set (union of observed bitstrings / full 2^n histogram for
+    small systems) so the linear interpolation is consistent.
+
+    Notes
+    -----
+    For n_qubits > 18 the state space is too large for a full histogram, so
+    an empirical-support histogram (union of three sample sets) is used.
+    TVD then measures sparse-sample overlap rather than true distribution
+    distance, which is noisier but still provides a directional signal.
+    """
+    from scipy.optimize import minimize_scalar
+
+    samples_old = np.asarray(samples_old, dtype=int)
+    samples_new = np.asarray(samples_new, dtype=int)
+    ground_truth = np.asarray(ground_truth, dtype=int)
+    n_features = ground_truth.shape[1]
+
+    if n_features <= 18:
+        # Full 2^n histogram - consistent bins guaranteed.
+        powers = 2 ** np.arange(n_features)
+
+        def to_int(arr):
+            return (arr * powers).sum(axis=1)
+
+        n_bins = 2 ** n_features
+        p_data = np.bincount(to_int(ground_truth), minlength=n_bins).astype(float)
+        p_old  = np.bincount(to_int(samples_old),  minlength=n_bins).astype(float)
+        p_new  = np.bincount(to_int(samples_new),  minlength=n_bins).astype(float)
+    else:
+        # Empirical-support histogram over the union of all observed bitstrings.
+        # All three distributions share the same index -> linear mixing is valid.
+        def rows_to_tuples(arr):
+            return [tuple(row) for row in arr]
+
+        all_keys = sorted(
+            set(rows_to_tuples(ground_truth))
+            | set(rows_to_tuples(samples_old))
+            | set(rows_to_tuples(samples_new))
+        )
+        key_to_idx = {k: i for i, k in enumerate(all_keys)}
+        n_bins = len(all_keys)
+
+        def count_array(arr):
+            c = np.zeros(n_bins)
+            for t in rows_to_tuples(arr):
+                c[key_to_idx[t]] += 1
+            return c
+
+        p_data = count_array(ground_truth)
+        p_old  = count_array(samples_old)
+        p_new  = count_array(samples_new)
+
+    p_data /= p_data.sum()
+    p_old  /= p_old.sum()
+    p_new  /= p_new.sum()
+
+    # Direction vector; precomputed once outside the objective.
+    delta = p_new - p_old  # p_mix(alpha) = p_old + alpha * delta
+
+    def tvd_objective(alpha):
+        return 0.5 * np.sum(np.abs(p_data - p_old - alpha * delta))
+
+    result = minimize_scalar(tvd_objective, bounds=(alpha_min, alpha_max), method='bounded')
+    return float(np.clip(result.x, alpha_min, alpha_max))
+
+
+def _mix_samples_by_slice(
+    samples_old: np.ndarray,
+    samples_new: np.ndarray,
+    alpha: float,
+    n_total: int,
+) -> np.ndarray:
+    """Return a mixed sample array of length n_total from pre-drawn old/new samples.
+
+    Uses deterministic slicing (no re-sampling) so a grid of alpha values can be
+    evaluated cheaply on the same two sample buffers.
+    """
+    samples_old = np.asarray(samples_old, dtype=np.int8)
+    samples_new = np.asarray(samples_new, dtype=np.int8)
+
+    n_new = int(round(alpha * n_total))
+    n_old = n_total - n_new
+    old_slice = samples_old[:min(n_old, len(samples_old))]
+    new_slice = samples_new[:min(n_new, len(samples_new))]
+    parts = [p for p in (old_slice, new_slice) if len(p) > 0]
+    mixed = np.vstack(parts) if len(parts) > 1 else parts[0]
+    return np.asarray(mixed, dtype=np.int8)
+
+
+def compute_optimal_alpha_validity(
+    samples_old: np.ndarray,
+    samples_new: np.ndarray,
+    validity_fn: callable,
+    n_grid: int = 11,
+    alpha_min: float = 0.0,
+    alpha_max: float = 1.0,
+) -> float:
+    """Find alpha maximising the validity rate of the mixed ensemble.
+
+    Draws no new circuit samples: sweeps a grid of alpha values and slices the
+    pre-drawn ``samples_old`` / ``samples_new`` buffers.  Works at any system
+    size because validity is a per-sample predicate (no histogram needed).
+
+    Parameters
+    ----------
+    samples_old:
+        Samples drawn from the ensemble *before* the new model was added.
+    samples_new:
+        Samples drawn from the new model alone.
+    validity_fn:
+        ``validity_fn(samples) -> float`` as used by the experiment runner.
+    n_grid:
+        Number of alpha values to sweep on a uniform grid (default 11).
+    """
+    samples_old = np.asarray(samples_old, dtype=np.int8)
+    samples_new = np.asarray(samples_new, dtype=np.int8)
+    n_total = min(len(samples_old), len(samples_new))
+    alphas = np.linspace(alpha_min, alpha_max, n_grid)
+
+    best_alpha, best_val = alpha_min, -np.inf
+    for alpha in alphas:
+        mix = _mix_samples_by_slice(samples_old, samples_new, alpha, n_total)
+        val = validity_fn(mix)
+        if val > best_val:
+            best_val = val
+            best_alpha = alpha
+
+    return float(best_alpha)
+
+
+def compute_optimal_alpha_coverage(
+    samples_old: np.ndarray,
+    samples_new: np.ndarray,
+    ground_truth: np.ndarray,
+    coverage_fn: callable,
+    n_grid: int = 11,
+    alpha_min: float = 0.0,
+    alpha_max: float = 1.0,
+) -> float:
+    """Find alpha maximising coverage of the mixed ensemble.
+
+    Same slicing strategy as :func:`compute_optimal_alpha_validity` but
+    optimises coverage instead.  Works at any system size because
+    ``coverage_fn`` is a per-sample set-membership check (no histogram).
+
+    Parameters
+    ----------
+    samples_old:
+        Samples drawn from the ensemble *before* the new model was added.
+    samples_new:
+        Samples drawn from the new model alone.
+    ground_truth:
+        Training data array passed through to ``coverage_fn``.
+    coverage_fn:
+        ``coverage_fn(ground_truth, samples) -> float``.
+    n_grid:
+        Number of alpha values to sweep (default 11).
+    """
+    samples_old = np.asarray(samples_old, dtype=np.int8)
+    samples_new = np.asarray(samples_new, dtype=np.int8)
+    ground_truth = np.asarray(ground_truth, dtype=np.int8)
+    n_total = min(len(samples_old), len(samples_new))
+    alphas = np.linspace(alpha_min, alpha_max, n_grid)
+
+    best_alpha, best_cov = alpha_min, -np.inf
+    for alpha in alphas:
+        mix = _mix_samples_by_slice(samples_old, samples_new, alpha, n_total)
+        cov = coverage_fn(ground_truth, mix)
+        if cov > best_cov:
+            best_cov = cov
+            best_alpha = alpha
+
+    return float(best_alpha)
+
+
+def compute_optimal_alpha_validity_coverage_sum(
+    samples_old: np.ndarray,
+    samples_new: np.ndarray,
+    ground_truth: np.ndarray,
+    validity_fn: callable,
+    coverage_fn: callable,
+    validity_weight: float = 0.5,
+    n_grid: int = 11,
+    alpha_min: float = 0.0,
+    alpha_max: float = 1.0,
+) -> float:
+    """Find alpha maximizing weighted sum of validity and coverage.
+
+    Objective: w * validity + (1 - w) * coverage, with w in [0, 1].
+    Uses deterministic slicing of pre-drawn old/new sample buffers, avoiding
+    any additional circuit sampling.
+    """
+    samples_old = np.asarray(samples_old, dtype=np.int8)
+    samples_new = np.asarray(samples_new, dtype=np.int8)
+    ground_truth = np.asarray(ground_truth, dtype=np.int8)
+
+    w = float(np.clip(validity_weight, 0.0, 1.0))
+    n_grid = max(2, int(n_grid))
+    n_total = min(len(samples_old), len(samples_new))
+    alphas = np.linspace(alpha_min, alpha_max, n_grid)
+
+    best_alpha, best_obj = alpha_min, -np.inf
+    for alpha in alphas:
+        mix = _mix_samples_by_slice(samples_old, samples_new, alpha, n_total)
+        val = validity_fn(mix)
+        cov = coverage_fn(ground_truth, mix)
+        obj = w * val + (1.0 - w) * cov
+        if obj > best_obj:
+            best_obj = obj
+            best_alpha = alpha
+
+    return float(best_alpha)
+
+
 def compute_optimal_weights_qp(
     all_trs: list,
     trs_data: list[np.ndarray],

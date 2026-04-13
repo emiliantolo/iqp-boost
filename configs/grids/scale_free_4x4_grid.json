@@ -1,0 +1,552 @@
+{
+  "output": {
+    "base_dir": "out",
+    "suite_name": "scale_free_4x4_grid"
+  },
+  "defaults": {
+    "dims": [
+      4,
+      4
+    ],
+    "train_samples": 1000,
+    "data_seed": 321,
+    "n_samples": 400,
+    "n_models": 10,
+    "learning_rate": 0.01,
+    "epochs_per_step": 400,
+    "caching_level": "none",
+    "ensemble_samples_coeff": 1.0,
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_dual": 1.0,
+    "lambda_schedule": {
+      "type": "linear",
+      "start": 0.59,
+      "end": 0.99
+    },
+    "sigma_factor": [
+      0.25,
+      0.35,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "n_ops": 1000,
+    "weight_strategy": "line_search",
+    "baseline": [
+      "standalone",
+      "data_only"
+    ],
+    "shots": 1000,
+    "keep_models_for_diagnosis": true,
+    "stop_on_reject": false,
+    "rng_seed": 42,
+    "turbo": 10
+  },
+  "runs": [
+    {
+      "name": "scale_free_4x4_local_d1_a0_joint",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "local",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 0,
+          "ancilla_topology_mode": "joint"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_local_d1_a0_expanded",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "local",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 0,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_local_d1_a2_joint",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "local",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "joint"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_local_d1_a2_joint_closed",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "local",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "joint_closed"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_local_d1_a2_expanded",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "local",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_local_d1_a4_joint",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "local",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "joint"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_local_d1_a4_joint_closed",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "local",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "joint_closed"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_local_d1_a4_expanded",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "local",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d1_a0_joint",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 0,
+          "ancilla_topology_mode": "joint"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d1_a0_expanded",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 0,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d1_a2_joint",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "joint"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d1_a2_joint_closed",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "joint_closed"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d1_a2_expanded",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d1_a4_joint",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "joint"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d1_a4_joint_closed",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "joint_closed"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d1_a4_expanded",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d2_a0_joint",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 2,
+          "max_weight": 2,
+          "n_ancilla": 0,
+          "ancilla_topology_mode": "joint"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d2_a0_expanded",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 2,
+          "max_weight": 2,
+          "n_ancilla": 0,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d2_a2_joint",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 2,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "joint"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d2_a2_joint_closed",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 2,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "joint_closed"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d2_a2_expanded",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 2,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d2_a4_joint",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 2,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "joint"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d2_a4_joint_closed",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 2,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "joint_closed"
+        }
+      }
+    },
+    {
+      "name": "scale_free_4x4_neighbour_d2_a4_expanded",
+      "dataset": {
+        "name": "scale_free",
+        "params": {
+          "dims": [
+            4,
+            4
+          ]
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 2,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    }
+  ]
+}

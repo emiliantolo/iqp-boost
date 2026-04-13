@@ -90,14 +90,25 @@ class BoostedEnsemble:
                                trs_corr_new: list[np.ndarray] = None,
                                samples_old: np.ndarray = None,
                                samples_new: np.ndarray = None,
-                               ground_truth: np.ndarray = None) -> float:
+                               ground_truth: np.ndarray = None,
+                               validity_fn: callable = None,
+                               coverage_fn: callable = None,
+                               alpha_n_grid: int = 11,
+                               validity_weight: float = 0.5) -> float:
         """Apply analytical weighting strategy. Returns the selected alpha."""
         if strategy == 'greedy':
             alpha = self.weights[-1]
             print(f"  Weighting: greedy alpha = {alpha:.4f}")
             return float(alpha)
 
-        from .utils import compute_optimal_alpha_samples, compute_optimal_alpha_dual
+        from .utils import (
+            compute_optimal_alpha_samples,
+            compute_optimal_alpha_dual,
+            compute_optimal_alpha_tvd_samples,
+            compute_optimal_alpha_validity,
+            compute_optimal_alpha_coverage,
+            compute_optimal_alpha_validity_coverage_sum,
+        )
 
         if strategy == 'line_search':
             if samples_old is not None and samples_new is not None and ground_truth is not None:
@@ -143,6 +154,107 @@ class BoostedEnsemble:
             w_str = ', '.join(f'{w:.4f}' for w in self.weights)
             print(f"  Weighting: fully corrective QP weights = [{w_str}]")
             return float(self.weights[-1])
+
+        if strategy == 'tvd_line_search':
+            if samples_old is None or samples_new is None or ground_truth is None:
+                print("  [Warning] Missing samples/data for TVD line search. Falling back to greedy.")
+                return float(self.weights[-1])
+
+            alpha_opt = compute_optimal_alpha_tvd_samples(
+                samples_old=samples_old,
+                samples_new=samples_new,
+                ground_truth=ground_truth,
+            )
+            print(f"  Weighting: TVD line search alpha_opt = {alpha_opt:.4f}")
+
+            if len(self.weights) >= 2:
+                old_weight_sum = sum(self.weights[:-1])
+                if old_weight_sum > 0:
+                    scale = (1.0 - alpha_opt) / old_weight_sum
+                    for i in range(len(self.weights) - 1):
+                        self.weights[i] *= scale
+                    self.weights[-1] = alpha_opt
+                self.normalize_weights()
+            return float(alpha_opt)
+
+        if strategy == 'validity_line_search':
+            if samples_old is None or samples_new is None or validity_fn is None:
+                print("  [Warning] Missing samples/validity_fn for validity line search. Falling back to greedy.")
+                return float(self.weights[-1])
+
+            alpha_opt = compute_optimal_alpha_validity(
+                samples_old=samples_old,
+                samples_new=samples_new,
+                validity_fn=validity_fn,
+                n_grid=int(alpha_n_grid),
+            )
+            print(f"  Weighting: validity line search alpha_opt = {alpha_opt:.4f}")
+
+            if len(self.weights) >= 2:
+                old_weight_sum = sum(self.weights[:-1])
+                if old_weight_sum > 0:
+                    scale = (1.0 - alpha_opt) / old_weight_sum
+                    for i in range(len(self.weights) - 1):
+                        self.weights[i] *= scale
+                    self.weights[-1] = alpha_opt
+                self.normalize_weights()
+            return float(alpha_opt)
+
+        if strategy == 'coverage_line_search':
+            if samples_old is None or samples_new is None or ground_truth is None or coverage_fn is None:
+                print("  [Warning] Missing samples/data/coverage_fn for coverage line search. Falling back to greedy.")
+                return float(self.weights[-1])
+
+            alpha_opt = compute_optimal_alpha_coverage(
+                samples_old=samples_old,
+                samples_new=samples_new,
+                ground_truth=ground_truth,
+                coverage_fn=coverage_fn,
+                n_grid=int(alpha_n_grid),
+            )
+            print(f"  Weighting: coverage line search alpha_opt = {alpha_opt:.4f}")
+
+            if len(self.weights) >= 2:
+                old_weight_sum = sum(self.weights[:-1])
+                if old_weight_sum > 0:
+                    scale = (1.0 - alpha_opt) / old_weight_sum
+                    for i in range(len(self.weights) - 1):
+                        self.weights[i] *= scale
+                    self.weights[-1] = alpha_opt
+                self.normalize_weights()
+            return float(alpha_opt)
+
+        if strategy == 'sum_line_search':
+            if (
+                samples_old is None
+                or samples_new is None
+                or ground_truth is None
+                or validity_fn is None
+                or coverage_fn is None
+            ):
+                print("  [Warning] Missing inputs for validity/coverage sum line search. Falling back to greedy.")
+                return float(self.weights[-1])
+
+            alpha_opt = compute_optimal_alpha_validity_coverage_sum(
+                samples_old=samples_old,
+                samples_new=samples_new,
+                ground_truth=ground_truth,
+                validity_fn=validity_fn,
+                coverage_fn=coverage_fn,
+                validity_weight=float(validity_weight),
+                n_grid=int(alpha_n_grid),
+            )
+            print(f"  Weighting: validity/coverage sum line search alpha_opt = {alpha_opt:.4f}")
+
+            if len(self.weights) >= 2:
+                old_weight_sum = sum(self.weights[:-1])
+                if old_weight_sum > 0:
+                    scale = (1.0 - alpha_opt) / old_weight_sum
+                    for i in range(len(self.weights) - 1):
+                        self.weights[i] *= scale
+                    self.weights[-1] = alpha_opt
+                self.normalize_weights()
+            return float(alpha_opt)
 
         raise ValueError(f"Unknown weight_strategy: {strategy}")
 
