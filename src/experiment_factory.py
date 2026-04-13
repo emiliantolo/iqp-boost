@@ -13,6 +13,7 @@ from src.datasets.dwave import DWaveDataset
 from src.datasets.gaussian import GaussianMixtureDataset
 from src.datasets.genomic import GenomicDataset
 from src.datasets.ising import FrustratedIsingDataset
+from src.datasets.pennylane_ising import PennylaneIsingDataset
 from src.datasets.mnist import BinarizedMNISTDataset
 from src.datasets.parity import ParityDataset
 from src.datasets.scale_free import ScaleFreeDataset
@@ -644,6 +645,14 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         dataset_name = f'Frustrated Ising ({rows}x{cols}, beta={beta})'
         n_qubits = x_train.shape[1]
 
+    elif dataset_key == 'pennylane_ising':
+        dims = params.get('dims', config.get('dims', (4, 4)))
+        rows, cols = int(dims[0]), int(dims[1])
+        ds = PennylaneIsingDataset(rows=rows, cols=cols)
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'PennyLane Ising ({rows}x{cols})'
+        n_qubits = x_train.shape[1]
+
     elif dataset_key == 'mnist':
         dims = params.get('dims', config.get('dims', (4, 4)))
         rows, cols = int(dims[0]), int(dims[1])
@@ -694,7 +703,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     # Datasets where validity/coverage are not meaningful pass None
     # so evaluate_samples() skips those metrics (reports NaN).
     # Datasets without a meaningful pattern space pass None for validity/coverage.
-    no_pattern_space = {'ising', 'mnist', 'dwave', 'scale_free', 'genomic'}
+    no_pattern_space = {'ising', 'mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising'}
     if dataset_key in no_pattern_space:
         validity_fn = None
         coverage_fn = None
