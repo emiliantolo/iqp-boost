@@ -17,6 +17,7 @@ from src.datasets.pennylane_ising import PennylaneIsingDataset
 from src.datasets.pennylane_bas import PennylaneBASDataset
 from src.datasets.pennylane_hm import PennylaneHMDataset
 from src.datasets.mnist import BinarizedMNISTDataset
+from src.datasets.noisy_bas import NoisyBASDataset
 from src.datasets.parity import ParityDataset
 from src.datasets.scale_free import ScaleFreeDataset
 from src.datasets.shapes import BinaryShapesDataset
@@ -600,6 +601,15 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         dataset_name = f'BAS ({height}x{width})'
         n_qubits = height * width
 
+    elif dataset_key == 'noisy_bas':
+        dims = params.get('dims', config.get('dims', (4, 4)))
+        height, width = int(dims[0]), int(dims[1])
+        flip_prob = float(params.get('flip_prob', config.get('flip_prob', 0.05)))
+        ds = NoisyBASDataset(height=height, width=width, flip_prob=flip_prob)
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'Noisy BAS ({height}x{width}, p={flip_prob:g})'
+        n_qubits = height * width
+
     elif dataset_key == 'parity':
         n_qubits = int(params.get('n_qubits', config.get('dim', config.get('n_qubits', 6))))
         ds = ParityDataset(n_qubits=n_qubits)
@@ -713,7 +723,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     else:
         raise ValueError(
             "Unknown dataset name. Supported values: "
-            "bas, blobs, dwave, gaussian, genomic, ising, mnist, parity, scale_free, shapes."
+            "bas, noisy_bas, blobs, dwave, gaussian, genomic, ising, mnist, parity, scale_free, shapes."
         )
 
     custom_viz_fn = _build_custom_viz(dataset_key, ds, plot_spec, n_qubits)
@@ -721,7 +731,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     # Datasets where validity/coverage are not meaningful pass None
     # so evaluate_samples() skips those metrics (reports NaN).
     # Datasets without a meaningful pattern space pass None for validity/coverage.
-    no_pattern_space = {'ising', 'mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm'}
+    no_pattern_space = {'ising', 'noisy_bas', 'mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm'}
     if dataset_key in no_pattern_space:
         validity_fn = None
         coverage_fn = None
