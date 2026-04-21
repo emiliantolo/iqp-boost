@@ -1,0 +1,65 @@
+{
+    "output": {
+        "base_dir": "out",
+        "suite_name": "tfim_8q"
+    },
+    "runs": [
+        {
+            "name": "tfim_8q",
+            "dataset": {
+                "name": "tfim_thermal",
+                "params": {
+                    "n_qubits": 8,
+                    "temperature": 2.0,
+                    "coupling": 1.0,
+                    "h_field": 1.0
+                }
+            },
+            "plot": {
+                "kind": "lorenz",
+                "params": {
+                    "filename": "tfim_8q_lorenz.pdf"
+                }
+            },
+            "config": {
+                "train_samples": 2000,
+                "data_seed": 42,
+                "n_samples": 400,
+                "n_models": 16,
+                "learning_rate": 0.01,
+                "epochs_per_step": 1000,
+                "caching_level": "none",
+                "init_baseline": "covariance",
+                "init_later": "random",
+                "lambda_dual": 1.0,
+                "lambda_schedule": {
+                    "type": "linear",
+                    "start": 0.79,
+                    "end": 0.99
+                },
+                "sigma_factor": [
+                    0.15,
+                    0.25,
+                    0.4,
+                    0.6,
+                    0.8,
+                    1.0
+                ],
+                "n_ops": 1000,
+                "weight_strategy": "line_search",
+                "baseline": "standalone",
+                "shots": 2000,
+                "keep_models_for_diagnosis": true,
+                "stop_on_reject": false,
+                "rng_seed": 42,
+                "circuit_config": {
+                    "topology": "neighbour",
+                    "distance": 1,
+                    "max_weight": 2,
+                    "n_ancilla": 2
+                },
+                "turbo": 10
+            }
+        }
+    ]
+}

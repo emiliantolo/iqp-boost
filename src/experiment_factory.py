@@ -21,6 +21,10 @@ from src.datasets.noisy_bas import NoisyBASDataset
 from src.datasets.parity import ParityDataset
 from src.datasets.scale_free import ScaleFreeDataset
 from src.datasets.shapes import BinaryShapesDataset
+from src.datasets.random_circuit import RandomCircuitDataset
+from src.datasets.qaoa_maxcut import QAOAMaxCutDataset
+from src.datasets.tfim_thermal import TFIMThermalDataset
+from src.datasets.rydberg import RydbergDataset
 
 
 def _binary_rows_to_ints(samples: np.ndarray) -> np.ndarray:
@@ -537,6 +541,11 @@ def _resolve_plot_kind(dataset_key: str, plot_spec: dict | None) -> str:
         'dwave': 'histogram',
         'scale_free': 'histogram',
         'genomic': 'histogram',
+        'noisy_bas': 'lorenz',
+        'random_circuit': 'lorenz',
+        'qaoa_maxcut': 'lorenz',
+        'tfim_thermal': 'lorenz',
+        'rydberg': 'lorenz',
     }
     return defaults.get(dataset_key, 'none')
 
@@ -720,10 +729,60 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         dataset_name = f'Genomic ({rows}x{cols})'
         n_qubits = x_train.shape[1]
 
+    elif dataset_key == 'random_circuit':
+        n_qubits = int(params.get('n_qubits', 12))
+        depth = params.get('depth', None)
+        if depth is not None:
+            depth = int(depth)
+        circuit_seed = int(params.get('circuit_seed', 42))
+        ds = RandomCircuitDataset(
+            n_qubits=n_qubits, depth=depth, circuit_seed=circuit_seed,
+        )
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'Random Circuit (N={n_qubits}, d={ds.depth})'
+
+    elif dataset_key == 'qaoa_maxcut':
+        n_qubits = int(params.get('n_qubits', 12))
+        graph_type = str(params.get('graph_type', 'random_regular'))
+        graph_seed = int(params.get('graph_seed', 42))
+        p_depth = int(params.get('p_depth', 1))
+        param_seed = int(params.get('param_seed', 42))
+        ds = QAOAMaxCutDataset(
+            n_qubits=n_qubits, graph_type=graph_type,
+            graph_seed=graph_seed, p_depth=p_depth, param_seed=param_seed,
+        )
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'QAOA MaxCut (N={n_qubits}, p={p_depth})'
+
+    elif dataset_key == 'tfim_thermal':
+        n_qubits = int(params.get('n_qubits', 12))
+        temperature = float(params.get('temperature', 1.0))
+        coupling = float(params.get('coupling', 1.0))
+        h_field = float(params.get('h_field', 1.0))
+        boundary_condition = bool(params.get('boundary_condition', False))
+        ds = TFIMThermalDataset(
+            n_qubits=n_qubits, temperature=temperature,
+            coupling=coupling, h_field=h_field,
+            boundary_condition=boundary_condition,
+        )
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'TFIM Thermal (N={n_qubits}, T={temperature})'
+
+    elif dataset_key == 'rydberg':
+        n_qubits = int(params.get('n_qubits', 16))
+        dataset_index = int(params.get('dataset_index', 0))
+        ds = RydbergDataset(
+            n_qubits=n_qubits, dataset_index=dataset_index,
+        )
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'Rydberg (N={n_qubits})'
+
     else:
         raise ValueError(
             "Unknown dataset name. Supported values: "
-            "bas, noisy_bas, blobs, dwave, gaussian, genomic, ising, mnist, parity, scale_free, shapes."
+            "bas, noisy_bas, blobs, dwave, gaussian, genomic, ising, mnist, "
+            "parity, qaoa_maxcut, random_circuit, rydberg, scale_free, shapes, "
+            "tfim_thermal."
         )
 
     custom_viz_fn = _build_custom_viz(dataset_key, ds, plot_spec, n_qubits)
@@ -731,7 +790,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     # Datasets where validity/coverage are not meaningful pass None
     # so evaluate_samples() skips those metrics (reports NaN).
     # Datasets without a meaningful pattern space pass None for validity/coverage.
-    no_pattern_space = {'ising', 'noisy_bas', 'mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm'}
+    no_pattern_space = {'ising', 'noisy_bas', 'mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm', 'random_circuit', 'qaoa_maxcut', 'tfim_thermal', 'rydberg'}
     if dataset_key in no_pattern_space:
         validity_fn = None
         coverage_fn = None
