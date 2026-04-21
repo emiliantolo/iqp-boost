@@ -205,7 +205,10 @@ def train_ensemble_model_0(ensemble: BoostedEnsemble, x_train: np.ndarray, key: 
                   monitor_interval=monitor_interval, turbo=turbo_opt)
 
     key, subkey = jax.random.split(key, 2)
-    alpha = ensemble.add_model(trainer.final_params, subkey)
+    schedule = config.get('lambda_schedule', {})
+    gamma = float(schedule.get('gamma', 2.0))
+    tau = float(schedule.get('tau', 2.0))
+    alpha = ensemble.add_model(trainer.final_params, subkey, gamma=gamma, tau=tau)
 
     ensemble.training_losses.append({
         'total': np.array(trainer.losses),
@@ -325,7 +328,10 @@ def train_boosting_step(ensemble: BoostedEnsemble, x_train: np.ndarray, key: jax
             samples_new_for_search = samples_new_for_search[:, ensemble.wires]
 
     key, subkey = jax.random.split(key, 2)
-    alpha_initial = ensemble.add_model(trainer.final_params, subkey)
+    schedule = config.get('lambda_schedule', {})
+    gamma = float(schedule.get('gamma', 2.0))
+    tau = float(schedule.get('tau', 2.0))
+    alpha_initial = ensemble.add_model(trainer.final_params, subkey, gamma=gamma, tau=tau)
 
     # Apply Weight Strategy
     alpha = alpha_initial
@@ -367,6 +373,8 @@ def train_boosting_step(ensemble: BoostedEnsemble, x_train: np.ndarray, key: jax
     elif weight_strategy == 'fully_corrective':
         alpha = ensemble.apply_weight_strategy('fully_corrective',
                                              trs_data=traces.get('trs_data'))
+    elif weight_strategy in ('greedy', 'frank_wolfe'):
+        alpha = ensemble.apply_weight_strategy(weight_strategy)
 
     ensemble.training_losses.append({
         'total': np.array(trainer.losses),
@@ -623,6 +631,15 @@ def run_boosting_experiment(
             raise ValueError("acceptance_metric must be 'sample_mmd' or 'training_mmd'")
         if acceptance_metric == 'sample_mmd' and not sampling_enabled:
             acceptance_metric = 'training_mmd'
+
+        if config.get('weight_strategy', 'frank_wolfe') == 'frank_wolfe':
+            lambda_sched = config.get('lambda_schedule') or {}
+            if lambda_sched.get('type', 'frank_wolfe') != 'frank_wolfe':
+                print("\n[WARNING] Causal Mismatch Detected!")
+                print("weight_strategy is 'frank_wolfe', but lambda_schedule type is not.")
+                print("To ensure second-order equivalence, lambda_schedule will be forced to 'frank_wolfe'.")
+                config['lambda_schedule'] = {'type': 'frank_wolfe', 'gamma': 1.0, 'tau': 1.0}
+
 
         baselines_to_run = _resolve_baselines_to_run(config)
         print(f"Baselines enabled: {', '.join(baselines_to_run)}")
@@ -896,6 +913,38 @@ def run_boosting_experiment(
 
             report_metrics_table(reference_stats, final_stats, model_rows, "FINAL MODEL COMPARISON")
             output.save_results_csv(ensemble_metrics_history, baseline_stats=reference_stats)
+            
+            if config.get('report_fcfw', True):
+                print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...")
+                fcfw_ensemble = BoostedEnsemble(
+                    ensemble.iqp_circuit, ensemble.n_models, ensemble.sigma, ensemble.n_ops,
+                    ensemble.n_samples, ensemble.lambda_dual, ensemble.wires,
+                    ensemble.max_batch_ops, ensemble.max_batch_samples
+                )
+                fcfw_ensemble.restore_state(ensemble.snapshot_state())
+                trs_data = []
+                if hasattr(ensemble.sigma, '__iter__'):
+                    sigmas = ensemble.sigma
+                else:
+                    sigmas = [ensemble.sigma]
+                for sigma_idx in range(len(sigmas)):
+                    if sigma_idx in fcfw_ensemble.terms.ops:
+                        _, visible_ops = fcfw_ensemble.terms.ops[sigma_idx]
+                        tr_train = np.mean(1 - 2 * ((x_train @ visible_ops.T) % 2), axis=0)
+                        trs_data.append(tr_train)
+                
+                fcfw_alpha = fcfw_ensemble.apply_weight_strategy('fully_corrective', trs_data=trs_data)
+                
+                final_fcfw_samples = fcfw_ensemble.sample(shots, final_eval_rng)
+                fcfw_stats = evaluate_samples(x_train, final_fcfw_samples, sigma, validity_fn, coverage_fn)
+                
+                print(f"  FCFW Sampled MMD^2: {fcfw_stats['mmd']:.6f}")
+                if 'tvd' in fcfw_stats and not np.isnan(fcfw_stats['tvd']):
+                    print(f"  FCFW Sampled TVD:   {fcfw_stats['tvd']:.4f}")
+                
+                # Append to report
+                model_rows.append(("Ensemble (FCFW)", fcfw_stats))
+                report_metrics_table(reference_stats, final_stats, model_rows, "FINAL MODEL COMPARISON (inc. FCFW)")
 
         # Plotting
         if get_plot_config()['plot_data_loss']:

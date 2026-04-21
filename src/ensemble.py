@@ -96,9 +96,9 @@ class BoostedEnsemble:
                                alpha_n_grid: int = 11,
                                validity_weight: float = 0.5) -> float:
         """Apply analytical weighting strategy. Returns the selected alpha."""
-        if strategy == 'greedy':
+        if strategy in ('greedy', 'frank_wolfe'):
             alpha = self.weights[-1]
-            print(f"  Weighting: greedy alpha = {alpha:.4f}")
+            print(f"  Weighting: {strategy} alpha = {alpha:.4f}")
             return float(alpha)
 
         from .utils import (
@@ -258,7 +258,7 @@ class BoostedEnsemble:
 
         raise ValueError(f"Unknown weight_strategy: {strategy}")
 
-    def add_model(self, params: np.ndarray, key: jax.Array) -> float:
+    def add_model(self, params: np.ndarray, key: jax.Array, gamma: float = 2.0, tau: float = 2.0) -> float:
         """Add a trained model to the ensemble. Returns the initial alpha."""
         self.terms.add_term(
             params, self.iqp_circuit, self.sigma, self.n_ops,
@@ -267,7 +267,11 @@ class BoostedEnsemble:
         )
 
         it = len(self.models)
-        alpha = 2.0 / (it + 2.0)
+        if it == 0:
+            alpha = 1.0
+        else:
+            alpha = min(1.0, gamma / (it + tau))
+            
         self.weights = [(1.0 - alpha) * w for w in self.weights] + [alpha]
         self.models.append(params)
         self.normalize_weights()

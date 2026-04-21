@@ -32,11 +32,10 @@
                 "caching_level": "none",
                 "init_baseline": "covariance",
                 "init_later": "random",
-                "lambda_dual": 1.0,
                 "lambda_schedule": {
-                    "type": "linear",
-                    "start": 0.79,
-                    "end": 0.99
+                    "type": "frank_wolfe",
+                    "gamma": 1.0,
+                    "tau": 1.0
                 },
                 "sigma_factor": [
                     0.2,
@@ -46,7 +45,7 @@
                     0.8
                 ],
                 "n_ops": 1000,
-                "weight_strategy": "line_search",
+                "weight_strategy": "frank_wolfe",
                 "baseline": "standalone",
                 "shots": 1000,
                 "keep_models_for_diagnosis": true,

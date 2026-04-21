@@ -28,7 +28,7 @@ DEFAULT_RUN_CONFIG = {
     'lambda_schedule': None,
     'sigma_factor': [0.5],
     'n_ops': 1000,
-    'weight_strategy': 'line_search',
+    'weight_strategy': 'frank_wolfe',
     'alpha_n_grid': 11,
     'alpha_objective_weight': 0.5,
     'baseline': 'standalone',

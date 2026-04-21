@@ -89,11 +89,11 @@ def compute_lambda_schedule(step: int, n_steps: int, base_lambda: float,
         float: lambda_dual interpolated for this step, clamped to [0, 1].
     """
     if not schedule:
-        return base_lambda
+        schedule = {}
 
     start = float(schedule.get('start', base_lambda))
     end   = float(schedule.get('end',   base_lambda))
-    kind  = schedule.get('type', 'linear')
+    kind  = schedule.get('type', 'frank_wolfe')
 
     # t goes 0 -> 1 across the boosted steps 1 ... n_steps-1
     n_boosted = max(n_steps - 1, 1)
@@ -108,9 +108,14 @@ def compute_lambda_schedule(step: int, n_steps: int, base_lambda: float,
             value = start + t * (end - start)
         else:
             value = start * (end / start) ** t
+    elif kind == 'frank_wolfe':
+        gamma = float(schedule.get('gamma', 2.0))
+        tau = float(schedule.get('tau', 2.0))
+        alpha = min(1.0, gamma / (step + tau))
+        value = 1.0 - alpha
     else:
         raise ValueError(f"Unknown lambda schedule type: '{kind}'. "
-                         f"Use 'linear', 'exponential'.")
+                         f"Use 'linear', 'exponential', 'frank_wolfe'.")
 
     return float(np.clip(value, 0.0, 1.0))
 
