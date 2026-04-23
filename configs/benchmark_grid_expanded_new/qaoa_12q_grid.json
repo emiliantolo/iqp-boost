@@ -1,0 +1,127 @@
+{
+  "output": {
+    "base_dir": "out_benchmark",
+    "suite_name": "qaoa_12q_grid_expanded"
+  },
+  "defaults": {
+    "train_samples": 1000,
+    "data_seed": 42,
+    "n_samples": 400,
+    "n_models": 10,
+    "learning_rate": 0.01,
+    "epochs_per_step": 400,
+    "caching_level": "none",
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_schedule": {
+      "type": "frank_wolfe",
+      "gamma": 1.0,
+      "tau": 1.0
+    },
+    "sigma_factor": [
+      0.15,
+      0.25,
+      0.4,
+      0.6,
+      0.8,
+      1.0
+    ],
+    "n_ops": 1000,
+    "weight_strategy": "frank_wolfe",
+    "baseline": [
+      "standalone",
+      "data_only"
+    ],
+    "shots": 2000,
+    "keep_models_for_diagnosis": true,
+    "stop_on_reject": false,
+    "rng_seed": 42,
+    "turbo": 10
+  },
+  "runs": [
+    {
+      "name": "qaoa_12q_neighbour_d1_a0_expanded",
+      "dataset": {
+        "name": "qaoa_maxcut",
+        "params": {
+          "n_qubits": 12,
+          "graph_type": "erdos_renyi",
+          "graph_seed": 42,
+          "p_depth": 2,
+          "param_seed": 42
+        }
+      },
+      "plot": {
+        "kind": "lorenz",
+        "params": {
+          "filename": "qaoa_12q_lorenz.pdf"
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 0,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "qaoa_12q_neighbour_d1_a2_expanded",
+      "dataset": {
+        "name": "qaoa_maxcut",
+        "params": {
+          "n_qubits": 12,
+          "graph_type": "erdos_renyi",
+          "graph_seed": 42,
+          "p_depth": 2,
+          "param_seed": 42
+        }
+      },
+      "plot": {
+        "kind": "lorenz",
+        "params": {
+          "filename": "qaoa_12q_lorenz.pdf"
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    },
+    {
+      "name": "qaoa_12q_neighbour_d1_a4_expanded",
+      "dataset": {
+        "name": "qaoa_maxcut",
+        "params": {
+          "n_qubits": 12,
+          "graph_type": "erdos_renyi",
+          "graph_seed": 42,
+          "p_depth": 2,
+          "param_seed": 42
+        }
+      },
+      "plot": {
+        "kind": "lorenz",
+        "params": {
+          "filename": "qaoa_12q_lorenz.pdf"
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "neighbour",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "expanded"
+        }
+      }
+    }
+  ]
+}
