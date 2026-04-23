@@ -1,7 +1,7 @@
 """Common runner for ensemble boosting experiments."""
 
 import iqpopt as iqp
-from iqpopt.gen_qml.utils import median_heuristic
+from src.sigma_heuristics import compute_sigma
 from iqpopt.gen_qml.iqp_methods import mmd_loss_iqp
 from src.ensemble import BoostedEnsemble
 from src.reporting import (
@@ -614,25 +614,12 @@ def run_boosting_experiment(
         report_circuit(gate_desc)
         save_circuit_plot(circuit, output)
 
-        # Sigma setup from config
-        sigma_base = median_heuristic(x_train)
-        print(f"sigma_base={sigma_base:.8f}")
+        # Sigma setup from config (supports median, percentile, medoids)
+        sigma = compute_sigma(config, x_train, seed=config.get('data_seed', 42))
 
         n_ops = config.get('n_ops', 1000)
         n_samples = int(config.get('n_samples', 1000))
         shots = int(config.get('shots', 1000))
-
-        # Build sigma: either from sigma_factor(s) or direct sigma value(s)
-        if 'sigma_factor' in config:
-            sf = config['sigma_factor']
-            if isinstance(sf, list):
-                sigma = [s * sigma_base for s in sf]
-            else:
-                sigma = sf * sigma_base
-        elif 'sigma' in config:
-            sigma = config['sigma']
-        else:
-            sigma = 0.4 * sigma_base  # default
 
         report_kernel(sigma, n_ops, n_qubits)
 
