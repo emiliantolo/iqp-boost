@@ -559,16 +559,39 @@ class OutputManager:
         print(f"Saving metrics to {path}...")
         save_json(metrics, path)
     
-    def save_results_csv(self, metrics_history: dict, baseline_stats: dict = None, filename: str = 'results.csv'):
-        """Save metrics history to CSV, including optional baseline and alpha."""
+    def save_results_csv(
+        self,
+        metrics_history: dict,
+        baseline_stats: dict = None,
+        summary_rows: list[dict] | None = None,
+        filename: str = 'results.csv'
+    ):
+        """Save metrics history to CSV, with optional baseline and summary rows.
+
+        Args:
+            metrics_history: Per-step history dict (lists keyed by metric name).
+            baseline_stats: Optional baseline metrics row written at step -1.
+            summary_rows: Optional list of rows, each containing:
+                - step: numeric step id (recommended negative values)
+                - label: row label stored in 'model_label'
+                - metrics: dict of metric_name -> value
+            filename: CSV file name.
+        """
         path = self.get_path(filename)
         print(f"Saving results to {path}...")
         import csv
+        import math
         
         # Determine all unique keys (excluding 'step' which we handle separately)
         all_keys = set(metrics_history.keys())
         if baseline_stats:
             all_keys.update(baseline_stats.keys())
+        if summary_rows:
+            for row in summary_rows:
+                metrics = row.get('metrics', {}) if isinstance(row, dict) else {}
+                if isinstance(metrics, dict):
+                    all_keys.update(metrics.keys())
+            all_keys.add('model_label')
         all_keys.discard('step')  # Remove 'step' since we prepend it separately
         
         # Sort keys alphabetically
@@ -585,13 +608,44 @@ class OutputManager:
                 for k in sorted_keys:
                     if k == 'alpha':
                         row.append(1.0)
+                    elif k == 'model_label':
+                        row.append('baseline')
                     elif k in baseline_stats:
                         row.append(baseline_stats[k])
                     else:
                         row.append('')
                 writer.writerow(row)
+
+            # 2. Optional summary rows (e.g., data_only, fcfw variants, final ensemble)
+            if summary_rows:
+                for summary in summary_rows:
+                    if not isinstance(summary, dict):
+                        continue
+                    step = summary.get('step', '')
+                    label = summary.get('label', '')
+                    metrics = summary.get('metrics', {})
+                    if not isinstance(metrics, dict):
+                        metrics = {}
+
+                    row = [step]
+                    for k in sorted_keys:
+                        if k == 'alpha':
+                            row.append('')
+                        elif k == 'model_label':
+                            row.append(label)
+                        elif k in metrics:
+                            v = metrics[k]
+                            if hasattr(v, 'item'):
+                                v = v.item()
+                            if isinstance(v, float) and math.isnan(v):
+                                row.append('')
+                            else:
+                                row.append(v)
+                        else:
+                            row.append('')
+                    writer.writerow(row)
             
-            # 2. History rows
+            # 3. History rows
             n_steps = len(metrics_history[list(metrics_history.keys())[0]])
             for i in range(n_steps):
                 row = [i]
@@ -601,6 +655,8 @@ class OutputManager:
                         # Handle JAX/NumPy types
                         if hasattr(val, 'item'): val = val.item()
                         row.append(val)
+                    elif k == 'model_label':
+                        row.append('ensemble_step')
                     else:
                         row.append('')
                 writer.writerow(row)

@@ -8,6 +8,9 @@ Three strategies for computing the Gaussian kernel bandwidth(s):
    sigma values directly.  Data-adaptive, no manual ``sigma_factor`` needed.
 3. **medoids** -- K-medoids clustering on the 1-D pairwise distance histogram.
    Finds the *natural distance scales* present in the data.
+4. **fourier** -- Deterministic, non-data-driven sigmas targeting specific
+   k-body Fourier spectrum features of the Boolean hypercube.  No pairwise
+   computations needed at all.
 
 All methods subsample the training data to ``max_samples`` (default 1000) to
 keep the O(m^2) pairwise computation bounded.
@@ -161,6 +164,35 @@ def compute_sigma_medoids(x_train: np.ndarray,
     return sigma
 
 
+def compute_sigma_fourier(n: int, s: int) -> list[float]:
+    """
+    Computes 's' sigma bandwidths targeted at specific k-body Fourier depths,
+    specifically calibrated for a Binomial Pauli sampling MMD estimator.
+    """
+    if s <= 0:
+        return []
+
+    # We mathematically cannot target exactly n/2 because it requires sigma=0.
+    max_k = (n / 2) * (1 - 1e-5)
+
+    if s == 1:
+        targets = [max_k]
+    else:
+        # Geometrically space our k-body targets from k=1 up to max_k
+        geom_points = np.geomspace(1, max_k, num=s)
+        targets = [float(x) for x in geom_points]
+        
+    print(f"[sigma:fourier] Targeting expected k-body depths: {[round(t, 2) for t in targets]}")
+
+    sigmas = []
+    for k in targets:
+        inner_term = 1 - (2 * k / n)
+        sigma = np.sqrt(-1.0 / (2.0 * np.log(inner_term)))
+        sigmas.append(float(sigma))
+
+    return sorted(sigmas, reverse=True)
+
+
 # ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
@@ -199,6 +231,11 @@ def compute_sigma(config: dict, x_train: np.ndarray,
             n_sigmas = int(heuristic.get('n_sigmas', 5))
             return compute_sigma_medoids(x_train, n_sigmas=n_sigmas,
                                          max_samples=max_samples, seed=seed)
+        
+        if method == 'fourier':
+            n = x_train.shape[1]  # number of qubits = dimensionality
+            s = int(heuristic.get('n_sigmas', 5))
+            return compute_sigma_fourier(n, s)
 
         raise ValueError(f"Unknown sigma_heuristic method: {method}")
 

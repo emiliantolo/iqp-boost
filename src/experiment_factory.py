@@ -27,6 +27,26 @@ from src.datasets.tfim_thermal import TFIMThermalDataset
 from src.datasets.rydberg import RydbergDataset
 
 
+def _resolve_rows_cols(params: dict, config: dict, default: tuple[int, int] = (4, 4)) -> tuple[int, int]:
+    """Resolve dataset dimensions from params/config.
+
+    Accepts either:
+    - params['rows'] / params['cols']
+    - params['dims'] = [rows, cols]
+    with fallback to config equivalents and then default.
+    """
+    if 'rows' in params and 'cols' in params:
+        return int(params['rows']), int(params['cols'])
+
+    dims = params.get('dims', None)
+    if dims is None and 'rows' in config and 'cols' in config:
+        return int(config['rows']), int(config['cols'])
+    if dims is None:
+        dims = config.get('dims', default)
+
+    return int(dims[0]), int(dims[1])
+
+
 def _binary_rows_to_ints(samples: np.ndarray) -> np.ndarray:
     if samples is None or len(samples) == 0:
         return np.array([], dtype=int)
@@ -603,16 +623,14 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     data_seed = int(config.get('data_seed', 0))
 
     if dataset_key == 'bas':
-        dims = params.get('dims', config.get('dims', (4, 4)))
-        height, width = int(dims[0]), int(dims[1])
+        height, width = _resolve_rows_cols(params, config, default=(4, 4))
         ds = BarsAndStripesDataset(height=height, width=width)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'BAS ({height}x{width})'
         n_qubits = height * width
 
     elif dataset_key == 'noisy_bas':
-        dims = params.get('dims', config.get('dims', (4, 4)))
-        height, width = int(dims[0]), int(dims[1])
+        height, width = _resolve_rows_cols(params, config, default=(4, 4))
         flip_prob = float(params.get('flip_prob', config.get('flip_prob', 0.05)))
         ds = NoisyBASDataset(height=height, width=width, flip_prob=flip_prob)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
@@ -667,32 +685,28 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'pennylane_ising':
-        dims = params.get('dims', config.get('dims', (4, 4)))
-        rows, cols = int(dims[0]), int(dims[1])
+        rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
         ds = PennylaneIsingDataset(rows=rows, cols=cols)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'PennyLane Ising ({rows}x{cols})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'pennylane_bas':
-        dims = params.get('dims', config.get('dims', (4, 4)))
-        rows, cols = int(dims[0]), int(dims[1])
+        rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
         ds = PennylaneBASDataset(rows=rows, cols=cols)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'PennyLane BAS ({rows}x{cols})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'pennylane_hm':
-        dims = params.get('dims', config.get('dims', (4, 4)))
-        rows, cols = int(dims[0]), int(dims[1])
+        rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
         ds = PennylaneHMDataset(rows=rows, cols=cols)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'PennyLane HM ({rows}x{cols})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'mnist':
-        dims = params.get('dims', config.get('dims', (4, 4)))
-        rows, cols = int(dims[0]), int(dims[1])
+        rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
         digit = params.get('digit', None)
         if digit is not None:
             digit = int(digit)
@@ -706,24 +720,21 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'dwave':
-        dims = params.get('dims', config.get('dims', (4, 4)))
-        rows, cols = int(dims[0]), int(dims[1])
+        rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
         ds = DWaveDataset(rows=rows, cols=cols)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'D-Wave ({rows}x{cols})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'scale_free':
-        dims = params.get('dims', config.get('dims', (4, 4)))
-        rows, cols = int(dims[0]), int(dims[1])
+        rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
         ds = ScaleFreeDataset(rows=rows, cols=cols)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'Scale-Free ({rows}x{cols})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'genomic':
-        dims = params.get('dims', config.get('dims', (4, 4)))
-        rows, cols = int(dims[0]), int(dims[1])
+        rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
         ds = GenomicDataset(rows=rows, cols=cols)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'Genomic ({rows}x{cols})'

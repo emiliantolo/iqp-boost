@@ -659,6 +659,8 @@ def run_boosting_experiment(
         baseline_samples = None
         data_only_stats = None
         data_only_history = None
+        data_only_fcfw_stats = None
+        ensemble_fcfw_stats = None
 
         # 1. Optional standalone baseline
         if 'standalone' in baselines_to_run:
@@ -902,7 +904,18 @@ def run_boosting_experiment(
                 model_rows.append((f"Model {i}", {'mmd': m_loss}))
             
             report_metrics_table(reference_stats, final_stats, model_rows, "FINAL MODEL COMPARISON (Analytical)")
-            output.save_results_csv(ensemble_metrics_history, baseline_stats=reference_stats)
+
+            baseline_for_csv = standalone_stats if standalone_stats is not None else reference_stats
+            summary_rows = []
+            if data_only_stats is not None:
+                summary_rows.append({'step': -2, 'label': 'data_only', 'metrics': data_only_stats})
+            summary_rows.append({'step': -4, 'label': 'ensemble_final', 'metrics': final_stats})
+
+            output.save_results_csv(
+                ensemble_metrics_history,
+                baseline_stats=baseline_for_csv,
+                summary_rows=summary_rows,
+            )
         else:
             final_eval_rng = np.random.default_rng(rng_seed + config['n_models'] * 7919)
             final_ensemble_samples, final_counts, per_model_samples = ensemble.sample(
@@ -939,16 +952,31 @@ def run_boosting_experiment(
             table_title = "FINAL MODEL COMPARISON"
             if config.get('report_fcfw', True):
                 print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...")
-                fcfw_stats = compute_fcfw_stats(ensemble, x_train, sigma, shots, final_eval_rng, validity_fn, coverage_fn)
-                print(f"  FCFW Sampled MMD^2: {fcfw_stats['mmd']:.6f}")
-                if 'tvd' in fcfw_stats and not np.isnan(fcfw_stats['tvd']):
-                    print(f"  FCFW Sampled TVD:   {fcfw_stats['tvd']:.4f}")
+                ensemble_fcfw_stats = compute_fcfw_stats(ensemble, x_train, sigma, shots, final_eval_rng, validity_fn, coverage_fn)
+                print(f"  FCFW Sampled MMD^2: {ensemble_fcfw_stats['mmd']:.6f}")
+                if 'tvd' in ensemble_fcfw_stats and not np.isnan(ensemble_fcfw_stats['tvd']):
+                    print(f"  FCFW Sampled TVD:   {ensemble_fcfw_stats['tvd']:.4f}")
                 
-                model_rows.append(("Ensemble (FCFW)", fcfw_stats))
+                model_rows.append(("Ensemble (FCFW)", ensemble_fcfw_stats))
                 table_title = "FINAL MODEL COMPARISON (inc. FCFW)"
 
             report_metrics_table(reference_stats, final_stats, model_rows, table_title)
-            output.save_results_csv(ensemble_metrics_history, baseline_stats=reference_stats)
+
+            baseline_for_csv = standalone_stats if standalone_stats is not None else reference_stats
+            summary_rows = []
+            if data_only_stats is not None:
+                summary_rows.append({'step': -2, 'label': 'data_only', 'metrics': data_only_stats})
+            if data_only_fcfw_stats is not None:
+                summary_rows.append({'step': -3, 'label': 'data_only_fcfw', 'metrics': data_only_fcfw_stats})
+            summary_rows.append({'step': -4, 'label': 'ensemble_final', 'metrics': final_stats})
+            if ensemble_fcfw_stats is not None:
+                summary_rows.append({'step': -5, 'label': 'ensemble_fcfw', 'metrics': ensemble_fcfw_stats})
+
+            output.save_results_csv(
+                ensemble_metrics_history,
+                baseline_stats=baseline_for_csv,
+                summary_rows=summary_rows,
+            )
 
         # Plotting
         if get_plot_config()['plot_data_loss']:
