@@ -120,6 +120,57 @@ def compute_lambda_schedule(step: int, n_steps: int, base_lambda: float,
     return float(np.clip(value, 0.0, 1.0))
 
 
+
+def grid2d_graph(height: int, width: int, periodic: bool = False) -> nx.Graph:
+    """Build a 2D rectangular lattice graph.
+    
+    Args:
+        height: Number of rows in the grid
+        width: Number of columns in the grid
+        periodic: If True, wrap edges (toroidal); False = open grid (default)
+    
+    Returns:
+        NetworkX graph with qubits 0 to height*width-1 mapped as:
+        qubit q = i * width + j for position (i, j)
+    """
+    n_qubits = height * width
+    G = nx.Graph()
+    G.add_nodes_from(range(n_qubits))
+    
+    for i in range(height):
+        for j in range(width):
+            q = i * width + j
+            
+            # Right neighbor (within row)
+            if j < width - 1:
+                q_right = i * width + (j + 1)
+                G.add_edge(q, q_right)
+            elif periodic:
+                q_wrap_right = i * width + 0
+                G.add_edge(q, q_wrap_right)
+            
+            # Bottom neighbor (next row)
+            if i < height - 1:
+                q_bottom = (i + 1) * width + j
+                G.add_edge(q, q_bottom)
+            elif periodic:
+                q_wrap_bottom = 0 * width + j
+                G.add_edge(q, q_wrap_bottom)
+    
+    return G
+
+
+def grid2d_topology(height: int, width: int, distance: int = 1, 
+                    max_weight: int = 2, periodic: bool = False) -> tuple:
+    """Build gate list for 2D grid topology.
+    
+    Returns (gates, G): gate list and NetworkX graph
+    """
+    G = grid2d_graph(height, width, periodic=periodic)
+    gates = nearest_neighbour_gates(G, distance=distance, max_weight=max_weight)
+    return gates, G
+
+
 def setup_iqp_circuit(n_qubits: int, topology: str = 'neighbour', n_ancilla: int = 0, **kwargs) -> tuple:
     """Configure IQP circuit gates based on topology.
     
@@ -173,6 +224,28 @@ def setup_iqp_circuit(n_qubits: int, topology: str = 'neighbour', n_ancilla: int
         max_weight = kwargs.get('max_weight', 2)
         gates = local_gates(build_n_qubits, max_weight=max_weight)
         desc = f"Qubits: {build_n_qubits}\nLocal topology: {len(gates)} parameters\n(max_weight={max_weight})"
+    elif topology == 'grid2d':
+        height = kwargs.get('height')
+        width = kwargs.get('width')
+        
+        if height is None or width is None:
+            raise ValueError("grid2d requires 'height' and 'width' parameters")
+        
+        if height * width != n_qubits:
+            raise ValueError(
+                f"grid2d mismatch: {height}x{width}={height*width} != n_qubits={n_qubits}"
+            )
+        
+        periodic = kwargs.get('periodic', False)
+        distance = kwargs.get('distance', 1)
+        max_weight = kwargs.get('max_weight', 2)
+        
+        gates, G = grid2d_topology(height, width, distance=distance, 
+                                   max_weight=max_weight, periodic=periodic)
+        
+        periodic_str = "toroidal" if periodic else "open"
+        desc = f"Qubits: {n_qubits} ({height}x{width} {periodic_str} grid)\n"
+        desc += f"Grid2D topology: {len(gates)} parameters\n(distance={distance}, max_weight={max_weight})"
     else:
         raise ValueError(f"Unknown topology: {topology}")
 
