@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pennylane as qml
 
 from .base import BinaryDataset
-from .reduction import pca_reduce
+from .reduction import pca_reduce, umap_reduce, variance_mi_reduce
 
 
 class ScaleFreeDataset(BinaryDataset):
@@ -15,8 +15,8 @@ class ScaleFreeDataset(BinaryDataset):
     Loads the ``scale-free`` dataset from PennyLane (20 000 training samples
     of 1 000 spins from an Ising model defined on a Barabasi-Albert
     scale-free graph with random couplings, sampled via MCMC).  Spin
-    values are converted from +/-1 to {0, 1} and then PCA-reduced to
-    ``rows x cols`` qubits.
+    values are converted from +/-1 to {0, 1} and then reduced to
+    ``rows x cols`` qubits using PCA, UMAP, or variance+MI feature selection.
 
     Source: `XanaduAI/gqml_datasets <https://github.com/XanaduAI/gqml_datasets>`_
 
@@ -26,11 +26,21 @@ class ScaleFreeDataset(BinaryDataset):
               Total qubits = rows x cols.
     """
 
-    def __init__(self, rows: int = 4, cols: int = 4):
+    def __init__(
+        self,
+        rows: int = 4,
+        cols: int = 4,
+        reduction: str = "pca",
+        variance_filter_dims: int = 100,
+    ):
         super().__init__()
+        if reduction not in ("pca", "umap", "variance_mi"):
+            raise ValueError(f"reduction must be 'pca', 'umap', or 'variance_mi', got {reduction!r}")
         self.rows = rows
         self.cols = cols
         self.n_qubits = rows * cols
+        self.reduction = reduction
+        self.variance_filter_dims = variance_filter_dims
 
         # Load from PennyLane
         [ds] = qml.data.load(
@@ -45,7 +55,16 @@ class ScaleFreeDataset(BinaryDataset):
         else:
             raw = raw.astype(np.int8)
 
-        self._reduced = pca_reduce(raw, n_components=self.n_qubits)
+        if reduction == "pca":
+            self._reduced = pca_reduce(raw, n_components=self.n_qubits)
+        elif reduction == "umap":
+            self._reduced = umap_reduce(raw, n_components=self.n_qubits)
+        else:
+            self._reduced = variance_mi_reduce(
+                raw,
+                n_components=self.n_qubits,
+                variance_filter_dims=self.variance_filter_dims,
+            )
 
     def generate(self, n_samples: int, seed: int = 0) -> np.ndarray:
         """

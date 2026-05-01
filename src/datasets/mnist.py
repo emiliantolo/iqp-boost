@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pennylane as qml
 
 from .base import BinaryDataset
-from .reduction import pca_reduce, spatial_downsample
+from .reduction import pca_reduce, spatial_downsample, umap_reduce, variance_mi_reduce
 
 
 class BinarizedMNISTDataset(BinaryDataset):
@@ -25,7 +25,9 @@ class BinarizedMNISTDataset(BinaryDataset):
               Total qubits = rows x cols.
         digit: If not None, restrict to a single MNIST digit class (0-9).
         reduction: ``'spatial'`` for average-pool downscaling (preserves 2-D
-            structure), or ``'pca'`` for PCA-based reduction.
+            structure), ``'pca'`` for PCA-based reduction, ``'umap'`` for
+            UMAP-based nonlinear reduction, or ``'variance_mi'`` for
+            variance filtering followed by pairwise MI ranking.
     """
 
     def __init__(
@@ -34,16 +36,20 @@ class BinarizedMNISTDataset(BinaryDataset):
         cols: int = 4,
         digit: int | None = None,
         reduction: str = "spatial",
+        variance_filter_dims: int = 100,
     ):
         super().__init__()
-        if reduction not in ("spatial", "pca"):
-            raise ValueError(f"reduction must be 'spatial' or 'pca', got {reduction!r}")
+        if reduction not in ("spatial", "pca", "umap", "variance_mi"):
+            raise ValueError(
+                f"reduction must be 'spatial', 'pca', 'umap', or 'variance_mi', got {reduction!r}"
+            )
 
         self.rows = rows
         self.cols = cols
         self.n_qubits = rows * cols
         self.digit = digit
         self.reduction = reduction
+        self.variance_filter_dims = variance_filter_dims
 
         # Load from PennyLane
         [ds] = qml.data.load(
@@ -68,9 +74,19 @@ class BinarizedMNISTDataset(BinaryDataset):
                 all_inputs, src_size=28,
                 dst_height=rows, dst_width=cols,
             )
-        else:
+        elif reduction == "pca":
             self._reduced = pca_reduce(
                 all_inputs, n_components=self.n_qubits,
+            )
+        elif reduction == "umap":
+            self._reduced = umap_reduce(
+                all_inputs, n_components=self.n_qubits,
+            )
+        else:
+            self._reduced = variance_mi_reduce(
+                all_inputs,
+                n_components=self.n_qubits,
+                variance_filter_dims=self.variance_filter_dims,
             )
 
     def generate(self, n_samples: int, seed: int = 0) -> np.ndarray:

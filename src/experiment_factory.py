@@ -711,33 +711,60 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         if digit is not None:
             digit = int(digit)
         reduction = str(params.get('reduction', 'spatial'))
+        variance_filter_dims = int(params.get('variance_filter_dims', config.get('variance_filter_dims', 100)))
         ds = BinarizedMNISTDataset(
-            rows=rows, cols=cols, digit=digit, reduction=reduction,
+            rows=rows,
+            cols=cols,
+            digit=digit,
+            reduction=reduction,
+            variance_filter_dims=variance_filter_dims,
         )
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         digit_str = f', digit={digit}' if digit is not None else ''
-        dataset_name = f'Binarized MNIST ({rows}x{cols}{digit_str})'
+        suffix = f', {reduction}' if reduction != 'spatial' else ''
+        dataset_name = f'Binarized MNIST ({rows}x{cols}{digit_str}{suffix})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'dwave':
         rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
-        ds = DWaveDataset(rows=rows, cols=cols)
+        reduction = str(params.get('reduction', 'pca'))
+        variance_filter_dims = int(params.get('variance_filter_dims', config.get('variance_filter_dims', 100)))
+        ds = DWaveDataset(
+            rows=rows,
+            cols=cols,
+            reduction=reduction,
+            variance_filter_dims=variance_filter_dims,
+        )
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
-        dataset_name = f'D-Wave ({rows}x{cols})'
+        dataset_name = f'D-Wave ({rows}x{cols}, {reduction})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'scale_free':
         rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
-        ds = ScaleFreeDataset(rows=rows, cols=cols)
+        reduction = str(params.get('reduction', 'pca'))
+        variance_filter_dims = int(params.get('variance_filter_dims', config.get('variance_filter_dims', 100)))
+        ds = ScaleFreeDataset(
+            rows=rows,
+            cols=cols,
+            reduction=reduction,
+            variance_filter_dims=variance_filter_dims,
+        )
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
-        dataset_name = f'Scale-Free ({rows}x{cols})'
+        dataset_name = f'Scale-Free ({rows}x{cols}, {reduction})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'genomic':
         rows, cols = _resolve_rows_cols(params, config, default=(4, 4))
-        ds = GenomicDataset(rows=rows, cols=cols)
+        reduction = str(params.get('reduction', 'pca'))
+        variance_filter_dims = int(params.get('variance_filter_dims', config.get('variance_filter_dims', 100)))
+        ds = GenomicDataset(
+            rows=rows,
+            cols=cols,
+            reduction=reduction,
+            variance_filter_dims=variance_filter_dims,
+        )
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
-        dataset_name = f'Genomic ({rows}x{cols})'
+        dataset_name = f'Genomic ({rows}x{cols}, {reduction})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'random_circuit':
