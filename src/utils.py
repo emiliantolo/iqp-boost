@@ -21,16 +21,38 @@ def fast_binary_gaussian_kernel(X: np.ndarray, Y: np.ndarray, sigma: float) -> n
 
 
 def compute_distributions(ground_truth: np.ndarray, model_samples: np.ndarray,
-                         n_bins: int = None, smoothing: float = 1e-10, max_qubits: int = 18) -> tuple[np.ndarray, np.ndarray]:
+                         n_bins: int = None, smoothing: float = 1e-10, max_qubits: int = 20,
+                         exact_probs: np.ndarray = None) -> tuple[np.ndarray, np.ndarray]:
     """Compute probability distributions from discrete samples.
+
+    When ``exact_probs`` is provided (a 2^n probability vector), it is used
+    directly as the ground-truth distribution instead of building a histogram
+    from ``ground_truth`` samples.  This gives exact, noise-free reference
+    values for TVD / KL / JSD.
 
     For <=max_qubits: uses full 2^n histogram.
     For >max_qubits: uses empirical support (only observed bitstrings are binned).
     """
-    ground_truth = np.asarray(ground_truth, dtype=int)
     model_samples = np.asarray(model_samples, dtype=int)
+    n_features = model_samples.shape[1]
 
-    n_features = ground_truth.shape[1]
+    def binary_to_int(samples):
+        return np.sum(samples * (2 ** np.arange(samples.shape[1])), axis=1)
+
+    # --- Exact-prob path: use provided probability vector as reference ---
+    if exact_probs is not None:
+        p_data = np.asarray(exact_probs, dtype=np.float64)
+        n_bins_exact = len(p_data)
+        model_ints = binary_to_int(model_samples)
+        model_counts = np.bincount(model_ints, minlength=n_bins_exact).astype(np.float64)
+        if smoothing > 0:
+            model_counts += smoothing
+        total = model_counts.sum()
+        p_model = model_counts / total if total > 0 else model_counts
+        return p_data, p_model
+
+    # --- Sample-based paths ---
+    ground_truth = np.asarray(ground_truth, dtype=int)
 
     if n_features > max_qubits and n_bins is None:
         # Empirical support approach: hash bitstrings to avoid 2^n allocation
@@ -57,9 +79,6 @@ def compute_distributions(ground_truth: np.ndarray, model_samples: np.ndarray,
         return p_data, p_model
 
     # Standard full-histogram approach for <=max_qubits qubits
-    def binary_to_int(samples):
-        return np.sum(samples * (2 ** np.arange(samples.shape[1])), axis=1)
-
     gt_ints = binary_to_int(ground_truth)
     model_ints = binary_to_int(model_samples)
 
@@ -75,23 +94,38 @@ def compute_distributions(ground_truth: np.ndarray, model_samples: np.ndarray,
 
 
 def compute_kl_divergence(ground_truth: np.ndarray, model_samples: np.ndarray,
-                          n_bins: int = None, smoothing: float = 1e-10) -> float:
-    """Compute KL divergence between discrete sample distributions using Scipy."""
-    p_data, p_model = compute_distributions(ground_truth, model_samples, n_bins, smoothing)
+                          n_bins: int = None, smoothing: float = 1e-10,
+                          exact_probs: np.ndarray = None) -> float:
+    """Compute KL divergence between discrete sample distributions using Scipy.
+
+    When ``exact_probs`` is provided, uses it as the exact reference distribution.
+    """
+    p_data, p_model = compute_distributions(ground_truth, model_samples, n_bins, smoothing,
+                                            exact_probs=exact_probs)
     return float(entropy(p_data, p_model))
 
 
 def compute_jsd(ground_truth: np.ndarray, model_samples: np.ndarray,
-                n_bins: int = None, smoothing: float = 1e-10) -> float:
-    """Compute Jensen-Shannon Distance (metric) using Scipy."""
-    p_data, p_model = compute_distributions(ground_truth, model_samples, n_bins, smoothing)
+                n_bins: int = None, smoothing: float = 1e-10,
+                exact_probs: np.ndarray = None) -> float:
+    """Compute Jensen-Shannon Distance (metric) using Scipy.
+
+    When ``exact_probs`` is provided, uses it as the exact reference distribution.
+    """
+    p_data, p_model = compute_distributions(ground_truth, model_samples, n_bins, smoothing,
+                                            exact_probs=exact_probs)
     return float(jensenshannon(p_data, p_model))
 
 
 def compute_tvd(ground_truth: np.ndarray, model_samples: np.ndarray,
-                n_bins: int = None) -> float:
-    """Compute Total Variation Distance (TVD)."""
-    p_data, p_model = compute_distributions(ground_truth, model_samples, n_bins, smoothing=0.0)
+                n_bins: int = None,
+                exact_probs: np.ndarray = None) -> float:
+    """Compute Total Variation Distance (TVD).
+
+    When ``exact_probs`` is provided, uses it as the exact reference distribution.
+    """
+    p_data, p_model = compute_distributions(ground_truth, model_samples, n_bins, smoothing=0.0,
+                                            exact_probs=exact_probs)
     return 0.5 * np.sum(np.abs(p_data - p_model))
 
 

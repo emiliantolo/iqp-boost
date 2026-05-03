@@ -638,11 +638,11 @@ class OutputManager:
                             if hasattr(v, 'item'):
                                 v = v.item()
                             if isinstance(v, float) and math.isnan(v):
-                                row.append('')
+                                row.append('nan')
                             else:
                                 row.append(v)
                         else:
-                            row.append('')
+                            row.append('nan')
                     writer.writerow(row)
             
             # 3. History rows

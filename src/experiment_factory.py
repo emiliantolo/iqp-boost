@@ -845,4 +845,5 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         'coverage_fn': coverage_fn,
         'top_k_tvd_fn': top_k_tvd_fn,
         'custom_viz_fn': custom_viz_fn,
+        'exact_probs': getattr(ds, 'probs', None),
     }

@@ -1,0 +1,126 @@
+{
+  "output": {
+    "base_dir": "out_benchmark_full",
+    "suite_name": "dwave_4x4_pca_2d_d1_fourier"
+  },
+  "defaults": {
+    "train_samples": 10000,
+    "data_seed": 42,
+    "n_samples": 400,
+    "n_models": 10,
+    "learning_rate": 0.01,
+    "epochs_per_step": 400,
+    "caching_level": "none",
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_schedule": {
+      "type": "frank_wolfe",
+      "gamma": 1.0,
+      "tau": 1.0
+    },
+    "n_ops": 1000,
+    "weight_strategy": "frank_wolfe",
+    "baseline": [
+      "standalone",
+      "data_only"
+    ],
+    "shots": 10000,
+    "keep_models_for_diagnosis": true,
+    "stop_on_reject": false,
+    "rng_seed": 42,
+    "turbo": 10,
+    "sigma_heuristic": {
+      "method": "fourier",
+      "n_sigmas": 5
+    }
+  },
+  "runs": [
+    {
+      "name": "dwave_4x4_pca_grid2d_d1_a0_expanded",
+      "dataset": {
+        "name": "dwave",
+        "params": {
+          "rows": 4,
+          "cols": 4,
+          "reduction": "pca"
+        }
+      },
+      "plot": {
+        "kind": "lorenz",
+        "params": {
+          "filename": "dwave_4x4_pca_lorenz.pdf"
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "grid2d",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 0,
+          "ancilla_topology_mode": "expanded",
+          "periodic": true,
+          "height": 4,
+          "width": 4
+        }
+      }
+    },
+    {
+      "name": "dwave_4x4_pca_grid2d_d1_a2_expanded",
+      "dataset": {
+        "name": "dwave",
+        "params": {
+          "rows": 4,
+          "cols": 4,
+          "reduction": "pca"
+        }
+      },
+      "plot": {
+        "kind": "lorenz",
+        "params": {
+          "filename": "dwave_4x4_pca_lorenz.pdf"
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "grid2d",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 2,
+          "ancilla_topology_mode": "expanded",
+          "periodic": true,
+          "height": 4,
+          "width": 4
+        }
+      }
+    },
+    {
+      "name": "dwave_4x4_pca_grid2d_d1_a4_expanded",
+      "dataset": {
+        "name": "dwave",
+        "params": {
+          "rows": 4,
+          "cols": 4,
+          "reduction": "pca"
+        }
+      },
+      "plot": {
+        "kind": "lorenz",
+        "params": {
+          "filename": "dwave_4x4_pca_lorenz.pdf"
+        }
+      },
+      "config": {
+        "circuit_config": {
+          "topology": "grid2d",
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 4,
+          "ancilla_topology_mode": "expanded",
+          "periodic": true,
+          "height": 4,
+          "width": 4
+        }
+      }
+    }
+  ]
+}
