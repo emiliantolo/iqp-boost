@@ -143,7 +143,7 @@ class EnsembleTerms:
 
 
 def _weighted_ensemble(ensemble_terms: EnsembleTerms, weights: list, sigma_idx: int, n_samples: int,
-                       stochastic_ops: bool = False, ensemble_models: list = None,
+                       stochastic_ops: bool = True, ensemble_models: list = None,
                        iqp_circuit: IqpSimulator = None, all_ops: jnp.ndarray = None, key: Array = None,
                        init_coefs: list = None, indep_estimates: bool = False,
                        max_batch_ops: int = None, max_batch_samples: int = None):
@@ -216,7 +216,7 @@ def dual_mmd_loss(params: jnp.ndarray, iqp_circuit: IqpSimulator, ground_truth: 
                   n_samples: int, key: Array, init_coefs: list = None, wires: list = None,
                   indep_estimates: bool = False, jit: bool = True,
                   lambda_dual: float = 1.0, return_components: bool = False,
-                  return_traces: bool = False, stochastic_ops: bool = False,
+                  return_traces: bool = False, stochastic_ops: bool = True,
                   ensemble_models: list = None,
                   max_batch_ops: int = None, max_batch_samples: int = None) -> float | dict:
     """Dual MMD boosting loss, averaged over Gaussian bandwidths.
