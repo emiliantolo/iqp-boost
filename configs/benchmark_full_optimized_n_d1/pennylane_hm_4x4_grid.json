@@ -1,7 +1,7 @@
 {
   "output": {
     "base_dir": "out_benchmark_full",
-    "suite_name": "pennylane_hm_4x4_n_d1_fourier"
+    "suite_name": "pennylane_hm_4x4_n_d1_optimized"
   },
   "defaults": {
     "train_samples": 10000,
@@ -30,8 +30,11 @@
     "rng_seed": 42,
     "turbo": 10,
     "sigma_heuristic": {
-      "method": "fourier",
-      "n_sigmas": 5
+      "method": "optimized",
+      "n_sigmas": 5,
+      "n_ref": 2000,
+      "max_samples": 2000,
+      "n_steps": 500
     }
   },
   "runs": [
