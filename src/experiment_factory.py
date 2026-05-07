@@ -12,6 +12,7 @@ from src.datasets.blobs import BlobsDataset
 from src.datasets.dwave import DWaveDataset
 from src.datasets.gaussian import GaussianMixtureDataset
 from src.datasets.genomic import GenomicDataset
+from src.datasets.graph_isomorphism import GraphIsomorphismDataset
 from src.datasets.ising import FrustratedIsingDataset
 from src.datasets.pennylane_ising import PennylaneIsingDataset
 from src.datasets.pennylane_bas import PennylaneBASDataset
@@ -664,6 +665,23 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         dataset_name = f'Gaussian Mixture ({grid_size}x{grid_size})'
         n_qubits = x_train.shape[1]
 
+    elif dataset_key == 'graph_isomorphism':
+        num_nodes = int(params.get('num_nodes', 8))
+        edge_prob = float(params.get('edge_prob', 0.5))
+        train_split_ratio = float(params.get('train_split_ratio', 0.125))
+        seed = int(params.get('seed', 42))
+        enforce_asymmetry = bool(params.get('enforce_asymmetry', True))
+        ds = GraphIsomorphismDataset(
+            num_nodes=num_nodes,
+            edge_prob=edge_prob,
+            train_split_ratio=train_split_ratio,
+            seed=seed,
+            enforce_asymmetry=enforce_asymmetry,
+        )
+        x_train = ds.generate(split='train')
+        dataset_name = f'Graph Isomorphism (N={num_nodes}, p={edge_prob:g})'
+        n_qubits = ds.n_qubits
+
     elif dataset_key == 'shapes':
         grid_shape = tuple(params.get('grid_shape', config.get('grid_shape', (5, 5))))
         shape_types = params.get('shape_types', None)
@@ -818,7 +836,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     else:
         raise ValueError(
             "Unknown dataset name. Supported values: "
-            "bas, noisy_bas, blobs, dwave, gaussian, genomic, ising, mnist, "
+            "bas, noisy_bas, blobs, dwave, gaussian, genomic, graph_isomorphism, ising, mnist, "
             "parity, qaoa_maxcut, random_circuit, rydberg, scale_free, shapes, "
             "tfim_thermal."
         )
