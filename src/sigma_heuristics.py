@@ -1,6 +1,6 @@
 """Sigma bandwidth heuristics for MMD kernel selection.
 
-Three strategies for computing the Gaussian kernel bandwidth(s):
+Five strategies for computing the Gaussian kernel bandwidth(s):
 
 1. **median** -- Classic median heuristic (median of pairwise distances) scaled
    by user-provided factor(s).  Backward-compatible with existing configs.
@@ -11,6 +11,10 @@ Three strategies for computing the Gaussian kernel bandwidth(s):
 4. **fourier** -- Deterministic, non-data-driven sigmas targeting specific
    k-body Fourier spectrum features of the Boolean hypercube.  No pairwise
    computations needed at all.
+5. **optimized** -- Maximize MMD test power (SNR = MMD^2 / sqrt(Var)) between
+   data and uniform reference via JAX gradient ascent on log(sigma).
+   Initialized from fourier targets with diversity regularization.
+   Based on Sutherland et al. (2017).
 
 All methods subsample the training data to ``max_samples`` (default 1000) to
 keep the O(m^2) pairwise computation bounded.
@@ -193,6 +197,238 @@ def compute_sigma_fourier(n: int, s: int) -> list[float]:
     return sorted(sigmas, reverse=True)
 
 
+def compute_sigma_optimized(
+    x_train: np.ndarray,
+    n_sigmas: int = 5,
+    n_ref: int = 1000,
+    n_steps: int = 200,
+    lr: float = 0.01,
+    diversity_weight: float = 0.1,
+    merge_threshold: float = 0.1,
+    max_samples: int = 1000,
+    seed: int = 42,
+) -> list[float]:
+    """Optimize sigma bandwidths by maximizing MMD test power (SNR).
+
+    Finds the sigmas that maximize MMD^2 / sqrt(Var[MMD^2]) between the
+    training data and a uniform random reference, following the approach
+    of Sutherland et al. (2017, "Generative Models and Model Criticism
+    via Optimized Maximum Mean Discrepancy").
+
+    The optimization is entirely classical (no circuit evaluation):
+      1. Precompute Hamming distance matrices between data and reference
+      2. Express kernel matrices K = exp(-H / (2*sigma^2)) as smooth
+         functions of log(sigma)
+      3. Compute unbiased MMD^2 and its variance from the kernel matrices
+      4. Maximize the ratio (SNR) via JAX gradient ascent on log(sigma)
+
+    A diversity regularizer prevents all sigmas from collapsing to the
+    same value. After optimization, sigmas closer than ``merge_threshold``
+    in log-space are merged (keeping the one with highest per-sigma SNR).
+
+    Args:
+        x_train: Training data, shape (m, n_qubits).
+        n_sigmas: Number of sigma bandwidths to optimize.
+        n_ref: Number of uniform reference samples.
+        n_steps: Gradient ascent iterations.
+        lr: Learning rate for Adam optimizer.
+        diversity_weight: Strength of the log-space repulsion regularizer.
+        merge_threshold: Minimum distance in log(sigma) space between
+            distinct sigmas. Sigmas closer than this are merged.
+            Set to 0 to disable merging.
+        max_samples: Subsample x_train to this many rows.
+        seed: Random seed.
+
+    Returns:
+        List of optimized sigma values (possibly fewer than n_sigmas
+        if merging occurred), sorted descending.
+    """
+    import jax
+    import jax.numpy as jnp
+
+    rng = np.random.default_rng(seed)
+
+    # --- Subsample data ---
+    x_sub = _subsample_data(x_train, max_samples=max_samples, seed=seed)
+    m, n_qubits = x_sub.shape
+
+    # --- Generate uniform random reference ---
+    x_ref = rng.integers(0, 2, size=(min(n_ref, m), n_qubits)).astype(np.float64)
+    m_ref = len(x_ref)
+
+    # Use equal-sized sets for the variance estimator (requires m == n)
+    m_use = min(m, m_ref)
+    x_d = x_sub[:m_use]
+    x_r = x_ref[:m_use]
+
+    # --- Precompute Hamming distance matrices (fixed, not differentiated) ---
+    def hamming_matrix(a, b):
+        return np.sum(a[:, None, :] != b[None, :, :], axis=2).astype(np.float64)
+
+    H_dd = jnp.array(hamming_matrix(x_d, x_d))
+    H_rr = jnp.array(hamming_matrix(x_r, x_r))
+    H_dr = jnp.array(hamming_matrix(x_d, x_r))
+    m_jnp = jnp.float64(m_use)
+
+    # --- Initialize from fourier targets ---
+    init_sigmas = compute_sigma_fourier(n_qubits, n_sigmas)
+    if not init_sigmas:
+        init_sigmas = [1.0] * n_sigmas
+    log_sigmas_init = jnp.array([jnp.log(jnp.float64(s)) for s in init_sigmas])
+
+    print(f"[sigma:optimized] Init from fourier: {[round(s, 6) for s in init_sigmas]}")
+
+    # --- Define the SNR objective (to maximize) ---
+    _eps = jnp.float64(1e-10)
+
+    def _kernel_matrices(H, log_sigma):
+        sigma2 = 2.0 * jnp.exp(2.0 * log_sigma)
+        return jnp.exp(-H / sigma2)
+
+    def _mmd2_and_variance_unbiased(K_XX, K_XY, K_YY, m_val):
+        """Unbiased MMD^2 and variance (Gretton 2012 / Sutherland 2017)."""
+        # Diagonal-free sums
+        diag_X = jnp.ones(int(m_val))
+        diag_Y = jnp.ones(int(m_val))
+        sum_diag_X = m_val
+        sum_diag_Y = m_val
+
+        Kt_XX_sums = K_XX.sum(axis=1) - diag_X
+        Kt_YY_sums = K_YY.sum(axis=1) - diag_Y
+        K_XY_sums_0 = K_XY.sum(axis=0)
+        K_XY_sums_1 = K_XY.sum(axis=1)
+
+        Kt_XX_sum = Kt_XX_sums.sum()
+        Kt_YY_sum = Kt_YY_sums.sum()
+        K_XY_sum = K_XY_sums_0.sum()
+
+        Kt_XX_2_sum = (K_XX ** 2).sum() - m_val  # unit diagonal
+        Kt_YY_2_sum = (K_YY ** 2).sum() - m_val
+        K_XY_2_sum = (K_XY ** 2).sum()
+
+        # Unbiased MMD^2
+        mmd2 = (Kt_XX_sum / (m_val * (m_val - 1))
+                + Kt_YY_sum / (m_val * (m_val - 1))
+                - 2 * K_XY_sum / (m_val * m_val))
+
+        # Variance of the U-statistic estimator
+        var_est = (
+            2 / (m_val**2 * (m_val - 1)**2) * (
+                2 * Kt_XX_sums.dot(Kt_XX_sums) - Kt_XX_2_sum
+                + 2 * Kt_YY_sums.dot(Kt_YY_sums) - Kt_YY_2_sum)
+            - (4 * m_val - 6) / (m_val**3 * (m_val - 1)**3) * (
+                Kt_XX_sum**2 + Kt_YY_sum**2)
+            + 4 * (m_val - 2) / (m_val**3 * (m_val - 1)**2) * (
+                K_XY_sums_1.dot(K_XY_sums_1)
+                + K_XY_sums_0.dot(K_XY_sums_0))
+            - 4 * (m_val - 3) / (m_val**3 * (m_val - 1)**2) * K_XY_2_sum
+            - (8 * m_val - 12) / (m_val**5 * (m_val - 1)) * K_XY_sum**2
+            + 8 / (m_val**3 * (m_val - 1)) * (
+                1 / m_val * (Kt_XX_sum + Kt_YY_sum) * K_XY_sum
+                - Kt_XX_sums.dot(K_XY_sums_1)
+                - Kt_YY_sums.dot(K_XY_sums_0))
+        )
+        return mmd2, var_est
+
+    def snr_objective(log_sigmas):
+        """Total SNR across all sigmas + diversity regularizer."""
+        total_snr = jnp.float64(0.0)
+        for i in range(n_sigmas):
+            ls = log_sigmas[i]
+            K_dd_s = _kernel_matrices(H_dd, ls)
+            K_rr_s = _kernel_matrices(H_rr, ls)
+            K_dr_s = _kernel_matrices(H_dr, ls)
+            mmd2, var = _mmd2_and_variance_unbiased(K_dd_s, K_dr_s, K_rr_s, m_jnp)
+            snr = mmd2 / jnp.sqrt(jnp.maximum(var, _eps))
+            total_snr = total_snr + snr
+
+        # Diversity: Gaussian repulsion in log-space
+        diversity = jnp.float64(0.0)
+        for i in range(n_sigmas):
+            for j in range(i + 1, n_sigmas):
+                diversity = diversity + jnp.exp(
+                    -(log_sigmas[i] - log_sigmas[j])**2)
+
+        return total_snr - diversity_weight * diversity
+
+    # --- Gradient ascent with Adam ---
+    grad_fn = jax.jit(jax.grad(snr_objective))
+    snr_fn = jax.jit(snr_objective)
+
+    log_sigmas = jnp.array(log_sigmas_init, dtype=jnp.float64)
+
+    # Adam state
+    m_adam = jnp.zeros_like(log_sigmas)
+    v_adam = jnp.zeros_like(log_sigmas)
+    beta1, beta2, adam_eps = 0.9, 0.999, 1e-8
+
+    best_snr = float('-inf')
+    best_log_sigmas = log_sigmas
+
+    for step in range(n_steps):
+        g = grad_fn(log_sigmas)
+        m_adam = beta1 * m_adam + (1 - beta1) * g
+        v_adam = beta2 * v_adam + (1 - beta2) * g**2
+        m_hat = m_adam / (1 - beta1**(step + 1))
+        v_hat = v_adam / (1 - beta2**(step + 1))
+        log_sigmas = log_sigmas + lr * m_hat / (jnp.sqrt(v_hat) + adam_eps)
+
+        if (step + 1) % 50 == 0 or step == 0:
+            current_snr = float(snr_fn(log_sigmas))
+            current_sigmas = [float(jnp.exp(ls)) for ls in log_sigmas]
+            print(f"  step {step+1:4d}: SNR={current_snr:.4f}, "
+                  f"sigmas={[round(s, 6) for s in sorted(current_sigmas, reverse=True)]}")
+            if current_snr > best_snr:
+                best_snr = current_snr
+                best_log_sigmas = log_sigmas
+
+    # --- Extract and deduplicate ---
+    raw_sigmas = sorted([float(jnp.exp(ls)) for ls in best_log_sigmas], reverse=True)
+    print(f"[sigma:optimized] Raw sigmas (SNR={best_snr:.4f}): "
+          f"{[round(s, 6) for s in raw_sigmas]}")
+
+    if merge_threshold > 0 and len(raw_sigmas) > 1:
+        # Compute per-sigma SNR for ranking
+        per_snr = []
+        for ls in best_log_sigmas:
+            K_dd_s = _kernel_matrices(H_dd, ls)
+            K_rr_s = _kernel_matrices(H_rr, ls)
+            K_dr_s = _kernel_matrices(H_dr, ls)
+            mmd2, var = _mmd2_and_variance_unbiased(K_dd_s, K_dr_s, K_rr_s, m_jnp)
+            per_snr.append(float(mmd2 / jnp.sqrt(jnp.maximum(var, _eps))))
+
+        # Sort by log(sigma) descending, keep track of SNR
+        indexed = sorted(enumerate(best_log_sigmas), key=lambda x: -float(x[1]))
+        sorted_log = [float(best_log_sigmas[i]) for i, _ in indexed]
+        sorted_snr = [per_snr[i] for i, _ in indexed]
+
+        # Greedy merge: walk through sorted sigmas, skip if too close
+        # to an already-kept sigma
+        kept_log = [sorted_log[0]]
+        kept_snr = [sorted_snr[0]]
+        for k in range(1, len(sorted_log)):
+            too_close = False
+            for kl in kept_log:
+                if abs(sorted_log[k] - kl) < merge_threshold:
+                    too_close = True
+                    break
+            if not too_close:
+                kept_log.append(sorted_log[k])
+                kept_snr.append(sorted_snr[k])
+
+        final_sigmas = sorted([float(np.exp(ls)) for ls in kept_log], reverse=True)
+        n_merged = len(raw_sigmas) - len(final_sigmas)
+        if n_merged > 0:
+            print(f"[sigma:optimized] Merged {n_merged} redundant sigma(s) "
+                  f"(threshold={merge_threshold:.2f} in log-space)")
+        print(f"[sigma:optimized] Final {len(final_sigmas)} sigmas: "
+              f"{[round(s, 6) for s in final_sigmas]}")
+    else:
+        final_sigmas = raw_sigmas
+
+    return final_sigmas
+
+
 # ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
@@ -236,6 +472,19 @@ def compute_sigma(config: dict, x_train: np.ndarray,
             n = x_train.shape[1]  # number of qubits = dimensionality
             s = int(heuristic.get('n_sigmas', 5))
             return compute_sigma_fourier(n, s)
+
+        if method == 'optimized':
+            n_sigmas = int(heuristic.get('n_sigmas', 5))
+            n_ref = int(heuristic.get('n_ref', 1000))
+            n_steps = int(heuristic.get('n_steps', 200))
+            opt_lr = float(heuristic.get('lr', 0.01))
+            div_weight = float(heuristic.get('diversity_weight', 0.1))
+            merge_thr = float(heuristic.get('merge_threshold', 0.1))
+            return compute_sigma_optimized(
+                x_train, n_sigmas=n_sigmas, n_ref=n_ref,
+                n_steps=n_steps, lr=opt_lr, diversity_weight=div_weight,
+                merge_threshold=merge_thr,
+                max_samples=max_samples, seed=seed)
 
         raise ValueError(f"Unknown sigma_heuristic method: {method}")
 
