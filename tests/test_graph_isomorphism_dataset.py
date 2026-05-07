@@ -4,6 +4,7 @@ from math import factorial
 import numpy as np
 
 from src.datasets.graph_isomorphism import GraphIsomorphismDataset
+from src.runner import evaluate_samples
 
 
 class GraphIsomorphismDatasetTest(unittest.TestCase):
@@ -53,6 +54,22 @@ class GraphIsomorphismDatasetTest(unittest.TestCase):
         self.assertEqual(metrics["valid_graph_rate"], 0.0)
         self.assertEqual(metrics["isomorphic_rate"], 0.0)
         self.assertEqual(metrics["invalid_shape_count"], 1)
+
+    def test_evaluate_samples_merges_generation_metrics(self):
+        dataset = GraphIsomorphismDataset(num_nodes=6, seed=7)
+
+        stats = evaluate_samples(
+            dataset.train_data,
+            dataset.test_data[:5],
+            sigma=1.0,
+            validity_fn=dataset.validity_rate,
+            coverage_fn=dataset.coverage_rate,
+            generation_eval_fn=dataset.evaluate_generation,
+        )
+
+        self.assertEqual(stats["isomorphic_rate"], 1.0)
+        self.assertEqual(stats["memorization_rate"], 0.0)
+        self.assertEqual(stats["novel_generalization_rate"], 1.0)
 
 
 if __name__ == "__main__":

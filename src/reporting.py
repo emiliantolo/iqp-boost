@@ -180,30 +180,39 @@ def report_metrics_table(baseline_stats: dict, ensemble_stats: dict, model_list:
             return f"{100*value:.1f}%"
         return str(value)
 
+    graph_specs = [
+        ("Iso", "isomorphic_rate"),
+        ("TrainPerm", "memorization_rate"),
+        ("TestPerm", "novel_generalization_rate"),
+    ]
+    stats_list = [baseline_stats, ensemble_stats]
+    if model_list:
+        stats_list.extend(stats for _, stats in model_list)
+    graph_cols = [(label, key) for label, key in graph_specs
+                  if any(isinstance(stats, dict) and key in stats for stats in stats_list)]
+
     # Show concise, decision-relevant metrics
-    headers = ["Model", "MMD", "TVD", "Valid", "Cover", "F1"]
+    headers = ["Model", "MMD", "TVD", "Valid", "Cover", "F1"] + [label for label, _ in graph_cols]
+
+    def _row(name: str, stats: dict) -> list:
+        row = [
+            name,
+            _fmt(stats, 'mmd', 'float4'),
+            _fmt(stats, 'tvd', 'float3'),
+            _fmt(stats, 'validity', 'pct1'),
+            _fmt(stats, 'coverage', 'pct1'),
+            _fmt(stats, 'f_score', 'pct1'),
+        ]
+        row.extend(_fmt(stats, key, 'pct1') for _, key in graph_cols)
+        return row
+
     rows = [
-        ["Baseline", 
-         _fmt(baseline_stats, 'mmd', 'float4'),
-         _fmt(baseline_stats, 'tvd', 'float3'),
-         _fmt(baseline_stats, 'validity', 'pct1'),
-         _fmt(baseline_stats, 'coverage', 'pct1'),
-         _fmt(baseline_stats, 'f_score', 'pct1')],
-        ["Ensemble", 
-         _fmt(ensemble_stats, 'mmd', 'float4'),
-         _fmt(ensemble_stats, 'tvd', 'float3'),
-         _fmt(ensemble_stats, 'validity', 'pct1'),
-         _fmt(ensemble_stats, 'coverage', 'pct1'),
-         _fmt(ensemble_stats, 'f_score', 'pct1')],
+        _row("Baseline", baseline_stats),
+        _row("Ensemble", ensemble_stats),
     ]
     if model_list:
         for name, stats in model_list:
-            rows.append([name,
-                        _fmt(stats, 'mmd', 'float4'),
-                        _fmt(stats, 'tvd', 'float3'),
-                        _fmt(stats, 'validity', 'pct1'),
-                        _fmt(stats, 'coverage', 'pct1'),
-                        _fmt(stats, 'f_score', 'pct1')])
+            rows.append(_row(name, stats))
     
     print(f"\n{title}")
     header_line = " | ".join(f"{h:<10}" for h in headers)
@@ -684,6 +693,5 @@ def save_json(data: dict, path: Path):
 def report_loss_components(data_mmd, ensemble_mmd, total_loss):
     """Print loss components for boosting step."""
     print(f"  Loss components: MMD_data={data_mmd:.6f}, MMD_ens={ensemble_mmd:.6f}, TOTAL={total_loss:.6f}")
-
 
 

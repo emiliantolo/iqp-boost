@@ -864,4 +864,5 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         'top_k_tvd_fn': top_k_tvd_fn,
         'custom_viz_fn': custom_viz_fn,
         'exact_probs': getattr(ds, 'probs', None),
+        'generation_eval_fn': getattr(ds, 'evaluate_generation', None),
     }
