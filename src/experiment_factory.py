@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Callable
+import re
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,6 +19,7 @@ from src.datasets.ising import FrustratedIsingDataset
 from src.datasets.pennylane_ising import PennylaneIsingDataset
 from src.datasets.pennylane_bas import PennylaneBASDataset
 from src.datasets.pennylane_hm import PennylaneHMDataset
+from src.datasets.hopfield import HopfieldDataset
 from src.datasets.mnist import BinarizedMNISTDataset
 from src.datasets.noisy_bas import NoisyBASDataset
 from src.datasets.parity import ParityDataset
@@ -119,6 +121,14 @@ def _sample_grid_viz(dataset, title: str, out_filename: str,
         plt.close(fig)
 
     return _viz
+
+
+def _default_dataset_title(dataset_obj) -> str:
+    name = dataset_obj.__class__.__name__
+    if name.endswith('Dataset'):
+        name = name[:-7]
+    name = re.sub(r'(?<!^)(?=[A-Z])', ' ', name).strip()
+    return f'{name} distribution'
 
 
 def _gaussian_summary_viz(dataset: GaussianMixtureDataset, title: str,
@@ -600,7 +610,7 @@ def _build_custom_viz(dataset_key: str, dataset_obj, plot_spec: dict | None, n_q
         filename = params.get('filename', 'gaussian_summary.pdf')
         return _gaussian_summary_viz(dataset_obj, title=title, out_filename=filename)
     if kind == 'ising_lorenz':
-        title = params.get('title', 'Frustrated Ising distribution')
+        title = params.get('title', _default_dataset_title(dataset_obj))
         filename = params.get('filename', 'ising_lorenz.pdf')
         return _ising_lorenz_viz(dataset_obj, title=title, out_filename=filename)
     if kind == 'lorenz':
@@ -636,8 +646,17 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         flip_prob = float(params.get('flip_prob', config.get('flip_prob', 0.05)))
         ds = NoisyBASDataset(height=height, width=width, flip_prob=flip_prob)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
-        dataset_name = f'Noisy BAS ({height}x{width}, p={flip_prob:g})'
         n_qubits = height * width
+        
+    elif dataset_key == 'hopfield':
+        n_qubits = int(params.get('n_qubits', 16))
+        n_patterns = int(params.get('n_patterns', 5))
+        beta = float(params.get('beta', 2.0))
+        pattern_seed = int(params.get('pattern_seed', 0))
+        ds = HopfieldDataset(n_qubits=n_qubits, n_patterns=n_patterns,
+                             beta=beta, pattern_seed=pattern_seed)
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'Hopfield ({n_qubits}q, {n_patterns}p)'
 
     elif dataset_key == 'parity':
         n_qubits = int(params.get('n_qubits', config.get('dim', config.get('n_qubits', 6))))

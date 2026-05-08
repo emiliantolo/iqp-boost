@@ -793,9 +793,13 @@ def run_boosting_experiment(
         for step in range(1, config['n_models']):
             print(f"\n[Step {step}] Training Model {step}...")
 
+            # The effective step for scheduling is the number of models currently in the ensemble.
+            # This ensures that if a model is rejected, lambda doesn't prematurely decay.
+            effective_step = len(ensemble.models)
+            
             # Apply lambda annealing schedule if configured
             current_lambda = compute_lambda_schedule(
-                step, config['n_models'],
+                effective_step, config['n_models'],
                 base_lambda=config.get('lambda_dual', 1.0),
                 schedule=config.get('lambda_schedule', None),
             )
