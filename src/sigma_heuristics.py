@@ -205,13 +205,14 @@ def compute_sigma_optimized(
     lr: float = 0.01,
     diversity_weight: float = 0.1,
     merge_threshold: float = 0.1,
+    bernoulli_noise_p: float = 0.5,
     max_samples: int = 1000,
     seed: int = 42,
 ) -> list[float]:
     """Optimize sigma bandwidths by maximizing MMD test power (SNR).
 
     Finds the sigmas that maximize MMD^2 / sqrt(Var[MMD^2]) between the
-    training data and a uniform random reference, following the approach
+    training data and a noisy reference, following the approach
     of Sutherland et al. (2017, "Generative Models and Model Criticism
     via Optimized Maximum Mean Discrepancy").
 
@@ -229,13 +230,17 @@ def compute_sigma_optimized(
     Args:
         x_train: Training data, shape (m, n_qubits).
         n_sigmas: Number of sigma bandwidths to optimize.
-        n_ref: Number of uniform reference samples.
+        n_ref: Number of reference samples.
         n_steps: Gradient ascent iterations.
         lr: Learning rate for Adam optimizer.
         diversity_weight: Strength of the log-space repulsion regularizer.
         merge_threshold: Minimum distance in log(sigma) space between
             distinct sigmas. Sigmas closer than this are merged.
             Set to 0 to disable merging.
+        bernoulli_noise_p: Probability of flipping each bit in x_train to
+            create the reference distribution. p=0.5 gives uniform noise
+            (recovers previous behavior), p=0.0 uses x_train as-is,
+            p in (0, 1) gives noisy data. Default is 0.5.
         max_samples: Subsample x_train to this many rows.
         seed: Random seed.
 
@@ -252,8 +257,14 @@ def compute_sigma_optimized(
     x_sub = _subsample_data(x_train, max_samples=max_samples, seed=seed)
     m, n_qubits = x_sub.shape
 
-    # --- Generate uniform random reference ---
-    x_ref = rng.integers(0, 2, size=(min(n_ref, m), n_qubits)).astype(np.float64)
+    # --- Generate reference with Bernoulli noise applied to training data ---
+    # With p=0.5, each bit flips with 50% probability -> uniform distribution
+    # With p=0.0, x_ref = x_sub (no noise)
+    # With p in (0, 1), x_ref is x_sub with bit-flip noise
+    x_ref_indices = rng.choice(m, size=min(n_ref, m * 2), replace=True)
+    x_ref_base = x_sub[x_ref_indices % m]
+    noise_mask = rng.binomial(1, bernoulli_noise_p, size=x_ref_base.shape)
+    x_ref = ((x_ref_base.astype(int) + noise_mask) % 2).astype(np.float64)
     m_ref = len(x_ref)
 
     # Use equal-sized sets for the variance estimator (requires m == n)
@@ -480,10 +491,11 @@ def compute_sigma(config: dict, x_train: np.ndarray,
             opt_lr = float(heuristic.get('lr', 0.01))
             div_weight = float(heuristic.get('diversity_weight', 0.1))
             merge_thr = float(heuristic.get('merge_threshold', 0.1))
+            bernoulli_p = float(heuristic.get('bernoulli_noise_p', 0.5))
             return compute_sigma_optimized(
                 x_train, n_sigmas=n_sigmas, n_ref=n_ref,
                 n_steps=n_steps, lr=opt_lr, diversity_weight=div_weight,
-                merge_threshold=merge_thr,
+                merge_threshold=merge_thr, bernoulli_noise_p=bernoulli_p,
                 max_samples=max_samples, seed=seed)
 
         raise ValueError(f"Unknown sigma_heuristic method: {method}")
