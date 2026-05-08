@@ -182,8 +182,11 @@ def report_metrics_table(baseline_stats: dict, ensemble_stats: dict, model_list:
 
     graph_specs = [
         ("Iso", "isomorphic_rate"),
-        ("TrainPerm", "memorization_rate"),
-        ("TestPerm", "novel_generalization_rate"),
+        ("Bip", "bipartite_rate"),
+        ("Density", "density_valid_rate"),
+        ("Support", "support_isomorphic_rate"),
+        ("TrainHit", "memorization_rate"),
+        ("TestHit", "novel_generalization_rate"),
     ]
     stats_list = [baseline_stats, ensemble_stats]
     if model_list:
@@ -693,5 +696,3 @@ def save_json(data: dict, path: Path):
 def report_loss_components(data_mmd, ensemble_mmd, total_loss):
     """Print loss components for boosting step."""
     print(f"  Loss components: MMD_data={data_mmd:.6f}, MMD_ens={ensemble_mmd:.6f}, TOTAL={total_loss:.6f}")
-
-

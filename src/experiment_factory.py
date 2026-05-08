@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from src.datasets.bas import BarsAndStripesDataset
+from src.datasets.bipartite_graph import BipartiteGraphDataset
 from src.datasets.blobs import BlobsDataset
 from src.datasets.dwave import DWaveDataset
 from src.datasets.gaussian import GaussianMixtureDataset
@@ -682,6 +683,31 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         dataset_name = f'Graph Isomorphism (N={num_nodes}, p={edge_prob:g})'
         n_qubits = ds.n_qubits
 
+    elif dataset_key == 'bipartite_graph':
+        nodes = int(params.get('nodes', 8))
+        edge_prob = params.get('edge_prob', (0.25, 0.75))
+        n_graphs = int(params.get('n_graphs', 160))
+        train_split_ratio = float(params.get('train_split_ratio', 0.8))
+        seed = int(params.get('seed', 42))
+        store_graphs = bool(params.get('store_graphs', False))
+        small_partition_threshold = int(params.get('small_partition_threshold', 50))
+        max_attempts_per_target = int(params.get('max_attempts_per_target', 1000))
+        ds = BipartiteGraphDataset(
+            nodes=nodes,
+            edge_prob=edge_prob,
+            n_graphs=n_graphs,
+            train_split_ratio=train_split_ratio,
+            seed=seed,
+            store_graphs=store_graphs,
+            small_partition_threshold=small_partition_threshold,
+            max_attempts_per_target=max_attempts_per_target,
+        )
+        x_train = ds.generate(split='train')
+        dataset_name = (
+            f'Bipartite Graph (N={nodes}, p={ds.p_min:g}-{ds.p_max:g})'
+        )
+        n_qubits = ds.n_qubits
+
     elif dataset_key == 'shapes':
         grid_shape = tuple(params.get('grid_shape', config.get('grid_shape', (5, 5))))
         shape_types = params.get('shape_types', None)
@@ -836,8 +862,9 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     else:
         raise ValueError(
             "Unknown dataset name. Supported values: "
-            "bas, noisy_bas, blobs, dwave, gaussian, genomic, graph_isomorphism, ising, mnist, "
-            "parity, qaoa_maxcut, random_circuit, rydberg, scale_free, shapes, "
+            "bas, bipartite_graph, noisy_bas, blobs, dwave, gaussian, genomic, "
+            "graph_isomorphism, ising, mnist, parity, qaoa_maxcut, random_circuit, "
+            "rydberg, scale_free, shapes, "
             "tfim_thermal."
         )
 
