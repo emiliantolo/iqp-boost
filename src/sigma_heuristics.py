@@ -1,6 +1,6 @@
 """Sigma bandwidth heuristics for MMD kernel selection.
 
-Five strategies for computing the Gaussian kernel bandwidth(s):
+Seven strategies for computing the Gaussian kernel bandwidth(s):
 
 1. **median** -- Classic median heuristic (median of pairwise distances) scaled
    by user-provided factor(s).  Backward-compatible with existing configs.
@@ -15,6 +15,13 @@ Five strategies for computing the Gaussian kernel bandwidth(s):
    data and uniform reference via JAX gradient ascent on log(sigma).
    Initialized from fourier targets with diversity regularization.
    Based on Sutherland et al. (2017).
+6. **k_order** -- Data-adaptive sigma selection by profiling the empirical
+   k-order correlation structure. Ranks k-body orders by correlation
+   strength (raw) or enrichment over IID null, then maps the top orders
+   to sigma values via the Fourier inversion formula.
+7. **fit_k_order** -- TVD-optimized sigma mixture matching. Minimizes the
+   total variation distance between the data's empirical k-order profile
+   and the theoretical bodyness distribution of the kernel mixture.
 
 All methods subsample the training data to ``max_samples`` (default 1000) to
 keep the O(m^2) pairwise computation bounded.
@@ -195,6 +202,297 @@ def compute_sigma_fourier(n: int, s: int) -> list[float]:
         sigmas.append(float(sigma))
 
     return sorted(sigmas, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# k-order correlation helpers (ported from scratch/src)
+# ---------------------------------------------------------------------------
+
+def _sigma_from_expected_bodyness(
+    n_qubits: int,
+    expected_bodyness: float,
+    sigma_floor: float = 1e-3,
+) -> float:
+    """Convert expected k-body order to sigma via the Fourier inversion formula.
+
+    Maps the expected bodyness ``k`` to the Gaussian kernel bandwidth sigma
+    that makes a Binomial(n, p) distribution with p = k/n concentrate at
+    order ``k``.  Clamps to ``sigma_floor`` at the boundary.
+    """
+    if expected_bodyness <= 0:
+        return float("inf")
+    if expected_bodyness >= n_qubits / 2:
+        return sigma_floor
+    p = expected_bodyness / n_qubits
+    return max(float(np.sqrt(-1.0 / (2.0 * np.log(1.0 - 2.0 * p)))), sigma_floor)
+
+
+def _k_order_correlation_distribution(
+    x: np.ndarray,
+    max_k: int | None = None,
+) -> np.ndarray:
+    """Empirical active k-order correlations for k=1..max_k via weight histogramming.
+
+    For each sample, counts the Hamming weight w (number of 1-bits), then
+    computes the fraction of active k-subsets C(w,k)/C(n,k) averaged over
+    samples.  This gives a fingerprint of the data's correlation structure.
+
+    Uses JAX for efficient vectorised computation.
+    """
+    import jax
+    import jax.numpy as jnp
+    from jax.scipy.special import gammaln
+
+    if x.ndim != 2:
+        raise ValueError("x must be a 2D array")
+    if x.shape[0] == 0:
+        raise ValueError("x must contain at least one row")
+
+    n_features = x.shape[1]
+    if max_k is None:
+        max_k = n_features
+    upper_k = min(max_k, n_features)
+    if upper_k == 0:
+        return np.array([])
+
+    X = jnp.asarray(x)
+    float_dtype = jnp.float64 if jax.config.read("jax_enable_x64") else jnp.float32
+    weights = jnp.sum(X, axis=1).astype(jnp.int32)
+    hist = jnp.bincount(weights, length=n_features + 1).astype(float_dtype)
+    normalized_hist = hist / jnp.asarray(X.shape[0], dtype=float_dtype)
+
+    k_range = jnp.arange(1, upper_k + 1, dtype=float_dtype)[:, None]
+    w_range = jnp.arange(n_features + 1, dtype=float_dtype)[None, :]
+    valid = w_range >= k_range
+    safe_w_range = jnp.where(valid, w_range, k_range)
+
+    log_num = (gammaln(safe_w_range + 1.0)
+               - gammaln(k_range + 1.0)
+               - gammaln(safe_w_range - k_range + 1.0))
+    log_den = (gammaln(jnp.asarray(n_features + 1, dtype=float_dtype))
+               - gammaln(k_range + 1.0)
+               - gammaln(jnp.asarray(n_features, dtype=float_dtype) - k_range + 1.0))
+    ratios = jnp.where(valid, jnp.exp(log_num - log_den),
+                        jnp.asarray(0.0, dtype=float_dtype))
+    return np.asarray(ratios @ normalized_hist)
+
+
+def _k_order_enrichment(
+    x: np.ndarray,
+    max_k: int | None = None,
+    epsilon: float = 1e-12,
+) -> np.ndarray:
+    """k-order correlations divided by the IID Bernoulli null p^k.
+
+    Highlights orders that are *over-represented* relative to random,
+    filtering out correlations that arise simply from the marginal bit rate.
+    """
+    import jax.numpy as jnp
+
+    observed = _k_order_correlation_distribution(x, max_k)
+    n_features = x.shape[1]
+    if max_k is None:
+        max_k = n_features
+    upper_k = min(max_k, n_features)
+    p = float(np.mean(x))
+    null = np.array([p**k for k in range(1, upper_k + 1)])
+    return observed / np.maximum(null, epsilon)
+
+
+# ---------------------------------------------------------------------------
+# 6. k_order -- data-adaptive sigma from correlation profile
+# ---------------------------------------------------------------------------
+
+def compute_sigma_k_order(
+    x_train: np.ndarray,
+    n_sigmas: int = 5,
+    mode: str = "enriched",
+    max_k: int | None = None,
+    sigma_floor: float = 1e-3,
+    max_samples: int = 1000,
+    seed: int = 42,
+) -> list[float]:
+    """Pick sigmas targeting the k-body orders where the data has the most structure.
+
+    Two modes are available:
+      - ``"raw"``:  rank orders by raw correlation strength.
+      - ``"enriched"``:  rank orders by enrichment over the IID null (default).
+        This filters out trivial correlations from marginal bit rates.
+
+    Args:
+        x_train: Training data, shape (m, n_qubits).
+        n_sigmas: Number of sigma bandwidths to produce.
+        mode: ``"raw"`` or ``"enriched"`` ranking.
+        max_k: Maximum k-body order to consider (default: n_qubits // 2).
+        sigma_floor: Minimum sigma value (prevents degenerate sigmas).
+        max_samples: Subsample x_train for efficiency.
+        seed: Random seed.
+
+    Returns:
+        List of sigma values sorted descending.
+    """
+    x_sub = _subsample_data(x_train, max_samples=max_samples, seed=seed)
+    n_qubits = x_sub.shape[1]
+
+    if max_k is None:
+        max_k = n_qubits // 2
+    max_k = min(max_k, n_qubits // 2)
+
+    if mode == "enriched":
+        profile = _k_order_enrichment(x_sub, max_k=max_k)
+    else:
+        profile = _k_order_correlation_distribution(x_sub, max_k=max_k)
+
+    # Rank orders 1..max_k by profile strength (descending), break ties by smaller k
+    ranked_orders = sorted(
+        range(1, len(profile) + 1),
+        key=lambda k: (-float(profile[k - 1]), k),
+    )
+    selected_orders = ranked_orders[:n_sigmas]
+
+    sigmas = [
+        _sigma_from_expected_bodyness(n_qubits, float(k), sigma_floor)
+        for k in selected_orders
+    ]
+
+    print(f"[sigma:k_order] mode={mode}, selected k-body orders: {selected_orders}")
+    print(f"[sigma:k_order] sigmas: {[round(s, 6) for s in sorted(sigmas, reverse=True)]}")
+
+    return sorted(sigmas, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# 7. fit_k_order -- TVD-optimized bodyness matching
+# ---------------------------------------------------------------------------
+
+def compute_sigma_fit_k_order(
+    x_train: np.ndarray,
+    n_sigmas: int = 5,
+    n_steps: int = 400,
+    lr: float = 0.03,
+    sigma_min: float | None = None,
+    sigma_max: float | None = None,
+    sigma_floor: float = 1e-3,
+    max_samples: int = 1000,
+    seed: int = 42,
+) -> list[float]:
+    """Find sigmas whose theoretical bodyness profile best matches the data.
+
+    Minimizes the Total Variation Distance between:
+      - The empirical normalized k-order correlation profile of the data, and
+      - The theoretical kernel bodyness distribution induced by the sigma mixture.
+
+    Uses JAX Adam on log(sigma) with box constraints.
+
+    Args:
+        x_train: Training data, shape (m, n_qubits).
+        n_sigmas: Number of sigma bandwidths to optimise.
+        n_steps: Adam iterations.
+        lr: Learning rate.
+        sigma_min: Lower bound for sigma (auto-derived if None).
+        sigma_max: Upper bound for sigma (auto-derived if None).
+        sigma_floor: Absolute minimum sigma value.
+        max_samples: Subsample x_train for efficiency.
+        seed: Random seed.
+
+    Returns:
+        List of optimised sigma values sorted descending.
+    """
+    import jax
+    import jax.numpy as jnp
+
+    x_sub = _subsample_data(x_train, max_samples=max_samples, seed=seed)
+    n_qubits = x_sub.shape[1]
+    max_k = n_qubits
+
+    # Target: normalized empirical k-order correlation profile
+    raw_profile = _k_order_correlation_distribution(x_sub, max_k=max_k)
+    total = float(raw_profile.sum())
+    if total == 0:
+        print("[sigma:fit_k_order] Warning: zero correlation profile, falling back to fourier")
+        return compute_sigma_fourier(n_qubits, n_sigmas)
+    target = jnp.asarray(raw_profile / total)
+
+    # Initialize from raw k-order heuristic
+    init_sigmas = compute_sigma_k_order(
+        x_sub, n_sigmas=n_sigmas, mode="raw",
+        max_k=n_qubits // 2, sigma_floor=sigma_floor,
+        max_samples=max_samples, seed=seed,
+    )
+    rng = np.random.default_rng(seed)
+    while len(init_sigmas) < n_sigmas:
+        s_min = sigma_floor if sigma_min is None else sigma_min
+        s_max = max(init_sigmas) * 1.5 if sigma_max is None else sigma_max
+        init_sigmas.append(float(np.exp(rng.uniform(np.log(s_min), np.log(s_max)))))
+
+    # Auto-derive bounds from heuristic sigmas if not provided
+    all_heuristic = list(init_sigmas)
+    fourier_s = compute_sigma_fourier(n_qubits, n_sigmas)
+    all_heuristic.extend(fourier_s)
+    if sigma_min is None:
+        sigma_min = max(sigma_floor, min(all_heuristic) * 0.5)
+    if sigma_max is None:
+        sigma_max = max(all_heuristic) * 1.5
+
+    lower = jnp.log(jnp.asarray(sigma_min))
+    upper = jnp.log(jnp.asarray(sigma_max))
+    log_sigmas = jnp.clip(
+        jnp.log(jnp.asarray(init_sigmas[:n_sigmas], dtype=jnp.float32)),
+        lower, upper,
+    )
+
+    # Differentiable predicted bodyness distribution
+    def _kernel_bodyness(log_s, n, mk):
+        support = jnp.arange(1, mk + 1, dtype=log_s.dtype)[:, None]
+        n_val = jnp.asarray(n, dtype=log_s.dtype)
+        sigmas = jnp.exp(log_s)[None, :]
+        probs = (1.0 - jnp.exp(-1.0 / (2.0 * sigmas**2))) / 2.0
+
+        log_binom = (
+            jax.scipy.special.gammaln(n_val + 1.0)
+            - jax.scipy.special.gammaln(support + 1.0)
+            - jax.scipy.special.gammaln(n_val - support + 1.0)
+        )
+        log_probs = (log_binom
+                     + support * jnp.log(probs)
+                     + (n_val - support) * jnp.log1p(-probs))
+        mixture = jnp.mean(jnp.exp(log_probs), axis=1)
+        return mixture / jnp.sum(mixture)
+
+    def objective(log_s):
+        predicted = _kernel_bodyness(log_s, n_qubits, max_k)
+        return 0.5 * jnp.sum(jnp.abs(target - predicted))
+
+    value_and_grad = jax.jit(jax.value_and_grad(objective))
+
+    # Adam optimization
+    m_adam = jnp.zeros_like(log_sigmas)
+    v_adam = jnp.zeros_like(log_sigmas)
+    beta1, beta2, adam_eps = 0.9, 0.999, 1e-8
+
+    best_log_sigmas = log_sigmas
+    best_value = float(objective(log_sigmas))
+
+    for step in range(n_steps):
+        value, grad = value_and_grad(log_sigmas)
+        m_adam = beta1 * m_adam + (1.0 - beta1) * grad
+        v_adam = beta2 * v_adam + (1.0 - beta2) * grad**2
+        m_hat = m_adam / (1.0 - beta1 ** (step + 1))
+        v_hat = v_adam / (1.0 - beta2 ** (step + 1))
+        log_sigmas = jnp.clip(
+            log_sigmas - lr * m_hat / (jnp.sqrt(v_hat) + adam_eps),
+            lower, upper,
+        )
+        current_value = float(value)
+        if current_value < best_value:
+            best_value = current_value
+            best_log_sigmas = log_sigmas
+
+    final_sigmas = sorted([float(v) for v in jnp.exp(best_log_sigmas)], reverse=True)
+    print(f"[sigma:fit_k_order] TVD={best_value:.6f}, "
+          f"sigmas={[round(s, 6) for s in final_sigmas]}")
+
+    return final_sigmas
 
 
 def compute_sigma_optimized(
@@ -483,6 +781,33 @@ def compute_sigma(config: dict, x_train: np.ndarray,
             n = x_train.shape[1]  # number of qubits = dimensionality
             s = int(heuristic.get('n_sigmas', 5))
             return compute_sigma_fourier(n, s)
+
+        if method == 'k_order':
+            n_sigmas = int(heuristic.get('n_sigmas', 5))
+            mode = str(heuristic.get('mode', 'enriched'))
+            max_k = heuristic.get('max_k')
+            if max_k is not None:
+                max_k = int(max_k)
+            sigma_floor = float(heuristic.get('sigma_floor', 1e-3))
+            return compute_sigma_k_order(
+                x_train, n_sigmas=n_sigmas, mode=mode, max_k=max_k,
+                sigma_floor=sigma_floor, max_samples=max_samples, seed=seed)
+
+        if method == 'fit_k_order':
+            n_sigmas = int(heuristic.get('n_sigmas', 5))
+            n_steps = int(heuristic.get('n_steps', 400))
+            opt_lr = float(heuristic.get('lr', 0.03))
+            sigma_floor = float(heuristic.get('sigma_floor', 1e-3))
+            s_min = heuristic.get('sigma_min')
+            s_max = heuristic.get('sigma_max')
+            if s_min is not None:
+                s_min = float(s_min)
+            if s_max is not None:
+                s_max = float(s_max)
+            return compute_sigma_fit_k_order(
+                x_train, n_sigmas=n_sigmas, n_steps=n_steps, lr=opt_lr,
+                sigma_min=s_min, sigma_max=s_max, sigma_floor=sigma_floor,
+                max_samples=max_samples, seed=seed)
 
         if method == 'optimized':
             n_sigmas = int(heuristic.get('n_sigmas', 5))
