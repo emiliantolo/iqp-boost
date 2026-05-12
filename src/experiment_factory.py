@@ -902,9 +902,24 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         coverage_fn = ds.coverage_rate
         top_k_tvd_fn = None
 
+    # Generate a separate held-out sample set for sigma calibration.
+    # This avoids the sigma heuristic overfitting to the same samples used for training.
+    sigma_holdout = float(config.get('sigma_holdout_fraction', 0.0))
+    x_sigma = None
+    if sigma_holdout > 0 and hasattr(ds, 'generate'):
+        n_sigma_samples = max(50, int(train_samples * sigma_holdout))
+        sigma_seed = data_seed + 99999  # Different seed from training data
+        try:
+            x_sigma = ds.generate(n_samples=n_sigma_samples, seed=sigma_seed)
+            print(f"[sigma] Generated {len(x_sigma)} additional held-out samples for sigma calibration")
+        except Exception as e:
+            print(f"[sigma] Warning: could not generate held-out sigma samples: {e}")
+            x_sigma = None
+
     return {
         'dataset_name': dataset_name,
         'x_train': x_train,
+        'x_sigma': x_sigma,
         'validity_fn': validity_fn,
         'coverage_fn': coverage_fn,
         'top_k_tvd_fn': top_k_tvd_fn,

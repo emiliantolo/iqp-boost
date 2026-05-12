@@ -243,6 +243,7 @@ def run_suite(config_path: Path, only: set[str] | None = None,
             log_dir=str(suite_dir),
             log_filename='suite.log',
             append_log=True,
+            x_sigma=bundle.get('x_sigma'),
         )
 
 

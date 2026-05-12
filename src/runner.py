@@ -609,6 +609,7 @@ def run_boosting_experiment(
     log_dir: str | None = None,
     log_filename: str = 'log.txt',
     append_log: bool = False,
+    x_sigma: np.ndarray | None = None,
 ):
     """Run a complete ensemble boosting experiment."""
     np.random.seed(config['rng_seed'])
@@ -633,8 +634,13 @@ def run_boosting_experiment(
         report_circuit(gate_desc)
         save_circuit_plot(circuit, output)
 
-        # Sigma setup from config (supports median, percentile, medoids)
-        sigma = compute_sigma(config, x_train, seed=config.get('data_seed', 42))
+        # Sigma setup from config (supports median, percentile, medoids, k_order, fit_k_order, optimized)
+        # When x_sigma is provided (generated separately by the factory with a different seed),
+        # use it for sigma calibration. Otherwise fall back to x_train.
+        sigma_data = x_sigma if x_sigma is not None else x_train
+        if x_sigma is not None:
+            print(f"[sigma] Using {len(sigma_data)} independent held-out samples for sigma calibration")
+        sigma = compute_sigma(config, sigma_data, seed=config.get('data_seed', 42))
 
         n_ops = config.get('n_ops', 1000)
         n_samples = int(config.get('n_samples', 1000))

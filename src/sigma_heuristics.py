@@ -499,7 +499,7 @@ def compute_sigma_optimized(
     x_train: np.ndarray,
     n_sigmas: int = 5,
     n_ref: int = 1000,
-    n_steps: int = 200,
+    n_steps: int = 500,
     lr: float = 0.01,
     diversity_weight: float = 0.1,
     merge_threshold: float = 0.1,
@@ -812,8 +812,8 @@ def compute_sigma(config: dict, x_train: np.ndarray,
         if method == 'optimized':
             n_sigmas = int(heuristic.get('n_sigmas', 5))
             n_ref = int(heuristic.get('n_ref', 1000))
-            n_steps = int(heuristic.get('n_steps', 200))
-            opt_lr = float(heuristic.get('lr', 0.01))
+            n_steps = int(heuristic.get('n_steps', 400))
+            opt_lr = float(heuristic.get('lr', 0.03))
             div_weight = float(heuristic.get('diversity_weight', 0.1))
             merge_thr = float(heuristic.get('merge_threshold', 0.1))
             bernoulli_p = float(heuristic.get('bernoulli_noise_p', 0.5))
