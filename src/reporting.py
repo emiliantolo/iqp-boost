@@ -107,13 +107,23 @@ def save_circuit_plot(circuit, output_manager, filename: str = 'circuit_structur
         if fig is not None:
             plt.close(fig)
 
-def report_kernel(sigma: float | list, n_ops: int, n_qubits: int):
+def report_kernel(sigma: float | list | np.ndarray, n_ops: int, n_qubits: int):
     """Report kernel configuration."""
+    if isinstance(sigma, np.ndarray):
+        print(f"Using Isotropic PMF Kernel (n_ops={n_ops}, n_qubits={n_qubits}):")
+        k_indices = np.arange(len(sigma))
+        mean_k = np.sum(k_indices * sigma)
+        var_k = np.sum((k_indices**2) * sigma) - mean_k**2
+        print(f"Expected sampled operator size:")
+        print(f"  mean: {mean_k:.6f}")
+        print(f"  std: {np.sqrt(max(0, var_k)):.6f}")
+        return
+
     sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
     print(f"Using Gaussian Kernel (n_ops={n_ops}, n_qubits={n_qubits}):")
     for s in sigmas:
         print(f"  - sigma={s:.8f}")
-    ps = np.array([(1 - np.exp(-1 / 2 / sigma**2)) / 2 for sigma in sigmas])
+    ps = np.array([(1 - np.exp(-1 / 2 / s**2)) / 2 for s in sigmas])
     var_within = n_qubits * (ps * (1 - ps)).mean()
     var_between = (n_qubits ** 2) * np.var(ps)
     print("Expected sampled operator size:")

@@ -16,10 +16,24 @@ import functools
 from iqpopt import IqpSimulator
 
 
-def _make_ops(key: Array, sigma: float, n_ops: int, n_qubits: int, wires: list):
-    """Sample Gaussian kernel operators. Returns (all_ops, visible_ops)."""
-    p_MMD = (1 - jnp.exp(-1 / 2 / sigma**2)) / 2
-    visible_ops = jnp.array(jax.random.binomial(key, 1, p_MMD, shape=(n_ops, len(wires))), dtype='float64')
+def _make_ops(key: Array, sigma_or_pmf: float | jnp.ndarray, n_ops: int, n_qubits: int, wires: list):
+    """Sample Gaussian kernel operators or arbitrary PMF isotropic operators.
+    
+    If `sigma_or_pmf` is a float, uses traditional independent Bernoulli sampling (Gaussian kernel).
+    If `sigma_or_pmf` is a 1D array, treats it as a PMF over operator Hamming weights and
+    samples isotropic k-hot operators. Returns (all_ops, visible_ops).
+    """
+    if isinstance(sigma_or_pmf, (int, float)):
+        p_MMD = (1 - jnp.exp(-1 / 2 / float(sigma_or_pmf)**2)) / 2
+        visible_ops = jnp.array(jax.random.binomial(key, 1, p_MMD, shape=(n_ops, len(wires))), dtype='float64')
+    else:
+        pmf = jnp.asarray(sigma_or_pmf)
+        key_w, key_noise = jax.random.split(key, 2)
+        n_visible = len(wires)
+        weights = jax.random.choice(key_w, a=n_visible + 1, shape=(n_ops,), p=pmf)
+        noise = jax.random.uniform(key_noise, shape=(n_ops, n_visible))
+        ranks = jnp.argsort(jnp.argsort(noise, axis=-1), axis=-1)
+        visible_ops = (ranks < weights[:, None]).astype(jnp.float64)
 
     all_ops = []
     i = 0
@@ -99,10 +113,14 @@ class EnsembleTerms:
         self.corrs = []  # corrs[model_idx][sigma_idx] -> array (n_ops,)
         self.ops = {}    # ops[sigma_idx] -> (all_ops, visible_ops)
 
-    def sample_ops(self, iqp_circuit: IqpSimulator, sigma: float | list, n_ops: int,
+    def sample_ops(self, iqp_circuit: IqpSimulator, sigma: float | list | jnp.ndarray, n_ops: int,
                    key: Array, wires: list = None) -> None:
         """Sample and cache randomly drawn operators explicitly."""
-        sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
+        import numpy as np
+        if isinstance(sigma, (int, float, np.ndarray, jnp.ndarray)):
+            sigmas = [sigma]
+        else:
+            sigmas = sigma
         if wires is None:
             wires = list(range(iqp_circuit.n_qubits))
 
@@ -112,15 +130,19 @@ class EnsembleTerms:
             self.ops[sigma_idx] = _make_ops(subkey, s, n_ops, iqp_circuit.n_qubits, wires)
 
     def add_term(self, params: jnp.ndarray, iqp_circuit: IqpSimulator,
-                 sigma: float | list, n_ops: int, n_samples: int, key: Array,
+                 sigma: float | list | jnp.ndarray, n_ops: int, n_samples: int, key: Array,
                  init_coefs: list = None, wires: list = None, indep_estimates: bool = False,
                  max_batch_ops: int = None, max_batch_samples: int = None) -> None:
         """Evaluate a model on the cached operators and persist its traces."""
+        import numpy as np
         init_coefs = jnp.array(init_coefs) if init_coefs is not None else None
         if wires is None:
             wires = list(range(iqp_circuit.n_qubits))
 
-        sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
+        if isinstance(sigma, (int, float, np.ndarray, jnp.ndarray)):
+            sigmas = [sigma]
+        else:
+            sigmas = sigma
         tr_list, corr_list = [], []
 
         for sigma_idx, s in enumerate(sigmas):
@@ -212,22 +234,26 @@ def _weighted_ensemble(ensemble_terms: EnsembleTerms, weights: list, sigma_idx: 
 
 def dual_mmd_loss(params: jnp.ndarray, iqp_circuit: IqpSimulator, ground_truth: jnp.ndarray,
                   ensemble_terms: EnsembleTerms, weights: list,
-                  sigma: float | list, n_ops: int,
+                  sigma: float | list | jnp.ndarray, n_ops: int,
                   n_samples: int, key: Array, init_coefs: list = None, wires: list = None,
                   indep_estimates: bool = False, jit: bool = True,
                   lambda_dual: float = 1.0, return_components: bool = False,
                   return_traces: bool = False, stochastic_ops: bool = True,
                   ensemble_models: list = None,
                   max_batch_ops: int = None, max_batch_samples: int = None) -> float | dict:
-    """Dual MMD boosting loss, averaged over Gaussian bandwidths.
+    """Dual MMD boosting loss, averaged over Gaussian bandwidths or arbitrary PMFs.
 
     Like mmd_loss_iqp but with an ensemble repulsion term. Operators are
     shared with the ensemble traces stored in ensemble_terms.
     """
+    import numpy as np
     if len(weights) == 0:
         lambda_dual = 0.0
 
-    sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
+    if isinstance(sigma, (int, float, np.ndarray, jnp.ndarray)):
+        sigmas = [sigma]
+    else:
+        sigmas = sigma
     init_coefs = jnp.array(init_coefs) if init_coefs is not None else None
 
     if n_samples <= 1:

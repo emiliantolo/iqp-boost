@@ -161,22 +161,33 @@ def check_acceptance(current_metric: float, previous_metric: float, ensemble: Bo
 
 
 def train_standalone_model(circuit: iqp.IqpSimulator, x_train: np.ndarray, key: jax.Array,
-                           sigma: float | list, n_ops: int, n_samples: int, config: dict,
+                           sigma: float | list | np.ndarray, n_ops: int, n_samples: int, config: dict,
                            epochs: int, monitor_interval: int | None, turbo_opt: int | None,
                            wires: list = None) -> tuple:
-    """Train a single standalone IQP model using iqpopt's mmd_loss_iqp directly."""
+    """Train a single standalone IQP model using dual_mmd_loss (supports PMFs)."""
     key, init_key = jax.random.split(key, 2)
     params_init = get_params_init(config.get('init_baseline', 'random'), circuit, x_train, init_key)
 
+    from src.dual_mmd_loss import EnsembleTerms, dual_mmd_loss
+
+    terms = EnsembleTerms()
+    key, ops_key = jax.random.split(key)
+    terms.sample_ops(circuit, sigma, n_ops, ops_key, wires=wires)
+
+    stochastic_ops = (config.get('caching_level', 'none') == 'none')
+
     loss_kwargs = {
-        "params": params_init, "iqp_circuit": circuit, "ground_truth": x_train,
+        "params": params_init, "iqp_circuit": circuit, "weights": [],
+        "ground_truth": x_train, "ensemble_terms": terms,
         "sigma": sigma, "n_ops": n_ops, "n_samples": n_samples,
+        "lambda_dual": 0.0, "key": key,
+        "stochastic_ops": stochastic_ops,
+        "ensemble_models": [],
         "wires": wires,
         "max_batch_ops": config.get('max_batch_ops', None),
-        "max_batch_samples": config.get('max_batch_samples', None),
     }
 
-    trainer = iqp.Trainer("Adam", mmd_loss_iqp, stepsize=config['learning_rate'])
+    trainer = iqp.Trainer("Adam", dual_mmd_loss, stepsize=config['learning_rate'])
     trainer.train(n_iters=epochs, loss_kwargs=loss_kwargs,
                   monitor_interval=monitor_interval, turbo=turbo_opt)
 

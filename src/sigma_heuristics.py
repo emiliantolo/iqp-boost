@@ -495,6 +495,96 @@ def compute_sigma_fit_k_order(
     return final_sigmas
 
 
+# ---------------------------------------------------------------------------
+# 8. data_driven_isotropic_pmf -- Empirical PMF from data
+# ---------------------------------------------------------------------------
+
+def compute_sigma_data_driven_isotropic_pmf(
+    x_train: np.ndarray,
+    mode: str = "pairwise",
+    max_samples: int = 1000,
+    seed: int = 42,
+) -> np.ndarray:
+    """Computes an arbitrary PMF over Walsh operator weights from the data's bodyness.
+
+    Instead of fitting a Gaussian bandwidth (sigma), this outputs a fully 
+    non-parametric 1D probability distribution Q(k) matching the target 
+    manifold's correlation structure in the parity (Walsh) basis.
+
+    Modes:
+    - "pairwise": Exact spectral power. Squares individual parities then sums.
+                  Captures localized structures and anti-correlations.
+    - "mean_field": Averages row parities then squares. Assumes perfect 
+                    global permutation symmetry in the data.
+
+    Args:
+        x_train: Training data, shape (m, n_qubits).
+        mode: ``"pairwise"`` or ``"mean_field"``.
+        max_samples: Subsample x_train for efficiency.
+        seed: Random seed.
+
+    Returns:
+        A 1D numpy array of length `n_qubits + 1` representing the PMF,
+        where pmf[k] is the probability of sampling an operator of weight k.
+    """
+    from src.utils import krawtchouk
+    from math import comb
+    from scipy.spatial.distance import cdist
+
+    x_sub = _subsample_data(x_train, max_samples=max_samples, seed=seed)
+    N, n_qubits = x_sub.shape
+
+    pmf = np.zeros(n_qubits + 1, dtype=np.float64)
+
+    if mode == "mean_field":
+        # 1. Extract the row-weight histogram (Pr(w)) from x_sub
+        weights = np.sum(x_sub, axis=1).astype(int)
+        hist = np.bincount(weights, minlength=n_qubits + 1)
+        pr_w = hist / N
+
+        # 2. Compute the Krawtchouk transform to get average Pauli-Z moments
+        for k in range(1, n_qubits + 1):
+            z_k_expected = 0.0
+            for w in range(n_qubits + 1):
+                if pr_w[w] > 0:
+                    krawtchouk_val = krawtchouk(k, w, n_qubits)
+                    z_k_expected += pr_w[w] * (krawtchouk_val / comb(n_qubits, k))
+                    
+            # 3. Square the averaged energy for the PMF
+            pmf[k] = z_k_expected ** 2
+
+    elif mode == "pairwise":
+        # 1. Compute exact Pairwise Hamming Distances natively
+        # metric='cityblock' on 0/1 arrays gives integer Hamming distance.
+        dists = cdist(x_sub, x_sub, metric='cityblock').flatten().astype(int)
+        hist = np.bincount(dists, minlength=n_qubits + 1)
+        pr_d = hist / (N * N)
+
+        # 2. Exact analytic sum over all (n choose k) squared parities
+        for k in range(1, n_qubits + 1):
+            shell_energy = 0.0
+            for d in range(n_qubits + 1):
+                if pr_d[d] > 0:
+                    shell_energy += pr_d[d] * krawtchouk(k, d, n_qubits)
+            
+            # Clip at 0 to avoid microscopic floating-point noise on empty shells
+            pmf[k] = max(shell_energy, 0.0)
+            
+    else:
+        raise ValueError(f"Unknown mode '{mode}'. Use 'pairwise' or 'mean_field'.")
+
+    # Normalize
+    total = pmf.sum()
+    if total > 0:
+        pmf = pmf / total
+    else:
+        print("[sigma:data_driven_pmf] Warning: zero correlation profile, falling back to uniform")
+        pmf[1:] = 1.0 / n_qubits
+
+    print(f"[sigma:data_driven_pmf] Generated isotropic PMF (mode={mode})")
+    return pmf
+
+
 def compute_sigma_optimized(
     x_train: np.ndarray,
     n_sigmas: int = 5,
@@ -808,6 +898,11 @@ def compute_sigma(config: dict, x_train: np.ndarray,
                 x_train, n_sigmas=n_sigmas, n_steps=n_steps, lr=opt_lr,
                 sigma_min=s_min, sigma_max=s_max, sigma_floor=sigma_floor,
                 max_samples=max_samples, seed=seed)
+
+        if method == 'data_driven_isotropic_pmf':
+            mode = str(heuristic.get('mode', 'pairwise'))
+            return compute_sigma_data_driven_isotropic_pmf(
+                x_train, mode=mode, max_samples=max_samples, seed=seed)
 
         if method == 'optimized':
             n_sigmas = int(heuristic.get('n_sigmas', 5))

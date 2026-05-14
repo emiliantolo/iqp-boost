@@ -14,10 +14,38 @@ def compute_hamming_matrix(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     return X_sum + Y_sum - 2 * (X_f @ Y_f.T)
 
 
-def fast_binary_gaussian_kernel(X: np.ndarray, Y: np.ndarray, sigma: float) -> np.ndarray:
-    """Gaussian kernel on binary strings: K(x,y) = exp(-H / 2sigma^2)."""
+def krawtchouk(k: int, d: int, n: int) -> float:
+    """Computes the Krawtchouk polynomial K_k(d, n)."""
+    val = 0.0
+    for j in range(k + 1):
+        val += ((-1)**j) * comb(d, j) * comb(n - d, k - j)
+    return val
+
+
+def analytic_kernel_pmf(d: int, pmf: np.ndarray, n: int) -> float:
+    """Computes the expected isotropic kernel value E[(-1)^{z . (x+y)}]
+    where |x+y|=d and |z|=k ~ PMF.
+    """
+    val = 0.0
+    for k in range(n + 1):
+        if pmf[k] > 0:
+            val += pmf[k] * krawtchouk(k, d, n) / comb(n, k)
+    return val
+
+
+def compute_kernel_matrix(X: np.ndarray, Y: np.ndarray, sigma: float | np.ndarray) -> np.ndarray:
+    """Kernel matrix on binary strings using Gaussian or PMF kernel."""
     H = compute_hamming_matrix(X, Y)
-    return np.exp(-H / (2 * sigma**2))
+    if isinstance(sigma, (int, float)):
+        return np.exp(-H / (2 * sigma**2))
+    
+    pmf = np.asarray(sigma)
+    n_qubits = len(pmf) - 1
+    k_vals = np.zeros(n_qubits + 1)
+    for d in range(n_qubits + 1):
+        k_vals[d] = analytic_kernel_pmf(d, pmf, n_qubits)
+    
+    return k_vals[np.clip(np.round(H).astype(int), 0, n_qubits)]
 
 
 def compute_distributions(ground_truth: np.ndarray, model_samples: np.ndarray,
@@ -135,7 +163,7 @@ def compute_precision_recall_f1(ground_truth: np.ndarray, model_samples: np.ndar
     if threshold is None:
         threshold = np.exp(-1.0)
 
-    K_data_model = fast_binary_gaussian_kernel(ground_truth, model_samples, sigma)
+    K_data_model = compute_kernel_matrix(ground_truth, model_samples, sigma)
     max_kernel_per_data = np.max(K_data_model, axis=1)
     max_kernel_per_model = np.max(K_data_model, axis=0)
 
@@ -168,9 +196,12 @@ def compute_metrics(ground_truth: np.ndarray, model_samples: np.ndarray,
     return {'validity_rate': validity_rate, 'coverage': coverage}
 
 
-def compute_mmd(ground_truth: np.ndarray, samples: np.ndarray, sigma: float | list) -> float:
-    """Compute UNBIASED MMD^2 for Gaussian kernel, averaged over sigmas."""
-    sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
+def compute_mmd(ground_truth: np.ndarray, samples: np.ndarray, sigma: float | list | np.ndarray) -> float:
+    """Compute UNBIASED MMD^2 for Gaussian or PMF kernel, averaged over sigmas."""
+    if isinstance(sigma, (int, float, np.ndarray)):
+        sigmas = [sigma]
+    else:
+        sigmas = sigma
     
     H_gt_gt = compute_hamming_matrix(ground_truth, ground_truth)
     H_s_s = compute_hamming_matrix(samples, samples)
@@ -186,7 +217,18 @@ def compute_mmd(ground_truth: np.ndarray, samples: np.ndarray, sigma: float | li
 
     mmd_components = []
     for s in sigmas:
-        k_fn = lambda h, s=s: np.exp(-h / (2 * s**2))
+        if isinstance(s, (int, float)):
+            k_fn = lambda h, s_val=s: np.exp(-h / (2 * s_val**2))
+        else:
+            # s is a PMF over Hamming weights
+            pmf = np.asarray(s)
+            n_qubits = len(pmf) - 1
+            # Precompute kernel values for all distances 0..n_qubits
+            k_vals = np.zeros(n_qubits + 1)
+            for d in range(n_qubits + 1):
+                k_vals[d] = analytic_kernel_pmf(d, pmf, n_qubits)
+            k_fn = lambda h, kv=k_vals: kv[np.clip(np.round(h).astype(int), 0, n_qubits)]
+
         mmd_sq = (unbiased_self(H_gt_gt, m, k_fn) + 
                   unbiased_self(H_s_s, n, k_fn) - 
                   2 * np.mean(k_fn(H_gt_s)))
