@@ -646,6 +646,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         flip_prob = float(params.get('flip_prob', config.get('flip_prob', 0.05)))
         ds = NoisyBASDataset(height=height, width=width, flip_prob=flip_prob)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'Noisy BAS ({height}x{width}, p={flip_prob:g})'
         n_qubits = height * width
         
     elif dataset_key == 'hopfield':
