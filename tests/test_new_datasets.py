@@ -4,6 +4,7 @@ import pytest
 import src.experiment_factory as experiment_factory
 from src.datasets.barabasi_albert_graph import BarabasiAlbertGraphDataset
 from src.datasets.bas import BarsAndStripesDataset
+from src.datasets.bas import VariableLengthBarsAndStripesDataset
 from src.datasets.fashion_mnist import FashionMNISTDownscaledDataset
 from src.datasets.k_body_parity import KBodyParityDataset
 
@@ -119,6 +120,35 @@ def test_clean_bas_length_reproducibility_and_validation_errors():
         BarsAndStripesDataset(height=3, width=3, stripe_length=0)
     with pytest.raises(ValueError, match="min_spacing"):
         BarsAndStripesDataset(height=3, width=3, min_spacing=-1)
+def test_variable_bas_support_generation_and_validity():
+    dataset = VariableLengthBarsAndStripesDataset(
+        height=4,
+        width=4,
+        min_length=1,
+        max_length=2,
+        max_segments=2,
+    )
+    samples = dataset.generate(n_samples=40, seed=12)
+
+    assert samples.shape == (40, 16)
+    assert samples.dtype == np.int8
+    assert dataset.validity_rate(samples) == 1.0
+
+    row_and_column = np.zeros((4, 4), dtype=np.int8)
+    row_and_column[1, :] = 1
+    row_and_column[:, 2] = 1
+    assert tuple(row_and_column.reshape(-1).tolist()) in dataset._valid_patterns
+
+
+def test_variable_bas_reproducibility_and_validation_errors():
+    first = VariableLengthBarsAndStripesDataset(height=3, width=5, min_length=2, max_length=3, max_segments=2)
+    second = VariableLengthBarsAndStripesDataset(height=3, width=5, min_length=2, max_length=3, max_segments=2)
+    np.testing.assert_array_equal(first.generate(25, seed=4), second.generate(25, seed=4))
+
+    with pytest.raises(ValueError, match="max_length"):
+        VariableLengthBarsAndStripesDataset(height=3, width=3, min_length=3, max_length=2)
+    with pytest.raises(ValueError, match="no valid"):
+        VariableLengthBarsAndStripesDataset(height=2, width=2, min_length=3, max_length=4)
 
 
 def test_fashion_mnist_downscaled_uses_mocked_loader(monkeypatch):
@@ -145,6 +175,7 @@ def test_new_datasets_are_config_manageable(monkeypatch):
         {"name": "barabasi_albert_graph", "params": {"nodes": 6, "m": 2, "n_graphs": 12, "train_split_ratio": 0.75, "seed": 7}},
         {"name": "k_body_parity", "params": {"n_qubits": 6, "k": 3, "parity": 1, "hidden_indices": [0, 2, 4]}},
         {"name": "bas", "params": {"dims": [10, 10], "length": 5, "min_spacing": 1}},
+        {"name": "variable_bas", "params": {"dims": [4, 4], "min_length": 1, "max_length": 2, "max_segments": 2}},
         {"name": "fashion_mnist", "params": {"dims": [3, 3], "threshold": 0.5}},
     ]
 
