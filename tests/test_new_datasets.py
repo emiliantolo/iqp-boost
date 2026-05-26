@@ -4,7 +4,10 @@ import pytest
 import src.experiment_factory as experiment_factory
 from src.datasets.barabasi_albert_graph import BarabasiAlbertGraphDataset
 from src.datasets.bas import BarsAndStripesDataset
+<<<<<<< HEAD
 from src.datasets.bas import VariableLengthBarsAndStripesDataset
+=======
+>>>>>>> 8235e7a (Add spaced partial BAS patterns)
 from src.datasets.fashion_mnist import FashionMNISTDownscaledDataset
 from src.datasets.k_body_parity import KBodyParityDataset
 
@@ -88,6 +91,7 @@ def test_k_body_parity_reproducibility_and_validation_errors():
 
 def test_clean_bas_supports_shorter_bar_and_stripe_lengths_with_spacing():
     dataset = BarsAndStripesDataset(height=10, width=10, length=5, min_spacing=1)
+<<<<<<< HEAD
     samples = dataset.generate(n_samples=40, seed=12)
 
     assert dataset.bar_length == 5
@@ -128,27 +132,40 @@ def test_variable_bas_support_generation_and_validity():
         max_length=2,
         max_segments=2,
     )
+=======
+>>>>>>> 8235e7a (Add spaced partial BAS patterns)
     samples = dataset.generate(n_samples=40, seed=12)
 
-    assert samples.shape == (40, 16)
+    assert dataset.bar_length == 5
+    assert dataset.stripe_length == 5
+    assert dataset.min_spacing == 1
+    assert samples.shape == (40, 100)
     assert samples.dtype == np.int8
     assert dataset.validity_rate(samples) == 1.0
 
-    row_and_column = np.zeros((4, 4), dtype=np.int8)
-    row_and_column[1, :] = 1
-    row_and_column[:, 2] = 1
-    assert tuple(row_and_column.reshape(-1).tolist()) in dataset._valid_patterns
+    vertical = np.zeros((10, 10), dtype=np.int8)
+    vertical[2:7, [1, 3, 8]] = 1
+    horizontal = np.zeros((10, 10), dtype=np.int8)
+    horizontal[[0, 4, 9], 4:9] = 1
+    assert tuple(vertical.reshape(-1).tolist()) in dataset._valid_patterns
+    assert tuple(horizontal.reshape(-1).tolist()) in dataset._valid_patterns
+
+    side_by_side = np.zeros((10, 10), dtype=np.int8)
+    side_by_side[2:7, [1, 2]] = 1
+    assert tuple(side_by_side.reshape(-1).tolist()) not in dataset._valid_patterns
 
 
-def test_variable_bas_reproducibility_and_validation_errors():
-    first = VariableLengthBarsAndStripesDataset(height=3, width=5, min_length=2, max_length=3, max_segments=2)
-    second = VariableLengthBarsAndStripesDataset(height=3, width=5, min_length=2, max_length=3, max_segments=2)
+def test_clean_bas_length_reproducibility_and_validation_errors():
+    first = BarsAndStripesDataset(height=6, width=6, length=3)
+    second = BarsAndStripesDataset(height=6, width=6, length=3)
     np.testing.assert_array_equal(first.generate(25, seed=4), second.generate(25, seed=4))
 
-    with pytest.raises(ValueError, match="max_length"):
-        VariableLengthBarsAndStripesDataset(height=3, width=3, min_length=3, max_length=2)
-    with pytest.raises(ValueError, match="no valid"):
-        VariableLengthBarsAndStripesDataset(height=2, width=2, min_length=3, max_length=4)
+    with pytest.raises(ValueError, match="bar_length"):
+        BarsAndStripesDataset(height=3, width=3, bar_length=4)
+    with pytest.raises(ValueError, match="stripe_length"):
+        BarsAndStripesDataset(height=3, width=3, stripe_length=0)
+    with pytest.raises(ValueError, match="min_spacing"):
+        BarsAndStripesDataset(height=3, width=3, min_spacing=-1)
 
 
 def test_fashion_mnist_downscaled_uses_mocked_loader(monkeypatch):
