@@ -1,0 +1,53 @@
+{
+  "output": {
+    "base_dir": "out",
+    "suite_name": "variable_bas"
+  },
+  "runs": [
+    {
+      "name": "variable_bas_5x5",
+      "dataset": {
+        "name": "variable_bas",
+        "params": {
+          "dims": [5, 5],
+          "min_length": 1,
+          "max_length": 3,
+          "max_segments": 2
+        }
+      },
+      "plot": {
+        "kind": "histogram",
+        "params": {
+          "filename": "variable_bas_distribution.pdf"
+        }
+      },
+      "config": {
+        "dims": [5, 5],
+        "train_samples": 1000,
+        "data_seed": 321,
+        "n_samples": 1000,
+        "n_models": 2,
+        "learning_rate": 0.01,
+        "epochs_per_step": 20,
+        "caching_level": "none",
+        "ensemble_samples_coeff": 1.0,
+        "init_baseline": "covariance",
+        "init_later": "random",
+        "lambda_dual": 1.0,
+        "sigma_factor": 0.5,
+        "n_ops": 1000,
+        "weight_strategy": "frank_wolfe",
+        "baseline": "standalone",
+        "shots": 1000,
+        "skip_sampling": true,
+        "rng_seed": 42,
+        "circuit_config": {
+          "topology": "local",
+          "distance": 1,
+          "max_weight": 2
+        },
+        "turbo": 10
+      }
+    }
+  ]
+}

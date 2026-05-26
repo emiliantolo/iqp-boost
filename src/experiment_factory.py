@@ -8,14 +8,17 @@ import re
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.datasets.bas import BarsAndStripesDataset
+from src.datasets.barabasi_albert_graph import BarabasiAlbertGraphDataset
+from src.datasets.bas import BarsAndStripesDataset, VariableLengthBarsAndStripesDataset
 from src.datasets.bipartite_graph import BipartiteGraphDataset
 from src.datasets.blobs import BlobsDataset
 from src.datasets.dwave import DWaveDataset
+from src.datasets.fashion_mnist import FashionMNISTDownscaledDataset
 from src.datasets.gaussian import GaussianMixtureDataset
 from src.datasets.genomic import GenomicDataset
 from src.datasets.graph_isomorphism import GraphIsomorphismDataset
 from src.datasets.ising import FrustratedIsingDataset
+from src.datasets.k_body_parity import KBodyParityDataset
 from src.datasets.pennylane_ising import PennylaneIsingDataset
 from src.datasets.pennylane_bas import PennylaneBASDataset
 from src.datasets.pennylane_hm import PennylaneHMDataset
@@ -641,6 +644,24 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         dataset_name = f'BAS ({height}x{width})'
         n_qubits = height * width
 
+    elif dataset_key == 'variable_bas':
+        height, width = _resolve_rows_cols(params, config, default=(4, 4))
+        min_length = int(params.get('min_length', 1))
+        max_length = params.get('max_length', None)
+        if max_length is not None:
+            max_length = int(max_length)
+        max_segments = int(params.get('max_segments', 2))
+        ds = VariableLengthBarsAndStripesDataset(
+            height=height,
+            width=width,
+            min_length=min_length,
+            max_length=max_length,
+            max_segments=max_segments,
+        )
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'Variable BAS ({height}x{width}, len={ds.min_length}-{ds.max_length}, segments={ds.max_segments})'
+        n_qubits = ds.n_qubits
+
     elif dataset_key == 'noisy_bas':
         height, width = _resolve_rows_cols(params, config, default=(4, 4))
         flip_prob = float(params.get('flip_prob', config.get('flip_prob', 0.05)))
@@ -663,6 +684,25 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         ds = ParityDataset(n_qubits=n_qubits)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'Parity ({n_qubits} qubits)'
+
+    elif dataset_key == 'k_body_parity':
+        n_qubits = int(params.get('n_qubits', config.get('dim', config.get('n_qubits', 20))))
+        k = int(params.get('k', 10))
+        parity = int(params.get('parity', 1))
+        subset_seed = int(params.get('subset_seed', 0))
+        hidden_indices = params.get('hidden_indices', None)
+        max_exact_states = int(params.get('max_exact_states', 2**24))
+        ds = KBodyParityDataset(
+            n_qubits=n_qubits,
+            k=k,
+            parity=parity,
+            subset_seed=subset_seed,
+            hidden_indices=hidden_indices,
+            max_exact_states=max_exact_states,
+        )
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'K-Body Parity ({n_qubits}q, k={k}, parity={parity})'
+        n_qubits = ds.n_qubits
 
     elif dataset_key == 'blobs':
         ds = BlobsDataset()
@@ -727,6 +767,25 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         )
         n_qubits = ds.n_qubits
 
+    elif dataset_key == 'barabasi_albert_graph':
+        nodes = int(params.get('nodes', 8))
+        m = int(params.get('m', 2))
+        n_graphs = int(params.get('n_graphs', 160))
+        train_split_ratio = float(params.get('train_split_ratio', 0.8))
+        seed = int(params.get('seed', 42))
+        store_graphs = bool(params.get('store_graphs', False))
+        ds = BarabasiAlbertGraphDataset(
+            nodes=nodes,
+            m=m,
+            n_graphs=n_graphs,
+            train_split_ratio=train_split_ratio,
+            seed=seed,
+            store_graphs=store_graphs,
+        )
+        x_train = ds.generate(split='train')
+        dataset_name = f'Barabasi-Albert Graph (N={nodes}, m={m})'
+        n_qubits = ds.n_qubits
+
     elif dataset_key == 'shapes':
         grid_shape = tuple(params.get('grid_shape', config.get('grid_shape', (5, 5))))
         shape_types = params.get('shape_types', None)
@@ -786,6 +845,20 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         digit_str = f', digit={digit}' if digit is not None else ''
         suffix = f', {reduction}' if reduction != 'spatial' else ''
         dataset_name = f'Binarized MNIST ({rows}x{cols}{digit_str}{suffix})'
+        n_qubits = x_train.shape[1]
+
+    elif dataset_key == 'fashion_mnist':
+        rows, cols = _resolve_rows_cols(params, config, default=(8, 8))
+        threshold = float(params.get('threshold', 0.5))
+        data_dir = params.get('data_dir', './data')
+        ds = FashionMNISTDownscaledDataset(
+            rows=rows,
+            cols=cols,
+            threshold=threshold,
+            data_dir=data_dir,
+        )
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'Fashion-MNIST ({rows}x{cols}, threshold={threshold:g})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'dwave':
@@ -882,7 +955,8 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         raise ValueError(
             "Unknown dataset name. Supported values: "
             "bas, bipartite_graph, noisy_bas, blobs, dwave, gaussian, genomic, "
-            "graph_isomorphism, ising, mnist, parity, qaoa_maxcut, random_circuit, "
+            "barabasi_albert_graph, fashion_mnist, graph_isomorphism, ising, "
+            "k_body_parity, mnist, parity, qaoa_maxcut, random_circuit, variable_bas, "
             "rydberg, scale_free, shapes, "
             "tfim_thermal."
         )
@@ -892,7 +966,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     # Datasets where validity/coverage are not meaningful pass None
     # so evaluate_samples() skips those metrics (reports NaN).
     # Datasets without a meaningful pattern space pass None for validity/coverage.
-    no_pattern_space = {'ising', 'noisy_bas', 'mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm', 'random_circuit', 'qaoa_maxcut', 'tfim_thermal', 'rydberg'}
+    no_pattern_space = {'ising', 'noisy_bas', 'mnist', 'fashion_mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm', 'random_circuit', 'qaoa_maxcut', 'tfim_thermal', 'rydberg'}
     if dataset_key in no_pattern_space:
         validity_fn = None
         coverage_fn = None

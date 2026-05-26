@@ -11,6 +11,8 @@ dependencies = [
     "networkx>=3.6.1",
     "pennylane>=0.44.0",
     "scikit-learn>=1.8.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
 ]
 
 [tool.uv.workspace]
