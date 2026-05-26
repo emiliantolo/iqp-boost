@@ -1,28 +1,27 @@
 {
   "output": {
     "base_dir": "out",
-    "suite_name": "variable_bas"
+    "suite_name": "bas_10x10_length5"
   },
   "runs": [
     {
-      "name": "variable_bas_5x5",
+      "name": "bas_10x10_length5",
       "dataset": {
-        "name": "variable_bas",
+        "name": "bas",
         "params": {
-          "dims": [5, 5],
-          "min_length": 1,
-          "max_length": 3,
-          "max_segments": 2
+          "dims": [10, 10],
+          "length": 5,
+          "min_spacing": 1
         }
       },
       "plot": {
-        "kind": "histogram",
+        "kind": "sample_grid",
         "params": {
-          "filename": "variable_bas_distribution.pdf"
+          "filename": "bas_10x10_length5_samples.pdf"
         }
       },
       "config": {
-        "dims": [5, 5],
+        "dims": [10, 10],
         "train_samples": 1000,
         "data_seed": 321,
         "n_samples": 1000,

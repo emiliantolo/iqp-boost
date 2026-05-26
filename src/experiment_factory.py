@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from src.datasets.barabasi_albert_graph import BarabasiAlbertGraphDataset
-from src.datasets.bas import BarsAndStripesDataset, VariableLengthBarsAndStripesDataset
+from src.datasets.bas import BarsAndStripesDataset
 from src.datasets.bipartite_graph import BipartiteGraphDataset
 from src.datasets.blobs import BlobsDataset
 from src.datasets.dwave import DWaveDataset
@@ -639,28 +639,34 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
 
     if dataset_key == 'bas':
         height, width = _resolve_rows_cols(params, config, default=(4, 4))
-        ds = BarsAndStripesDataset(height=height, width=width)
-        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
-        dataset_name = f'BAS ({height}x{width})'
-        n_qubits = height * width
-
-    elif dataset_key == 'variable_bas':
-        height, width = _resolve_rows_cols(params, config, default=(4, 4))
-        min_length = int(params.get('min_length', 1))
-        max_length = params.get('max_length', None)
-        if max_length is not None:
-            max_length = int(max_length)
-        max_segments = int(params.get('max_segments', 2))
-        ds = VariableLengthBarsAndStripesDataset(
+        length = params.get('length', params.get('pattern_length', None))
+        if length is not None:
+            length = int(length)
+        bar_length = params.get('bar_length', None)
+        if bar_length is not None:
+            bar_length = int(bar_length)
+        stripe_length = params.get('stripe_length', None)
+        if stripe_length is not None:
+            stripe_length = int(stripe_length)
+        min_spacing = int(params.get('min_spacing', params.get('spacing', 0)))
+        ds = BarsAndStripesDataset(
             height=height,
             width=width,
-            min_length=min_length,
-            max_length=max_length,
-            max_segments=max_segments,
+            length=length,
+            bar_length=bar_length,
+            stripe_length=stripe_length,
+            min_spacing=min_spacing,
         )
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
-        dataset_name = f'Variable BAS ({height}x{width}, len={ds.min_length}-{ds.max_length}, segments={ds.max_segments})'
-        n_qubits = ds.n_qubits
+        if ds.bar_length == height and ds.stripe_length == width:
+            dataset_name = f'BAS ({height}x{width})'
+        elif ds.bar_length == ds.stripe_length:
+            dataset_name = f'BAS ({height}x{width}, length={ds.bar_length})'
+        else:
+            dataset_name = f'BAS ({height}x{width}, bar={ds.bar_length}, stripe={ds.stripe_length})'
+        if ds.min_spacing:
+            dataset_name = f'{dataset_name[:-1]}, spacing={ds.min_spacing})'
+        n_qubits = height * width
 
     elif dataset_key == 'noisy_bas':
         height, width = _resolve_rows_cols(params, config, default=(4, 4))
@@ -956,7 +962,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
             "Unknown dataset name. Supported values: "
             "bas, bipartite_graph, noisy_bas, blobs, dwave, gaussian, genomic, "
             "barabasi_albert_graph, fashion_mnist, graph_isomorphism, ising, "
-            "k_body_parity, mnist, parity, qaoa_maxcut, random_circuit, variable_bas, "
+            "k_body_parity, mnist, parity, qaoa_maxcut, random_circuit, "
             "rydberg, scale_free, shapes, "
             "tfim_thermal."
         )
