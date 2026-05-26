@@ -214,7 +214,7 @@ def train_ensemble_model_0(ensemble: BoostedEnsemble, x_train: np.ndarray, key: 
                   monitor_interval=monitor_interval, turbo=turbo_opt)
 
     key, subkey = jax.random.split(key, 2)
-    schedule = config.get('lambda_schedule', {})
+    schedule = config.get('lambda_schedule') or {}
     gamma = float(schedule.get('gamma', 2.0))
     tau = float(schedule.get('tau', 2.0))
     alpha = ensemble.add_model(trainer.final_params, subkey, gamma=gamma, tau=tau)
@@ -337,7 +337,7 @@ def train_boosting_step(ensemble: BoostedEnsemble, x_train: np.ndarray, key: jax
             samples_new_for_search = samples_new_for_search[:, ensemble.wires]
 
     key, subkey = jax.random.split(key, 2)
-    schedule = config.get('lambda_schedule', {})
+    schedule = config.get('lambda_schedule') or {}
     gamma = float(schedule.get('gamma', 2.0))
     tau = float(schedule.get('tau', 2.0))
     alpha_initial = ensemble.add_model(trainer.final_params, subkey, gamma=gamma, tau=tau)
