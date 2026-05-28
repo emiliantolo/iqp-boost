@@ -2,6 +2,7 @@
 
 ## Prerequisites
 - Python and project dependencies installed (see `pyproject.toml`).
+- Iqpopt installed.
 
 Scripts
 - `scripts/run_backend_inference.py` — replay a saved circuit artifact to produce shot files (.npy).
@@ -64,21 +65,21 @@ Creates `inference_results/backend_metrics_*.json` saved into the selected run f
 ### 1. Execute on local simulator
 
 ```bash
-uv run scripts/run_backend_inference.py out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/circuit_artifact.json --backend simulator --shots 1024
+uv run scripts/run_backend_inference.py out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/circuit_artifact.json --backend simulator --shots 1024
 ```
 
 #### Expected output:
 ```
-out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/inference_results/model_*.npy
-out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/inference_results/inference_metadata.json
+out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/inference_results/model_*.npy
+out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/inference_results/inference_metadata.json
 ```
 
 ### 2. Compute metrics
 ```bash
-uv run scripts/compute_backend_metrics.py out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/circuit_artifact.json --shots 1024
+uv run scripts/compute_backend_metrics.py out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/circuit_artifact.json --shots 1024
 ```
 
 #### Expected output:
 ```
-out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/inference_results/backend_metrics_*.json
+out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/inference_results/backend_metrics_*.json
 ```
