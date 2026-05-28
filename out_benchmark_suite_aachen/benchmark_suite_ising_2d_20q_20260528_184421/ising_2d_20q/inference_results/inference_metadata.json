@@ -1,0 +1,27 @@
+{
+  "artifact_path": "out_benchmark_suite_aachen/benchmark_suite_ising_2d_20q_20260528_184421/ising_2d_20q/circuit_artifact.json",
+  "backend": "simulator",
+  "mode": "both",
+  "shots": 8,
+  "n_qubits": 20,
+  "ensemble_models_run": 1,
+  "standalone_run": true,
+  "timestamp": "2026-05-28T19:34:24.216984",
+  "shot_results": [
+    {
+      "sample_name": "ensemble_model_0",
+      "shots_file": "inference_results/ensemble_model_0_shots_20260528_193424.npy",
+      "num_shots": 8,
+      "timestamp": "20260528_193424",
+      "model_index": 0,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "standalone",
+      "shots_file": "inference_results/standalone_shots_20260528_193424.npy",
+      "num_shots": 8,
+      "timestamp": "20260528_193424",
+      "kind": "standalone"
+    }
+  ]
+}
