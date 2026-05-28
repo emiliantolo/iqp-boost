@@ -5,7 +5,15 @@ import jax
 import networkx as nx
 import numbers
 import iqpopt as iqp
-from iqpopt.utils import nearest_neighbour_gates, local_gates, random_gates, initialize_from_data, expand_gate_list
+from iqpopt.utils import (
+    nearest_neighbour_gates,
+    local_gates,
+    random_gates,
+    initialize_from_data,
+    expand_gate_list,
+    gates_from_covariance,
+)
+from src.hardware import create_circuit as hardware_create_circuit
 
 def _initialize_with_ancillas(gates, data, n_visible):
     """
@@ -71,6 +79,110 @@ def get_params_init(strategy: str, circuit, data, key_rng=None):
             return np.random.uniform(-np.pi, np.pi, size=shape)
     else:
         raise ValueError(f"Unknown init_strategy: {strategy}")
+
+
+def aachen_connectivity() -> dict[int, list[int]]:
+    """Return the Aachen / heavy-hex style hardware connectivity map."""
+    connectivity = {i: [] for i in range(156)}
+
+    connections = [
+        (0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7),
+        (7, 8), (8, 9), (9, 10), (10, 11), (11, 12), (12, 13), (13, 14), (14, 15),
+        (20, 21), (21, 22), (22, 23), (23, 24), (24, 25), (25, 26), (26, 27),
+        (27, 28), (28, 29), (29, 30), (30, 31), (31, 32), (32, 33), (33, 34), (34, 35),
+        (40, 41), (41, 42), (42, 43), (43, 44), (44, 45), (45, 46), (46, 47),
+        (47, 48), (48, 49), (49, 50), (50, 51), (51, 52), (52, 53), (53, 54), (54, 55),
+        (60, 61), (61, 62), (62, 63), (63, 64), (64, 65), (65, 66), (66, 67),
+        (67, 68), (68, 69), (69, 70), (70, 71), (71, 72), (72, 73), (73, 74), (74, 75),
+        (80, 81), (81, 82), (82, 83), (83, 84), (84, 85), (85, 86), (86, 87),
+        (87, 88), (88, 89), (89, 90), (90, 91), (91, 92), (92, 93), (93, 94), (94, 95),
+        (100, 101), (101, 102), (102, 103), (103, 104), (104, 105), (105, 106), (106, 107),
+        (107, 108), (108, 109), (109, 110), (110, 111), (111, 112), (112, 113), (113, 114), (114, 115),
+        (120, 121), (121, 122), (122, 123), (123, 124), (124, 125), (125, 126), (126, 127),
+        (127, 128), (128, 129), (129, 130), (130, 131), (131, 132), (132, 133), (133, 134), (134, 135),
+        (140, 141), (141, 142), (142, 143), (143, 144), (144, 145), (145, 146), (146, 147),
+        (147, 148), (148, 149), (149, 150), (150, 151), (151, 152), (152, 153), (153, 154), (154, 155),
+        (3, 16), (7, 17), (11, 18), (15, 19), (16, 23), (17, 27), (18, 31), (19, 35),
+        (21, 36), (25, 37), (29, 38), (33, 39), (36, 41), (37, 45), (38, 49), (39, 53),
+        (43, 56), (47, 57), (51, 58), (55, 59), (56, 63), (57, 67), (58, 71), (59, 75),
+        (61, 76), (65, 77), (69, 78), (73, 79), (76, 81), (77, 85), (78, 89), (79, 93),
+        (83, 96), (87, 97), (91, 98), (95, 99), (96, 103), (97, 107), (98, 111), (99, 115),
+        (101, 116), (105, 117), (109, 118), (113, 119), (116, 121), (117, 125), (118, 129), (119, 133),
+        (123, 136), (127, 137), (131, 138), (135, 139), (136, 143), (137, 147), (138, 151), (139, 155),
+    ]
+
+    for q1, q2 in connections:
+        connectivity[q1].append(q2)
+        connectivity[q2].append(q1)
+
+    return connectivity
+
+
+def aachen_graph() -> nx.Graph:
+    """Return the full Aachen hardware graph."""
+    graph = nx.Graph()
+    connectivity = aachen_connectivity()
+    graph.add_nodes_from(connectivity)
+    for node, neighbours in connectivity.items():
+        for neighbour in neighbours:
+            graph.add_edge(node, neighbour)
+    return graph
+
+
+def _most_connected_island(graph: nx.Graph, n_qubits: int) -> list[int]:
+    """Greedily select a connected subgraph with strong internal connectivity."""
+    if n_qubits <= 0:
+        raise ValueError("n_qubits must be positive")
+    if n_qubits > graph.number_of_nodes():
+        raise ValueError(
+            f"Requested {n_qubits} qubits, but the hardware graph only has {graph.number_of_nodes()} nodes"
+        )
+
+    if n_qubits == graph.number_of_nodes():
+        return list(graph.nodes())
+
+    start = max(graph.nodes(), key=lambda node: (graph.degree(node), -int(node)))
+    selected = [start]
+    selected_set = {start}
+
+    while len(selected) < n_qubits:
+        frontier = {
+            neighbour
+            for node in selected
+            for neighbour in graph.neighbors(node)
+            if neighbour not in selected_set
+        }
+        if not frontier:
+            frontier = set(graph.nodes()) - selected_set
+
+        candidate = max(
+            frontier,
+            key=lambda node: (
+                sum(1 for neighbour in graph.neighbors(node) if neighbour in selected_set),
+                graph.degree(node),
+                -int(node),
+            ),
+        )
+        selected.append(candidate)
+        selected_set.add(candidate)
+
+    return selected
+
+
+def _physical_qpu_topology(n_qubits: int, distance: int = 1, max_weight: int = 2) -> tuple[list, nx.Graph, list[int]]:
+    """Build a topology on the most connected Aachen subgraph."""
+    hardware_graph = aachen_graph()
+    selected_nodes = _most_connected_island(hardware_graph, n_qubits)
+    subgraph = hardware_graph.subgraph(selected_nodes).copy()
+    relabel = {node: idx for idx, node in enumerate(selected_nodes)}
+    subgraph = nx.relabel_nodes(subgraph, relabel, copy=True)
+    gates = nearest_neighbour_gates(subgraph, distance=distance, max_weight=max_weight)
+    return gates, subgraph, selected_nodes
+
+
+def covariance_topology(data, n_gates: int, return_local: bool = True) -> list:
+    """Build a data-driven topology from the strongest covariance pairs."""
+    return gates_from_covariance(data, n_gates, return_local=return_local)
 
 def compute_lambda_schedule(step: int, n_steps: int, base_lambda: float,
                              schedule: dict | None) -> float:
@@ -236,8 +348,9 @@ def setup_iqp_circuit(n_qubits: int, topology: str = 'neighbour', n_ancilla: int
     
     Args:
         n_qubits: Number of visible qubits (data qubits)
-        topology: Gate structure ('neighbour', 'random', 'local', 'aachen_heavy_hex')
+        topology: Gate structure ('neighbour', 'random', 'local', 'grid2d', 'aachen_heavy_hex', 'aachen', 'physical_qpu', 'covariance')
                 n_ancilla: Number of ancilla (hidden) qubits to add.
+            kwargs.data: Optional training data used by data-driven topologies.
                 kwargs.ancilla_topology_mode: How to wire ancilla qubits when n_ancilla > 0:
                         - 'joint' (default): build the selected topology directly on total
                             qubits (visible + ancilla).
@@ -319,6 +432,36 @@ def setup_iqp_circuit(n_qubits: int, topology: str = 'neighbour', n_ancilla: int
             f"Qubits: {n_qubits}\n"
             f"Aachen heavy-hex topology: {len(gates)} parameters\n"
             f"layers={num_layers}, one_qubit={n_one}, two_qubit={n_two}"
+        )
+    elif topology == 'aachen':
+        num_layers = kwargs.get('num_layers', 1)
+        qpu_circuit = hardware_create_circuit(build_n_qubits, num_layers)
+        gates = qpu_circuit.gates
+        desc = f"Qubits: {build_n_qubits}\nAachen (hardware.py): {len(gates)} parameters\n(num_layers={num_layers})"
+    elif topology == 'physical_qpu':
+        distance = kwargs.get('distance', 1)
+        max_weight = kwargs.get('max_weight', 2)
+        gates, G, selected_nodes = _physical_qpu_topology(build_n_qubits, distance=distance, max_weight=max_weight)
+        selected_preview = selected_nodes[:8]
+        suffix = '...' if len(selected_nodes) > len(selected_preview) else ''
+        desc = (
+            f"Qubits: {build_n_qubits} (Aachen/heavy-hex island)\n"
+            f"Physical QPU topology: {len(gates)} parameters\n"
+            f"(distance={distance}, max_weight={max_weight}, selected={selected_preview}{suffix})"
+        )
+    elif topology == 'covariance':
+        data = kwargs.get('data')
+        if data is None:
+            raise ValueError("covariance topology requires 'data' in setup_iqp_circuit kwargs")
+        if n_ancilla > 0 and ancilla_topology_mode != 'expanded':
+            raise ValueError("covariance topology with ancillas requires ancilla_topology_mode='expanded'")
+        n_gates = kwargs.get('n_gates', max(n_qubits, 1))
+        return_local = kwargs.get('return_local', True)
+        gates = covariance_topology(data, n_gates=n_gates, return_local=return_local)
+        desc = (
+            f"Qubits: {n_qubits}\n"
+            f"Covariance topology: {len(gates)} parameters\n"
+            f"(n_gates={n_gates}, return_local={return_local})"
         )
     else:
         raise ValueError(f"Unknown topology: {topology}")
