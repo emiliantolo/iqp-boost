@@ -171,12 +171,72 @@ def grid2d_topology(height: int, width: int, distance: int = 1,
     return gates, G
 
 
+def aachen_connectivity() -> dict[int, list[int]]:
+    """Return the manually specified IBM Aachen heavy-hex connectivity."""
+    connectivity = {i: [] for i in range(156)}
+
+    connections = []
+    for row_start in range(0, 141, 20):
+        connections.extend((row_start + i, row_start + i + 1) for i in range(15))
+
+    connections.extend([
+        (3, 16), (7, 17), (11, 18), (15, 19),
+        (16, 23), (17, 27), (18, 31), (19, 35),
+        (21, 36), (25, 37), (29, 38), (33, 39),
+        (36, 41), (37, 45), (38, 49), (39, 53),
+        (43, 56), (47, 57), (51, 58), (55, 59),
+        (56, 63), (57, 67), (58, 71), (59, 75),
+        (61, 76), (65, 77), (69, 78), (73, 79),
+        (76, 81), (77, 85), (78, 89), (79, 93),
+        (83, 96), (87, 97), (91, 98), (95, 99),
+        (96, 103), (97, 107), (98, 111), (99, 115),
+        (101, 116), (105, 117), (109, 118), (113, 119),
+        (116, 121), (117, 125), (118, 129), (119, 133),
+        (123, 136), (127, 137), (131, 138), (135, 139),
+        (136, 143), (137, 147), (138, 151), (139, 155),
+    ])
+
+    for q1, q2 in connections:
+        connectivity[q1].append(q2)
+        connectivity[q2].append(q1)
+    return connectivity
+
+
+def connectivity_gates(connectivity_graph: dict[int, list[int]], num_positions: int,
+                       num_layers: int = 1) -> list:
+    """Create one-qubit gates plus two-qubit gates for connected pairs."""
+    single_qubit_gates = [[[np.int64(i)]] for i in range(num_positions)]
+    two_qubit_gates = []
+    edges_added = set()
+
+    for q1_key, neighbors in connectivity_graph.items():
+        q1 = int(q1_key)
+        if not 0 <= q1 < num_positions:
+            continue
+        for q2_val in neighbors:
+            q2 = int(q2_val)
+            if not 0 <= q2 < num_positions:
+                continue
+            edge = tuple(sorted((q1, q2)))
+            if edge not in edges_added:
+                two_qubit_gates.append([[np.int64(edge[0]), np.int64(edge[1])]])
+                edges_added.add(edge)
+
+    two_qubit_gates.sort(key=lambda gate: (gate[0][0], gate[0][1]))
+    layer_gates = single_qubit_gates + two_qubit_gates
+
+    final_gates = []
+    for _ in range(int(num_layers)):
+        final_gates.extend(layer_gates)
+    return final_gates
+
+
 def setup_iqp_circuit(n_qubits: int, topology: str = 'neighbour', n_ancilla: int = 0, **kwargs) -> tuple:
     """Configure IQP circuit gates based on topology.
     
     Args:
         n_qubits: Number of visible qubits (data qubits)
-        topology: Gate structure ('neighbour', 'random', 'local')
+        topology: Gate structure ('neighbour', 'random', 'local', 'aachen_heavy_hex')
                 n_ancilla: Number of ancilla (hidden) qubits to add.
                 kwargs.ancilla_topology_mode: How to wire ancilla qubits when n_ancilla > 0:
                         - 'joint' (default): build the selected topology directly on total
@@ -246,6 +306,20 @@ def setup_iqp_circuit(n_qubits: int, topology: str = 'neighbour', n_ancilla: int
         periodic_str = "toroidal" if periodic else "open"
         desc = f"Qubits: {n_qubits} ({height}x{width} {periodic_str} grid)\n"
         desc += f"Grid2D topology: {len(gates)} parameters\n(distance={distance}, max_weight={max_weight})"
+    elif topology == 'aachen_heavy_hex':
+        if n_ancilla > 0:
+            raise ValueError("aachen_heavy_hex currently supports n_ancilla=0 only")
+        num_layers = int(kwargs.get('num_layers', 1))
+        if n_qubits > 156:
+            raise ValueError("aachen_heavy_hex supports at most 156 qubits")
+        gates = connectivity_gates(aachen_connectivity(), n_qubits, num_layers=num_layers)
+        n_one = n_qubits * num_layers
+        n_two = len(gates) - n_one
+        desc = (
+            f"Qubits: {n_qubits}\n"
+            f"Aachen heavy-hex topology: {len(gates)} parameters\n"
+            f"layers={num_layers}, one_qubit={n_one}, two_qubit={n_two}"
+        )
     else:
         raise ValueError(f"Unknown topology: {topology}")
 

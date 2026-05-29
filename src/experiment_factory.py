@@ -1030,7 +1030,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
             "Unknown dataset name. Supported values: "
             "bas, bipartite_graph, noisy_bas, blobs, dwave, gaussian, genomic, "
             "barabasi_albert_graph, fashion_mnist, graph_isomorphism, ising, "
-            "k_body_parity, mnist, parity, qaoa_maxcut, random_circuit, "
+            "hopfield, k_body_parity, mnist, parity, qaoa_maxcut, random_circuit, "
             "rbm, rydberg, scale_free, shapes, "
             "tfim_thermal."
         )
@@ -1040,7 +1040,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     # Datasets where validity/coverage are not meaningful pass None
     # so evaluate_samples() skips those metrics (reports NaN).
     # Datasets without a meaningful pattern space pass None for validity/coverage.
-    no_pattern_space = {'ising', 'rbm', 'noisy_bas', 'mnist', 'fashion_mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm', 'random_circuit', 'qaoa_maxcut', 'tfim_thermal', 'rydberg'}
+    no_pattern_space = {'ising', 'hopfield', 'rbm', 'noisy_bas', 'mnist', 'fashion_mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm', 'random_circuit', 'qaoa_maxcut', 'tfim_thermal', 'rydberg'}
     if dataset_key in no_pattern_space:
         validity_fn = None
         coverage_fn = None

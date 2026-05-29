@@ -1,0 +1,47 @@
+{
+  "study_name": "hopfield_20q_p2_b15",
+  "n_trials": 60,
+  "sampler_seed": 42,
+  "output_dir": "out/hpo",
+  "dataset": {
+    "name": "hopfield",
+    "params": {
+      "n_qubits": 20,
+      "n_patterns": 2,
+      "beta": 1.5,
+      "pattern_seed": 42,
+      "max_exact_states": 1048576
+    }
+  },
+  "plot": {"kind": "none"},
+  "fixed_config": {
+    "train_samples": 1000,
+    "data_seed": 42,
+    "n_samples": 512,
+    "epochs_per_step": 512,
+    "caching_level": "none",
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_dual": 1.0,
+    "lambda_schedule": {"type": "frank_wolfe", "gamma": 1.0, "tau": 1.0},
+    "sigma_heuristic": {"method": "fourier", "n_sigmas": 4},
+    "weight_strategy": "frank_wolfe",
+    "baseline": "standalone",
+    "shots": 10000,
+    "acceptance_metric": "training_mmd",
+    "skip_sampling": true,
+    "final_eval_sampling": true,
+    "report_fcfw": false,
+    "keep_models_for_diagnosis": false,
+    "stop_on_reject": false,
+    "rng_seed": 42,
+    "turbo": 10,
+    "circuit_config": {"topology": "aachen_heavy_hex", "n_ancilla": 0, "num_layers": 1}
+  },
+  "search_space": {
+    "sigma_heuristic.n_sigmas": {"type": "int", "low": 2, "high": 6},
+    "n_models": {"type": "int", "low": 4, "high": 10},
+    "learning_rate": {"type": "float", "low": 0.001, "high": 0.05, "log": true},
+    "n_ops": {"type": "categorical", "choices": [1000, 2000, 4000]}
+  }
+}

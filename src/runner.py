@@ -4,7 +4,10 @@ import iqpopt as iqp
 from src.sigma_heuristics import compute_sigma
 from iqpopt.gen_qml.iqp_methods import mmd_loss_iqp
 from src.ensemble import BoostedEnsemble
-from src.circuit_artifacts import save_circuit_artifact
+try:
+    from src.circuit_artifacts import save_circuit_artifact
+except ModuleNotFoundError:
+    save_circuit_artifact = None
 from src.reporting import (
     report_metrics_table, get_plot_config, OutputManager, plot_data_ensemble_loss,
     plot_metrics_progression, report_baseline, report_final, report_rejection,
@@ -304,6 +307,7 @@ def train_boosting_step(ensemble: BoostedEnsemble, x_train: np.ndarray, key: jax
         trainer.final_params, ensemble.iqp_circuit, x_train, ensemble.terms,
         ensemble.weights, ensemble.sigma, ensemble.n_ops, ensemble.n_samples, step_key,
         lambda_dual=ensemble.lambda_dual, return_traces=True, wires=ensemble.wires,
+        stochastic_ops=stochastic_ops, ensemble_models=ensemble.models,
         max_batch_ops=ensemble.max_batch_ops, max_batch_samples=ensemble.max_batch_samples
     )
 
@@ -904,6 +908,7 @@ def run_boosting_experiment(
                         params, iqp_circuit, x_train, snr_terms, ensemble.weights[:-1],
                         sigma, n_ops, snr_mmd_samples, key,
                         lambda_dual=ensemble.lambda_dual,
+                        stochastic_ops=False,
                         wires=ensemble.wires,
                         max_batch_ops=ensemble.max_batch_ops,
                         max_batch_samples=ensemble.max_batch_samples
@@ -1090,6 +1095,8 @@ def run_boosting_experiment(
         if config.get('save_circuit_artifacts', False):
             print("\n[ARTIFACTS] Saving circuit artifact for backend execution...")
             try:
+                if save_circuit_artifact is None:
+                    raise ImportError("src.circuit_artifacts is not available")
                 artifact_path = save_circuit_artifact(
                     path=output.get_path('circuit_artifact.json'),
                     dataset_name=dataset_name,
@@ -1113,3 +1120,15 @@ def run_boosting_experiment(
                 print(f"[ARTIFACTS] Circuit artifact saved to: {artifact_path}")
             except Exception as e:
                 print(f"[ARTIFACTS] Failed to save circuit artifact: {e}")
+
+        return {
+            'final_stats': final_stats,
+            'ensemble_metrics_history': ensemble_metrics_history,
+            'ensemble': ensemble,
+            'baseline_stats': standalone_stats,
+            'data_only_stats': data_only_stats,
+            'ensemble_fcfw_stats': ensemble_fcfw_stats,
+            'output_dir': str(output.run_dir),
+            'weights': np.asarray(ensemble.weights, dtype=np.float64),
+            'n_models_accepted': len(ensemble.models),
+        }

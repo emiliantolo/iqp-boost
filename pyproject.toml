@@ -9,8 +9,10 @@ dependencies = [
     "jax>=0.10.0",
     "matplotlib>=3.10.8",
     "networkx>=3.6.1",
+    "optuna>=4.6.0",
     "pennylane>=0.44.0",
     "scikit-learn>=1.8.0",
+    "seaborn>=0.13.2",
     "torch>=2.0.0",
     "torchvision>=0.15.0",
 ]
