@@ -42,3 +42,100 @@ $$k(x, y) = \exp\left( -\frac{d(x, y)^2}{2\sigma^2} \right)$$
 With $P=2$, the target distribution has exactly 4 major symmetric peaks.
 *   An ensemble of $M \ge 4$ models has sufficient capacity to cover all peaks.
 *   Instead of rigid step-size updates (e.g., Frank-Wolfe $\alpha_t = \frac{2}{t+2}$), this discrete structure is highly suited for **Fully Corrective Frank-Wolfe (FCFW)** or **line-search weight optimization**, which can dynamically assign $50\%\text{--}50\%$ weights to specialized sub-models in very few boosting steps.
+
+---
+
+## Implementation Details
+
+### HPO Configuration
+
+Each dataset configuration has its own independent HPO run with **60 TPE-sampled trials**. The hyperparameter search space is:
+
+*   **Fourier sigmas**: `2` to `6` (integer)
+*   **Ensemble size**: `4` to `10` models
+*   **Learning rate**: log-uniform `[0.001, 0.05]`
+*   **Operators**: `[1000, 2000, 4000]` (categorical)
+
+Fixed settings across all configs:
+*   **Ansatz**: Aachen heavy-hex topology (20 qubits, 0 ancilla, 1 layer)
+*   **Training samples**: 10,000
+*   **Circuit shots**: 512 per step
+*   **Epochs per step**: 512
+*   **Weight strategy**: Frank-Wolfe schedule
+*   **Lambda schedule**: Frank-Wolfe
+*   **Caching**: none
+*   **Final eval shots**: 10,000
+*   **Baseline**: none (deferred to final model only)
+*   **FCFW reporting**: enabled (post-hoc diagnostic)
+*   **Objective**: minimize final exact-reference TVD
+
+### Output Structure
+
+Each HPO run produces:
+```
+out/hpo/<study_name>_<timestamp>/
+  study.db          # Optuna SQLite database
+  hpo.log           # Combined log for all trials
+  hpo_config.json   # Copy of the HPO config
+  best_trial.json   # Best trial summary with hyperparameters and metrics
+  best_model.json   # Saved ensemble parameters and weights
+  best_config.json  # Resolved experiment config for the best trial
+  best_hopfield_metrics.json  # Hopfield-specific evaluation metrics
+  trials/
+    trial_0000/
+    trial_0001/
+    ...
+```
+
+### Best-Model Evaluation
+
+After HPO completes, the best model is automatically evaluated with two sets of Hopfield-specific metrics (for both the normal Frank-Wolfe ensemble and the post-hoc FCFW-weighted ensemble):
+
+1. **Energy Distribution Matching** (1-Wasserstein distance between target and generated energy distributions)
+2. **Memory Recall** (Hamming distance to nearest stored pattern or its inverse)
+   * Mean distance
+   * Exact recall rate
+   * Distance percentiles (p50, p90, p99)
+
+These metrics are saved to `best_hopfield_metrics.json` and included in `best_trial.json`.
+
+### Running HPO
+
+```bash
+# For each configuration:
+uv run python -m src.hpo_optuna --config configs/hpo/hopfield_20q_p1_b15.json
+uv run python -m src.hpo_optuna --config configs/hpo/hopfield_20q_p1_b20.json
+uv run python -m src.hpo_optuna --config configs/hpo/hopfield_20q_p2_b15.json
+uv run python -m src.hpo_optuna --config configs/hpo/hopfield_20q_p2_b20.json
+```
+
+### Independent Evaluation
+
+The `src/hopfield_evaluation.py` module provides standalone functions for evaluating saved models without running HPO:
+
+```python
+from src.hopfield_evaluation import (
+    evaluate_energy_wasserstein,
+    evaluate_memory_recall,
+    compute_hopfield_energies
+)
+
+# Evaluate any saved model after HPO completes
+from src.datasets.hopfield import HopfieldDataset
+from src.core import setup_iqp_circuit
+from src.ensemble import BoostedEnsemble
+
+dataset = HopfieldDataset(n_qubits=20, n_patterns=2, beta=2.0, pattern_seed=42)
+circuit, _, _, _ = setup_iqp_circuit(20, topology='aachen_heavy_hex', n_ancilla=0)
+ensemble = BoostedEnsemble.load('best_model.json', circuit, n_samples=512)
+
+samples = ensemble.sample(10000, np.random.default_rng(42))
+
+# Energy distribution matching
+w1 = evaluate_energy_wasserstein(dataset, samples, n_baseline=10000, seed=0)
+
+# Memory recall metrics
+recall = evaluate_memory_recall(dataset, samples)
+```
+
+These functions are intentionally not wired into the experiment runner and can be used independently for custom analyses.
