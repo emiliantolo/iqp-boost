@@ -574,10 +574,11 @@ def _resolve_baselines_to_run(config: dict) -> list[str]:
 
 
 def compute_fcfw_stats(base_ensemble: BoostedEnsemble, x_train: np.ndarray, sigma: float | list,
-                       shots: int, final_eval_rng: np.random.Generator,
+                       shots: int | None, final_eval_rng: np.random.Generator | None,
                        validity_fn: callable, coverage_fn: callable,
                        exact_probs: np.ndarray = None,
-                       generation_eval_fn: callable = None) -> dict:
+                       generation_eval_fn: callable = None,
+                       sampling_enabled: bool = True) -> dict:
     """Compute Fully Corrective Frank-Wolfe weights for an ensemble and evaluate.
     
     Returns:
@@ -598,9 +599,25 @@ def compute_fcfw_stats(base_ensemble: BoostedEnsemble, x_train: np.ndarray, sigm
             trs_data.append(tr_train)
             
     fcfw_ensemble.apply_weight_strategy('fully_corrective', trs_data=trs_data)
-    final_fcfw_samples = fcfw_ensemble.sample(shots, final_eval_rng)
-    fcfw_stats = evaluate_samples(x_train, final_fcfw_samples, sigma, validity_fn, coverage_fn,
-                                  exact_probs=exact_probs, generation_eval_fn=generation_eval_fn)
+    if sampling_enabled:
+        final_fcfw_samples = fcfw_ensemble.sample(shots, final_eval_rng)
+        fcfw_stats = evaluate_samples(x_train, final_fcfw_samples, sigma, validity_fn, coverage_fn,
+                                      exact_probs=exact_probs, generation_eval_fn=generation_eval_fn)
+    else:
+        fcfw_mmd = compute_ensemble_training_mmd(fcfw_ensemble, x_train)
+        fcfw_stats = {
+            'mmd': fcfw_mmd,
+            'kl': float('nan'),
+            'jsd': float('nan'),
+            'tvd': float('nan'),
+            'validity': float('nan'),
+            'coverage': float('nan'),
+            'precision': float('nan'),
+            'recall': float('nan'),
+            'support_match': float('nan'),
+            'f_score': float('nan'),
+            'corr_fro': float('nan'),
+        }
     
     return {
         "metrics": fcfw_stats,
@@ -941,6 +958,11 @@ def run_boosting_experiment(
                 break
 
         # Final reporting - sample once, reuse everywhere
+        data_only_fcfw_stats = None
+        data_only_fcfw_weights = None
+        ensemble_fcfw_stats = None
+        ensemble_fcfw_weights = None
+
         if not final_sampling_enabled:
             print("\n[skip_sampling=True] Skipping final state vector sampling. Using final training losses.")
             final_ensemble_samples, final_counts, per_model_samples = None, None, []
@@ -956,18 +978,53 @@ def run_boosting_experiment(
             model_rows = []
             if data_only_stats is not None and reference_label != 'Data-only':
                 model_rows.append(("Data-only", {'mmd': data_only_stats.get('mmd', float('nan'))}))
+                
+                # 1b. Data-only FCFW
+                if config.get('report_fcfw', True):
+                    print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for Data-only baseline (Analytical)...")
+                    data_only_fcfw_result = compute_fcfw_stats(
+                        data_only_ensemble, x_train, sigma, None, None,
+                        validity_fn, coverage_fn, exact_probs=exact_probs,
+                        generation_eval_fn=generation_eval_fn,
+                        sampling_enabled=False
+                    )
+                    data_only_fcfw_stats = data_only_fcfw_result["metrics"]
+                    data_only_fcfw_weights = data_only_fcfw_result["weights"]
+                    print(f"  FCFW Analytical MMD^2: {data_only_fcfw_stats['mmd']:.6f}")
+                    model_rows.append(("Data-only (FCFW)", data_only_fcfw_stats))
             for i in range(len(ensemble.models)):
                 # Try to get training loss at each step if recorded
                 m_loss = ensemble_metrics_history['training_loss'][i] if i < len(ensemble_metrics_history['training_loss']) else float('nan')
                 model_rows.append((f"Model {i}", {'mmd': m_loss}))
             
-            report_metrics_table(reference_stats, final_stats, model_rows, "FINAL MODEL COMPARISON (Analytical)")
+            # 3. Ensemble FCFW
+            table_title = "FINAL MODEL COMPARISON (Analytical)"
+            if config.get('report_fcfw', True):
+                print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble (Analytical)...")
+                ensemble_fcfw_result = compute_fcfw_stats(
+                    ensemble, x_train, sigma, None, None,
+                    validity_fn, coverage_fn, exact_probs=exact_probs,
+                    generation_eval_fn=generation_eval_fn,
+                    sampling_enabled=False
+                )
+                ensemble_fcfw_stats = ensemble_fcfw_result["metrics"]
+                ensemble_fcfw_weights = ensemble_fcfw_result["weights"]
+                print(f"  FCFW Analytical MMD^2: {ensemble_fcfw_stats['mmd']:.6f}")
+                
+                model_rows.append(("Ensemble (FCFW)", ensemble_fcfw_stats))
+                table_title = "FINAL MODEL COMPARISON (Analytical, inc. FCFW)"
+
+            report_metrics_table(reference_stats, final_stats, model_rows, table_title)
 
             baseline_for_csv = standalone_stats if standalone_stats is not None else reference_stats
             summary_rows = []
             if data_only_stats is not None:
                 summary_rows.append({'step': -2, 'label': 'data_only', 'metrics': data_only_stats})
+            if data_only_fcfw_stats is not None:
+                summary_rows.append({'step': -3, 'label': 'data_only_fcfw', 'metrics': data_only_fcfw_stats})
             summary_rows.append({'step': -4, 'label': 'ensemble_final', 'metrics': final_stats})
+            if ensemble_fcfw_stats is not None:
+                summary_rows.append({'step': -5, 'label': 'ensemble_fcfw', 'metrics': ensemble_fcfw_stats})
 
             output.save_results_csv(
                 ensemble_metrics_history,
