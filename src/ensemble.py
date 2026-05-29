@@ -328,3 +328,36 @@ class BoostedEnsemble:
         }
         with open(path, 'w') as f:
             json.dump(data, f)
+
+    @classmethod
+    def load(cls, path: str, iqp_circuit, n_samples: int, max_batch_ops: int = None, max_batch_samples: int = None):
+        """Reconstruct a BoostedEnsemble from a JSON saved by ``save()``.
+
+        Args:
+            path: Path to the JSON file.
+            iqp_circuit: IqpSimulator instance (must match the original circuit).
+            n_samples: Number of circuit shots to use for trace estimates.
+            max_batch_ops: Optional batching limit for operators.
+            max_batch_samples: Optional batching limit for samples.
+        """
+        import json
+        with open(path, 'r') as f:
+            data = json.load(f)
+        sigma = data["sigma"]
+        n_ops = int(data["n_ops"])
+        lambda_dual = float(data["lambda_dual"])
+        wires = data["wires"]
+        instance = cls(
+            iqp_circuit=iqp_circuit,
+            n_models=len(data["models"]),
+            sigma=sigma,
+            n_ops=n_ops,
+            n_samples=n_samples,
+            lambda_dual=lambda_dual,
+            wires=wires,
+            max_batch_ops=max_batch_ops,
+            max_batch_samples=max_batch_samples,
+        )
+        instance.weights = [float(w) for w in data["weights"]]
+        instance.models = [np.array(m) for m in data["models"]]
+        return instance

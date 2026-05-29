@@ -567,7 +567,9 @@ def _resolve_baselines_to_run(config: dict) -> list[str]:
         baselines = ['standalone']
         if config.get('run_data_only_baseline', False):
             baselines.append('data_only')
-    baselines = [b for b in baselines if b in {'standalone', 'data_only'}]
+    baselines = [b for b in baselines if b in {'standalone', 'data_only', 'none'}]
+    if 'none' in baselines:
+        return []
     if not baselines:
         baselines = ['standalone']
     return baselines
@@ -1185,6 +1187,7 @@ def run_boosting_experiment(
             'baseline_stats': standalone_stats,
             'data_only_stats': data_only_stats,
             'ensemble_fcfw_stats': ensemble_fcfw_stats,
+            'ensemble_fcfw_weights': ensemble_fcfw_weights,
             'output_dir': str(output.run_dir),
             'weights': np.asarray(ensemble.weights, dtype=np.float64),
             'n_models_accepted': len(ensemble.models),

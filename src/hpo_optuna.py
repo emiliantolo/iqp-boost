@@ -11,10 +11,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import optuna
 
+from src.core import setup_iqp_circuit
+from src.datasets.hopfield import HopfieldDataset
+from src.ensemble import BoostedEnsemble
 from src.experiment_cli import DEFAULT_RUN_CONFIG
 from src.experiment_factory import build_dataset_bundle
+from src.hopfield_evaluation import evaluate_energy_wasserstein, evaluate_memory_recall
 from src.runner import run_boosting_experiment
 
 
@@ -77,6 +82,83 @@ def _json_default(obj):
     if hasattr(obj, 'item'):
         return obj.item()
     return str(obj)
+
+
+def _evaluate_best_model_hopfield_metrics(
+    hpo_spec: dict,
+    best_config_path: Path,
+    best_model_path: Path,
+    fcfw_weights_list: list | None,
+) -> dict | None:
+    """Reconstruct the best ensemble and evaluate Hopfield-specific metrics for both normal and FCFW weights."""
+    if best_config_path is None or not best_config_path.exists():
+        print("[Postprocess] best_config.json missing, skipping Hopfield metrics")
+        return None
+    if not best_model_path.exists():
+        print("[Postprocess] best_model.json missing, skipping Hopfield metrics")
+        return None
+
+    dataset_spec = hpo_spec.get('dataset', {})
+    if dataset_spec.get('name') != 'hopfield':
+        return None
+
+    try:
+        best_cfg = json.loads(best_config_path.read_text())
+    except Exception as e:
+        print(f"[Postprocess] Failed to read best config: {e}")
+        return None
+
+    try:
+        with open(best_model_path, 'r') as f:
+            model_data = json.load(f)
+    except Exception as e:
+        print(f"[Postprocess] Failed to read best model: {e}")
+        return None
+
+    # Rebuild dataset
+    ds_params = dict(dataset_spec.get('params', {}))
+    dataset = HopfieldDataset(**ds_params)
+
+    # Rebuild circuit
+    circuit_cfg = best_cfg.get('circuit_config', {})
+    n_qubits = dataset.n_qubits
+    circuit, _, _, _ = setup_iqp_circuit(n_qubits, **circuit_cfg)
+
+    # Rebuild ensemble
+    n_samples = int(best_cfg.get('n_samples', 512))
+    ensemble = BoostedEnsemble.load(str(best_model_path), iqp_circuit=circuit, n_samples=n_samples)
+
+    shots = int(best_cfg.get('shots', 10000))
+    rng_seed = int(best_cfg.get('rng_seed', 42))
+    rng = np.random.default_rng(rng_seed)
+
+    # Normal ensemble
+    normal_samples = ensemble.sample(shots, rng)
+    normal_metrics = {
+        'energy_wasserstein': evaluate_energy_wasserstein(
+            dataset, normal_samples, n_baseline=10000, seed=rng_seed + 999
+        ),
+        **evaluate_memory_recall(dataset, normal_samples),
+    }
+    normal_metrics.pop('distances_array', None)
+
+    # FCFW ensemble
+    fcfw_metrics = {}
+    if fcfw_weights_list is not None and len(fcfw_weights_list) > 0:
+        fcfw_weights = np.asarray(fcfw_weights_list, dtype=np.float64)
+        fcfw_samples = ensemble.sample(shots, rng, weights_override=fcfw_weights)
+        fcfw_metrics = {
+            'energy_wasserstein': evaluate_energy_wasserstein(
+                dataset, fcfw_samples, n_baseline=10000, seed=rng_seed + 1000
+            ),
+            **evaluate_memory_recall(dataset, fcfw_samples),
+        }
+        fcfw_metrics.pop('distances_array', None)
+
+    return {
+        'ensemble': normal_metrics,
+        'ensemble_fcfw': fcfw_metrics,
+    }
 
 
 def run_hpo(config_path: Path) -> optuna.study.Study:
@@ -151,6 +233,9 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
         trial.set_user_attr('model_path', str(model_path))
         trial.set_user_attr('n_models_accepted', int(result['n_models_accepted']))
         trial.set_user_attr('weights', result['weights'].tolist())
+        fcfw_weights = result.get('ensemble_fcfw_weights')
+        if fcfw_weights is not None:
+            trial.set_user_attr('ensemble_fcfw_weights', np.asarray(fcfw_weights, dtype=np.float64).tolist())
         trial.report(tvd, step=0)
         return tvd
 
@@ -175,6 +260,18 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
         'best_config_path': str(best_config_dst) if best_config_src.exists() else None,
         'config_path': str(config_path),
     }
+
+    # Evaluate new Hopfield metrics for the best model (normal + FCFW)
+    hopfield_metrics = _evaluate_best_model_hopfield_metrics(
+        hpo_spec, best_config_dst, best_model_dst, best.user_attrs.get('ensemble_fcfw_weights')
+    )
+    if hopfield_metrics is not None:
+        best_summary['hopfield_metrics'] = hopfield_metrics
+        (hpo_dir / 'best_hopfield_metrics.json').write_text(
+            json.dumps(hopfield_metrics, indent=2, default=_json_default)
+        )
+        print("Best model Hopfield metrics saved to best_hopfield_metrics.json")
+
     (hpo_dir / 'best_trial.json').write_text(json.dumps(best_summary, indent=2, default=_json_default))
     (hpo_dir / 'hpo_config.json').write_text(json.dumps(hpo_spec, indent=2, default=_json_default))
     print(f"Best trial: {best.number} TVD={best.value:.6f}")
