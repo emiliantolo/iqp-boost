@@ -1,119 +1,101 @@
 import numpy as np
-import jax
-import jax.numpy as jnp
-from scipy.special import logsumexp
 import matplotlib.pyplot as plt
 
 from .base import BinaryDataset
+from .mcmc_chain import run_mcmc_chains
+from .boltzmann_utils import dense_boltzmann_probs, sample_from_probs
 
 class HopfieldDataset(BinaryDataset):
     """Dataset based on the Boltzmann distribution of a Hopfield network."""
     
-    def __init__(self, n_qubits: int = 16, n_patterns: int = 5,
-                 beta: float = 2.0, pattern_seed: int = 0,
-                 batch_size: int = 2**20):
+    def __init__(
+        self,
+        n_qubits: int = 16,
+        n_patterns: int = 5,
+        beta: float = 2.0,
+        pattern_seed: int = 0,
+        batch_size: int = 2**20,
+        max_exact_states: int = 2**20,
+        mcmc_burn_in: int = 256,
+        mcmc_thinning: int = 16,
+        mcmc_sweeps_per_sample: int = 1, # Preserved for backward compatibility
+    ):
         super().__init__()
+        if n_qubits <= 0: raise ValueError("n_qubits must be positive")
+        if n_patterns <= 0: raise ValueError("n_patterns must be positive")
+        if beta <= 0: raise ValueError("beta must be positive")
+
         self.n_qubits = n_qubits
         self.n_patterns = n_patterns
         self.beta = beta
         self.pattern_seed = pattern_seed
         self.batch_size = batch_size
+        self.max_exact_states = int(max_exact_states)
+        self.mcmc_burn_in = int(mcmc_burn_in)
+        self.mcmc_thinning = int(mcmc_thinning)
+        self.mcmc_sweeps_per_sample = int(mcmc_sweeps_per_sample)
 
-        # Generate random patterns in {-1, +1}
         rng = np.random.default_rng(pattern_seed)
-        self.patterns = rng.choice([-1.0, 1.0],
-                                    size=(n_patterns, n_qubits))
+        self.patterns = rng.choice([-1.0, 1.0], size=(n_patterns, n_qubits))
 
-        # Hopfield coupling matrix (Hebbian rule)
         self.J = sum(np.outer(p, p) for p in self.patterns) / n_qubits
         np.fill_diagonal(self.J, 0)
 
-        # Boltzmann distribution has full support on all 2^n bitstrings.
-        # Stored memories are high-probability modes, not the only valid states.
         self._valid_patterns = None
-
-        self.probs = self._compute_boltzmann()
+        self._exact_mode = 2 ** self.n_qubits <= self.max_exact_states
+        self.probs = self._compute_boltzmann() if self._exact_mode else None
 
     def _compute_boltzmann(self):
-        total_states = 2 ** self.n_qubits
-        bs = min(self.batch_size, total_states)
-        J = jnp.array(self.J)
+        return dense_boltzmann_probs(self.J, self.beta, self.batch_size)
 
-        @jax.jit
-        def batch_energies(start_idx):
-            idx = start_idx + jnp.arange(bs, dtype=jnp.int32)
-            bits = jnp.arange(self.n_qubits)
-            x = jnp.bitwise_and(jnp.right_shift(idx[:, None], bits), 1)
-            s = 1 - 2 * x  # {0,1} -> {+1,-1}
-            return -0.5 * jnp.einsum('bi,ij,bj->b', s, J, s)
-
-        energies = []
-        for start in range(0, total_states, bs):
-            batch_e = batch_energies(start)
-            remaining = total_states - start
-            if remaining < bs:
-                batch_e = batch_e[:remaining]
-            energies.append(batch_e)
-
-        energies = jnp.concatenate(energies)
-        log_Z = logsumexp(-self.beta * energies)
-        probs = jnp.exp(-self.beta * energies - log_Z)
-        return np.asarray(probs)
+    def _generate_mcmc(self, n_samples: int, seed: int = 0) -> np.ndarray:
+        # Properly leverages thinning across sequential blocks, saving 100x+ compute
+        return run_mcmc_chains(
+            self.J, self.beta, n_samples,
+            burn_in=self.mcmc_burn_in,
+            thinning=self.mcmc_thinning,
+            sweeps_per_sample=self.mcmc_sweeps_per_sample,
+            seed=seed,
+        )
 
     def generate(self, n_samples: int, seed: int = 0) -> np.ndarray:
-        rng = np.random.default_rng(seed)
-        p = np.asarray(self.probs, dtype=np.float64)
-        p = p / p.sum()
-        indices = rng.choice(len(p), size=n_samples, p=p)
-        bit_positions = np.arange(self.n_qubits)
-        samples = ((indices[:, None] >> bit_positions) & 1).astype(np.int8)
+        if self.probs is None:
+            samples = self._generate_mcmc(n_samples, seed=seed)
+        else:
+            samples = sample_from_probs(self.probs, self.n_qubits, n_samples, seed=seed)
         self.data = samples
         return self.data
 
     def validity_rate(self, samples: np.ndarray) -> float:
-        """All bitstrings are valid Hopfield configurations -> always 1.0."""
+        """Full-support Boltzmann distributions make strict validity trivial."""
         return 1.0
 
     def coverage_rate(self, ground_truth: np.ndarray, samples: np.ndarray) -> float:
-        """Not meaningful for full-support distributions -> always 1.0."""
+        """Full-support Boltzmann distributions make strict coverage trivial."""
         return 1.0
 
     def visualize(self, sample: np.ndarray, ax=None):
-        """
-        Visualize a Hopfield sample.
-        Tries to reshapes to a square grid if possible, otherwise displays as 1D.
-        """
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(4, 4))
-        
-        # Try to find a square layout
+        if ax is None: fig, ax = plt.subplots(figsize=(4, 4))
         side = int(np.sqrt(self.n_qubits))
-        if side * side == self.n_qubits:
-            display_data = sample.reshape(side, side)
-        else:
-            display_data = sample.reshape(1, -1)
-            
-        im = ax.imshow(display_data, cmap='binary', interpolation='nearest')
+        display_data = sample.reshape(side, side) if side * side == self.n_qubits else sample.reshape(1, -1)
+        ax.imshow(display_data, cmap='binary', interpolation='nearest')
         
-        # Add labels if it's small enough
         if self.n_qubits <= 64:
             if side * side == self.n_qubits:
                 for i in range(side):
                     for j in range(side):
-                        ax.text(j, i, str(int(display_data[i, j])),
-                                ha='center', va='center',
+                        ax.text(j, i, str(int(display_data[i, j])), ha='center', va='center',
                                 color='red' if display_data[i, j] == 0 else 'gray')
             else:
                 for i, bit in enumerate(sample):
                     ax.text(i, 0, str(int(bit)), ha='center', va='center',
                             color='red' if bit == 0 else 'gray')
-
-        ax.set_xticks([])
-        ax.set_yticks([])
+        ax.set_xticks([]); ax.set_yticks([])
         ax.set_title(f"Hopfield Sample ({self.n_qubits} qubits)")
         return ax
 
     def top_k_tvd(self, k: int) -> float:
+        if self.probs is None: return float("nan")
         p = np.asarray(self.probs, dtype=np.float64)
         p = p / p.sum()
         top_k_idx = np.argsort(p)[::-1][:k]

@@ -30,8 +30,10 @@ from src.datasets.scale_free import ScaleFreeDataset
 from src.datasets.shapes import BinaryShapesDataset
 from src.datasets.random_circuit import RandomCircuitDataset
 from src.datasets.qaoa_maxcut import QAOAMaxCutDataset
+from src.datasets.rbm import RBMDataset
 from src.datasets.tfim_thermal import TFIMThermalDataset
 from src.datasets.rydberg import RydbergDataset
+from src.boltzmann_visualization import generate_boltzmann_visualizations
 
 
 def _resolve_rows_cols(params: dict, config: dict, default: tuple[int, int] = (4, 4)) -> tuple[int, int]:
@@ -119,8 +121,17 @@ def _sample_grid_viz(dataset, title: str, out_filename: str,
         fig.suptitle(title)
         plt.tight_layout()
         path = output.get_path(out_filename)
-        plt.savefig(path, format='png', bbox_inches='tight', dpi=120)
-        print(f"Saved sample-grid visualization to: {path}")
+        # Choose format based on filename extension to avoid writing PNG bytes into a .pdf file
+        from pathlib import Path as _P
+        _p = _P(path)
+        ext = _p.suffix.lower()
+        if ext == '.pdf':
+            # Save only the PDF (no PNG sibling)
+            fig.savefig(path, format='pdf', bbox_inches='tight')
+        else:
+            # Default to PNG when filename isn't a PDF
+            fig.savefig(path, format='png', bbox_inches='tight', dpi=120)
+        print(f'Saved sample-grid visualization to: {path}')
         plt.close(fig)
 
     return _viz
@@ -572,6 +583,7 @@ def _resolve_plot_kind(dataset_key: str, plot_spec: dict | None) -> str:
         'shapes': 'sample_grid',
         'gaussian': 'gaussian_summary',
         'ising': 'ising_lorenz',
+        'rbm': 'boltzmann_summary',
         'mnist': 'sample_grid',
         'dwave': 'histogram',
         'scale_free': 'histogram',
@@ -616,6 +628,10 @@ def _build_custom_viz(dataset_key: str, dataset_obj, plot_spec: dict | None, n_q
         title = params.get('title', _default_dataset_title(dataset_obj))
         filename = params.get('filename', 'ising_lorenz.pdf')
         return _ising_lorenz_viz(dataset_obj, title=title, out_filename=filename)
+    if kind == 'boltzmann_summary':
+        return lambda output, x_train, baseline_samples, final_samples, per_model_samples, weights: generate_boltzmann_visualizations(
+            output, x_train, baseline_samples, final_samples, per_model_samples, weights, dataset_obj
+        )
     if kind == 'lorenz':
         title = params.get('title', f'{dataset_key.upper()} distribution')
         filename = params.get('filename', f'{dataset_key}_lorenz.pdf')
@@ -680,10 +696,51 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         n_patterns = int(params.get('n_patterns', 5))
         beta = float(params.get('beta', 2.0))
         pattern_seed = int(params.get('pattern_seed', 0))
+        max_exact_states = int(params.get('max_exact_states', 2**20))
+        mcmc_burn_in = int(params.get('mcmc_burn_in', 256))
+        mcmc_thinning = int(params.get('mcmc_thinning', 16))
+        mcmc_sweeps_per_sample = int(params.get('mcmc_sweeps_per_sample', 1))
         ds = HopfieldDataset(n_qubits=n_qubits, n_patterns=n_patterns,
-                             beta=beta, pattern_seed=pattern_seed)
+                             beta=beta, pattern_seed=pattern_seed,
+                             max_exact_states=max_exact_states,
+                             mcmc_burn_in=mcmc_burn_in,
+                             mcmc_thinning=mcmc_thinning,
+                             mcmc_sweeps_per_sample=mcmc_sweeps_per_sample)
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'Hopfield ({n_qubits}q, {n_patterns}p)'
+
+    elif dataset_key == 'rbm':
+        n_visible = int(params.get('n_visible', params.get('n_qubits', 16)))
+        n_hidden = params.get('n_hidden', None)
+        n_hidden = int(n_hidden) if n_hidden is not None else None
+        beta = float(params.get('beta', 1.0))
+        weight_seed = int(params.get('weight_seed', 0))
+        bias_seed = params.get('bias_seed', None)
+        bias_seed = int(bias_seed) if bias_seed is not None else None
+        weight_scale = float(params.get('weight_scale', 1.0))
+        visible_bias_scale = float(params.get('visible_bias_scale', 0.25))
+        hidden_bias_scale = float(params.get('hidden_bias_scale', 0.25))
+        max_exact_states = int(params.get('max_exact_states', 2**20))
+        mcmc_burn_in = int(params.get('mcmc_burn_in', 256))
+        mcmc_thinning = int(params.get('mcmc_thinning', 4))
+        mcmc_sweeps_per_sample = int(params.get('mcmc_sweeps_per_sample', 1))
+        ds = RBMDataset(
+            n_visible=n_visible,
+            n_hidden=n_hidden,
+            beta=beta,
+            weight_seed=weight_seed,
+            bias_seed=bias_seed,
+            weight_scale=weight_scale,
+            visible_bias_scale=visible_bias_scale,
+            hidden_bias_scale=hidden_bias_scale,
+            max_exact_states=max_exact_states,
+            mcmc_burn_in=mcmc_burn_in,
+            mcmc_thinning=mcmc_thinning,
+            mcmc_sweeps_per_sample=mcmc_sweeps_per_sample,
+        )
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'RBM ({n_visible}v, {ds.n_hidden}h, beta={beta})'
+        n_qubits = ds.n_qubits
 
     elif dataset_key == 'parity':
         n_qubits = int(params.get('n_qubits', config.get('dim', config.get('n_qubits', 6))))
@@ -805,11 +862,22 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         cols = int(params.get('cols', 4))
         beta = float(params.get('beta', 2.0))
         j_seed = int(params.get('j_seed', 0))
+        model = str(params.get('model', 'grid'))
+        mcmc_burn_in = int(params.get('mcmc_burn_in', 256))
+        mcmc_thinning = int(params.get('mcmc_thinning', 4))
+        mcmc_sweeps_per_sample = int(params.get('mcmc_sweeps_per_sample', 1))
         ds = FrustratedIsingDataset(
-            rows=rows, cols=cols, beta=beta, j_seed=j_seed,
+            rows=rows,
+            cols=cols,
+            beta=beta,
+            j_seed=j_seed,
+            model=model,
+            mcmc_burn_in=mcmc_burn_in,
+            mcmc_thinning=mcmc_thinning,
+            mcmc_sweeps_per_sample=mcmc_sweeps_per_sample,
         )
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
-        dataset_name = f'Frustrated Ising ({rows}x{cols}, beta={beta})'
+        dataset_name = f'Frustrated Ising {model.upper()} ({rows}x{cols}, beta={beta})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'pennylane_ising':
@@ -963,7 +1031,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
             "bas, bipartite_graph, noisy_bas, blobs, dwave, gaussian, genomic, "
             "barabasi_albert_graph, fashion_mnist, graph_isomorphism, ising, "
             "k_body_parity, mnist, parity, qaoa_maxcut, random_circuit, "
-            "rydberg, scale_free, shapes, "
+            "rbm, rydberg, scale_free, shapes, "
             "tfim_thermal."
         )
 
@@ -972,7 +1040,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
     # Datasets where validity/coverage are not meaningful pass None
     # so evaluate_samples() skips those metrics (reports NaN).
     # Datasets without a meaningful pattern space pass None for validity/coverage.
-    no_pattern_space = {'ising', 'noisy_bas', 'mnist', 'fashion_mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm', 'random_circuit', 'qaoa_maxcut', 'tfim_thermal', 'rydberg'}
+    no_pattern_space = {'ising', 'rbm', 'noisy_bas', 'mnist', 'fashion_mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm', 'random_circuit', 'qaoa_maxcut', 'tfim_thermal', 'rydberg'}
     if dataset_key in no_pattern_space:
         validity_fn = None
         coverage_fn = None

@@ -4,6 +4,7 @@ import iqpopt as iqp
 from src.sigma_heuristics import compute_sigma
 from iqpopt.gen_qml.iqp_methods import mmd_loss_iqp
 from src.ensemble import BoostedEnsemble
+from src.circuit_artifacts import save_circuit_artifact
 from src.reporting import (
     report_metrics_table, get_plot_config, OutputManager, plot_data_ensemble_loss,
     plot_metrics_progression, report_baseline, report_final, report_rejection,
@@ -14,6 +15,7 @@ from src.core import (
     setup_iqp_circuit, get_params_init, compute_lambda_schedule
 )
 from src.utils import compute_mmd, compute_kl_divergence, compute_metrics, compute_precision_recall_f1, compute_jsd, compute_tvd
+from src.boltzmann_metrics import pairwise_correlation_frobenius_error
 from src.dual_mmd_loss import gradient_snr, dual_mmd_loss, EnsembleTerms
 import jax
 import numpy as np
@@ -38,6 +40,7 @@ def evaluate_samples(ground_truth: np.ndarray, samples: np.ndarray, sigma: float
     kl = compute_kl_divergence(ground_truth, samples, exact_probs=exact_probs)
     jsd = compute_jsd(ground_truth, samples, exact_probs=exact_probs)
     tvd = compute_tvd(ground_truth, samples, exact_probs=exact_probs)
+    corr_fro = pairwise_correlation_frobenius_error(ground_truth, samples, exact_probs=exact_probs)
 
     if validity_fn is not None and coverage_fn is not None:
         metrics = compute_metrics(ground_truth, samples, validity_fn, coverage_fn)
@@ -59,6 +62,7 @@ def evaluate_samples(ground_truth: np.ndarray, samples: np.ndarray, sigma: float
         'recall': prf_metrics['recall'],
         'support_match': prf_metrics['support_match'],
         'f_score': prf_metrics['f_score'],
+        'corr_fro': corr_fro,
     }
     if generation_eval_fn is not None:
         stats.update(generation_eval_fn(samples))
@@ -570,7 +574,11 @@ def compute_fcfw_stats(base_ensemble: BoostedEnsemble, x_train: np.ndarray, sigm
                        validity_fn: callable, coverage_fn: callable,
                        exact_probs: np.ndarray = None,
                        generation_eval_fn: callable = None) -> dict:
-    """Compute Fully Corrective Frank-Wolfe weights for an ensemble and evaluate."""
+    """Compute Fully Corrective Frank-Wolfe weights for an ensemble and evaluate.
+    
+    Returns:
+        Dict with keys 'metrics' (stats dict) and 'weights' (numpy array).
+    """
     fcfw_ensemble = BoostedEnsemble(
         base_ensemble.iqp_circuit, base_ensemble.n_models, base_ensemble.sigma, base_ensemble.n_ops,
         base_ensemble.n_samples, base_ensemble.lambda_dual, base_ensemble.wires,
@@ -589,12 +597,17 @@ def compute_fcfw_stats(base_ensemble: BoostedEnsemble, x_train: np.ndarray, sigm
     final_fcfw_samples = fcfw_ensemble.sample(shots, final_eval_rng)
     fcfw_stats = evaluate_samples(x_train, final_fcfw_samples, sigma, validity_fn, coverage_fn,
                                   exact_probs=exact_probs, generation_eval_fn=generation_eval_fn)
-    return fcfw_stats
+    
+    return {
+        "metrics": fcfw_stats,
+        "weights": np.asarray(fcfw_ensemble.weights, dtype=np.float64),
+    }
 
 
 def run_boosting_experiment(
     config: dict,
     dataset_name: str,
+    dataset_spec: dict | None,
     x_train: np.ndarray,
     validity_fn: callable,
     coverage_fn: callable,
@@ -629,7 +642,9 @@ def run_boosting_experiment(
 
         # Circuit setup
         circuit_config = config.get('circuit_config', {'topology': 'neighbour', 'distance': 3, 'max_weight': 2})
-        circuit, gates, gate_desc, wires = setup_iqp_circuit(n_qubits, **circuit_config)
+        circuit_kwargs = dict(circuit_config)
+        circuit_kwargs.setdefault('data', x_train)
+        circuit, gates, gate_desc, wires = setup_iqp_circuit(n_qubits, **circuit_kwargs)
         report_circuit(gate_desc)
         save_circuit_plot(circuit, output)
 
@@ -676,10 +691,14 @@ def run_boosting_experiment(
         standalone_stats = None
         baseline_train_losses = None
         baseline_samples = None
+        baseline_params = None
         data_only_stats = None
         data_only_history = None
+        data_only_ensemble = None
         data_only_fcfw_stats = None
+        data_only_fcfw_weights = None
         ensemble_fcfw_stats = None
+        ensemble_fcfw_weights = None
 
         # 1. Optional standalone baseline
         if 'standalone' in baselines_to_run:
@@ -964,7 +983,9 @@ def run_boosting_experiment(
             # Per-model metrics from existing samples (no re-sampling)
             model_rows = []
             data_only_fcfw_stats = None
+            data_only_fcfw_weights = None
             ensemble_fcfw_stats = None
+            ensemble_fcfw_weights = None
             
             # 1. Data-only baseline
             if data_only_stats is not None and reference_label != 'Data-only':
@@ -973,11 +994,13 @@ def run_boosting_experiment(
                 # 1b. Data-only FCFW
                 if config.get('report_fcfw', True):
                     print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for Data-only baseline...")
-                    data_only_fcfw_stats = compute_fcfw_stats(
+                    data_only_fcfw_result = compute_fcfw_stats(
                         data_only_ensemble, x_train, sigma, shots, final_eval_rng,
                         validity_fn, coverage_fn, exact_probs=exact_probs,
                         generation_eval_fn=generation_eval_fn
                     )
+                    data_only_fcfw_stats = data_only_fcfw_result["metrics"]
+                    data_only_fcfw_weights = data_only_fcfw_result["weights"]
                     print(f"  FCFW Sampled MMD^2: {data_only_fcfw_stats['mmd']:.6f}")
                     if 'tvd' in data_only_fcfw_stats and not np.isnan(data_only_fcfw_stats['tvd']):
                         print(f"  FCFW Sampled TVD:   {data_only_fcfw_stats['tvd']:.4f}")
@@ -998,11 +1021,13 @@ def run_boosting_experiment(
             table_title = "FINAL MODEL COMPARISON"
             if config.get('report_fcfw', True):
                 print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...")
-                ensemble_fcfw_stats = compute_fcfw_stats(
+                ensemble_fcfw_result = compute_fcfw_stats(
                     ensemble, x_train, sigma, shots, final_eval_rng,
                     validity_fn, coverage_fn, exact_probs=exact_probs,
                     generation_eval_fn=generation_eval_fn
                 )
+                ensemble_fcfw_stats = ensemble_fcfw_result["metrics"]
+                ensemble_fcfw_weights = ensemble_fcfw_result["weights"]
                 print(f"  FCFW Sampled MMD^2: {ensemble_fcfw_stats['mmd']:.6f}")
                 if 'tvd' in ensemble_fcfw_stats and not np.isnan(ensemble_fcfw_stats['tvd']):
                     print(f"  FCFW Sampled TVD:   {ensemble_fcfw_stats['tvd']:.4f}")
@@ -1060,3 +1085,31 @@ def run_boosting_experiment(
                               ensemble.weights)
             except Exception as e:
                 print(f"Custom visualization failed: {e}")
+
+        # Save circuit artifact for backend execution if requested
+        if config.get('save_circuit_artifacts', False):
+            print("\n[ARTIFACTS] Saving circuit artifact for backend execution...")
+            try:
+                artifact_path = save_circuit_artifact(
+                    path=output.get_path('circuit_artifact.json'),
+                    dataset_name=dataset_name,
+                    run_name=run_name,
+                    config=config,
+                    dataset_spec=dataset_spec,
+                    x_train=x_train,
+                    sigma=sigma,
+                    circuit=circuit,
+                    circuit_config=circuit_config,
+                    n_visible_qubits=n_qubits,
+                    wires=wires,
+                    ensemble=ensemble,
+                    ensemble_metrics_history=ensemble_metrics_history,
+                    ensemble_fcfw_weights=ensemble_fcfw_weights,
+                    standalone_params=baseline_params,
+                    data_only_ensemble=data_only_ensemble,
+                    data_only_history=data_only_history,
+                    data_only_fcfw_weights=data_only_fcfw_weights,
+                )
+                print(f"[ARTIFACTS] Circuit artifact saved to: {artifact_path}")
+            except Exception as e:
+                print(f"[ARTIFACTS] Failed to save circuit artifact: {e}")
