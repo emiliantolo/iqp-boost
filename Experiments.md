@@ -194,3 +194,62 @@ uv run python -m src.hpo_optuna --config configs/hpo/hopfield_45q_p2_b20.json
 uv run python -m src.hpo_optuna --config configs/hpo/hopfield_45q_p4_b15.json
 uv run python -m src.hpo_optuna --config configs/hpo/hopfield_45q_p4_b20.json
 ```
+
+---
+
+## 100-Qubit Fashion-MNIST: Real-World Image Manifolds
+
+We extend the non-simulable regime to a **real-world benchmark**: 10×10 downscaled Fashion-MNIST (100 qubits, $2^{100}$ states). Unlike the synthetic, symmetric, exponentially sharp Hopfield modes, Fashion-MNIST exhibits **non-symmetric, correlated, real-world structure** with overlapping manifolds that share no simple analytical form.
+
+### Physical Regime Shift
+
+At $n=100$, the state space is $2^{100} \approx 1.3 \times 10^{30}$—completely intractable. The target distribution is not defined by an energy function but by **empirical pixel correlations** in downscaled clothing images. The challenge shifts from finding exponentially small modes to learning a **continuous manifold** in 100D binary Hamming space with strong spatial correlations and class-conditioned structure.
+
+### Target Configurations
+
+| Configuration | Classes | Qubits | Distribution | Generative Modeling Justification | Boosting-Specific Justification |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **1-class** | `[0]` (T-shirt/top) | 100 | Single coherent visual manifold | **Single-manifold baseline**: Tests whether the IQP ansatz on heavy-hex can learn a single real-world image pattern without mode-collapse artifacts. | Verifies that covariance-based init + dual-MMD can capture spatial pixel correlations on hardware-native topology. |
+| **4-class** | `[0,1,7,9]` (T-shirt, Trouser, Sneaker, Ankle boot) | 100 | 4 visually distinct, non-symmetric clusters | **Multi-modal stress test**: 4 non-overlapping clothing categories with complex intra-class correlation structure and clear inter-class separation. | Tests ensemble specialization on **real data modes** that are not analytically symmetric. Each class forms a distinct manifold—can boosting repulsion force models to specialize on different categories? |
+| **10-class** | All classes | 100 | Full Fashion-MNIST | **Ultimate capacity test**: 10 overlapping manifolds in 100D binary space. Evaluates whether boosted IQP can model the full complexity of a standard benchmark dataset in the non-simulable regime. | **Real-world generalization**: Can the ensemble learn a generative model of the entire Fashion-MNIST distribution without exact reference or sampling? |
+
+**Class selection rationale**: 0, 1, 7, 9 are visually distinct categories (upper body, lower body, footwear) with minimal overlap, making them a cleaner multi-modal test than similar-looking classes (e.g., shirts/coat/pullover). Class 0 (T-shirt/top) is chosen for the 1-class baseline as a representative textured pattern.
+
+### Binarization at $\tau = 0.2$
+
+Fashion-MNIST grayscale images are area-downscaled to 10×10 then thresholded at **0.2** (instead of the canonical 0.5). This preserves more pixel detail: the darker background pixels (values < 0.2) become 0, while the garment structure (values $\ge 0.2$) becomes 1. At 10×10 resolution, this lower threshold prevents over-thinning of fine garment features that would otherwise be lost.
+
+### Fourier Heuristic Sigmas for $n=100$
+
+`compute_sigma_fourier(100, 3)` targets expected $k$-body depths at $k \approx \{1, 10, 50\}$, yielding bandwidths approximately $\sigma \approx \{4.98, 1.97, 0.17\}$. These span global structure (full image) to mid-range (local patches) to fine-grained (pixel-level) correlations, matching the multi-scale correlation structure of downscaled images.
+
+### HPO Configuration (100 Qubits)
+
+Each dataset configuration has its own independent HPO run with **60 TPE-sampled trials**.
+
+Fixed settings across all 100q configs:
+*   **Ansatz**: Aachen heavy-hex topology (100 qubits, 0 ancilla, 1 layer)
+*   **Total samples**: 10,000 (8,000 train / 2,000 test, sampled from official torchvision train/test splits)
+*   **Operators**: 4,000 (fixed)
+*   **Sigmas**: 3 fixed via Fourier heuristic
+*   **Circuit shots**: 512 per step
+*   **Epochs per step**: 512
+*   **Weight strategy**: Frank-Wolfe schedule
+*   **Lambda schedule**: Frank-Wolfe
+*   **Caching**: none
+*   **Sampling**: skipped (no classical simulation possible)
+*   **Baseline**: none
+*   **FCFW reporting**: enabled (post-hoc diagnostic)
+*   **Objective**: minimize **test-set MMD** (`test_mmd`)
+
+Search space (2 parameters only):
+*   **Ensemble size**: `4` to `10` models
+*   **Learning rate**: log-uniform `[0.001, 0.05]`
+
+### Running HPO (100 Qubits)
+
+```bash
+uv run python -m src.hpo_optuna --config configs/hpo/fashion_mnist_100q_1class.json
+uv run python -m src.hpo_optuna --config configs/hpo/fashion_mnist_100q_4class.json
+uv run python -m src.hpo_optuna --config configs/hpo/fashion_mnist_100q_10class.json
+```

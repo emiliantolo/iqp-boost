@@ -940,14 +940,35 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         rows, cols = _resolve_rows_cols(params, config, default=(8, 8))
         threshold = float(params.get('threshold', 0.5))
         data_dir = params.get('data_dir', './data')
-        ds = FashionMNISTDownscaledDataset(
-            rows=rows,
-            cols=cols,
-            threshold=threshold,
-            data_dir=data_dir,
-        )
-        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
-        dataset_name = f'Fashion-MNIST ({rows}x{cols}, threshold={threshold:g})'
+        classes = params.get('classes', None)
+        test_samples = int(params.get('test_samples', 0))
+        train_split_ratio = float(params.get('train_split_ratio', 0.8)) if test_samples > 0 else None
+        if train_split_ratio is not None:
+            total_samples = train_samples + test_samples
+            ds = FashionMNISTDownscaledDataset(
+                rows=rows,
+                cols=cols,
+                threshold=threshold,
+                data_dir=data_dir,
+                classes=classes,
+                train_split_ratio=train_split_ratio,
+            )
+            x_train = ds.generate(n_samples=train_samples, seed=data_seed, split='train')
+            x_test = ds.generate(n_samples=test_samples, seed=data_seed + 100000, split='test')
+        else:
+            ds = FashionMNISTDownscaledDataset(
+                rows=rows,
+                cols=cols,
+                threshold=threshold,
+                data_dir=data_dir,
+                classes=classes,
+            )
+            x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+            x_test = None
+        classes_str = ''
+        if classes is not None:
+            classes_str = f', classes={classes}'
+        dataset_name = f'Fashion-MNIST ({rows}x{cols}, threshold={threshold:g}{classes_str})'
         n_qubits = x_train.shape[1]
 
     elif dataset_key == 'dwave':
