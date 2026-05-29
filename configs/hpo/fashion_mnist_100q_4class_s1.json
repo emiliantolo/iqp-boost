@@ -47,7 +47,7 @@
     "skip_sampling": true,
     "final_eval_sampling": false,
     "report_fcfw": true,
-    "keep_models_for_diagnosis": false,
+    "keep_models_for_diagnosis": true,
     "stop_on_reject": false,
     "rng_seed": 42,
     "turbo": 10,
