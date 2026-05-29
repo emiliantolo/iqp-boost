@@ -645,6 +645,7 @@ def run_boosting_experiment(
     log_dir: str | None = None,
     log_filename: str = 'log.txt',
     append_log: bool = False,
+    x_test: np.ndarray | None = None,
 ):
     """Run a complete ensemble boosting experiment."""
     np.random.seed(config['rng_seed'])
@@ -1116,6 +1117,31 @@ def run_boosting_experiment(
                 baseline_stats=baseline_for_csv,
                 summary_rows=summary_rows,
             )
+
+        # Compute test-set MMD if held-out data is provided (no extra sampling)
+        if x_test is not None and len(x_test) > 0:
+            test_mmd = compute_ensemble_training_mmd(ensemble, x_test)
+            final_stats['test_mmd'] = test_mmd
+            print(f"\n[Test MMD] {test_mmd:.6f}")
+            if ensemble_fcfw_stats is not None:
+                # Build a temporary FCFW ensemble to compute test MMD analytically
+                fcfw_ensemble_test = BoostedEnsemble(
+                    ensemble.iqp_circuit, ensemble.n_models, ensemble.sigma, ensemble.n_ops,
+                    ensemble.n_samples, ensemble.lambda_dual, ensemble.wires,
+                    ensemble.max_batch_ops, ensemble.max_batch_samples
+                )
+                fcfw_ensemble_test.restore_state(ensemble.snapshot_state())
+                trs_data_test = []
+                sigmas = ensemble.sigma if hasattr(ensemble.sigma, '__iter__') else [ensemble.sigma]
+                for sigma_idx in range(len(sigmas)):
+                    if sigma_idx in fcfw_ensemble_test.terms.ops:
+                        _, visible_ops = fcfw_ensemble_test.terms.ops[sigma_idx]
+                        tr_test = np.mean(1 - 2 * ((x_test @ np.asarray(visible_ops).T) % 2), axis=0)
+                        trs_data_test.append(tr_test)
+                fcfw_ensemble_test.apply_weight_strategy('fully_corrective', trs_data=trs_data_test)
+                test_mmd_fcfw = compute_ensemble_training_mmd(fcfw_ensemble_test, x_test)
+                final_stats['test_mmd_fcfw'] = test_mmd_fcfw
+                print(f"[Test MMD FCFW] {test_mmd_fcfw:.6f}")
 
         # Plotting
         if get_plot_config()['plot_data_loss']:

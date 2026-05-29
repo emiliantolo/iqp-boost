@@ -199,7 +199,7 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
         bundle = build_dataset_bundle(dataset_spec=dataset_spec, config=run_config, plot_spec=plot_spec)
         run_name = f"trial_{trial.number:04d}"
 
-        result = run_boosting_experiment(
+        run_kwargs = dict(
             config=run_config,
             dataset_name=bundle['dataset_name'],
             dataset_spec=dataset_spec,
@@ -218,11 +218,16 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
             log_filename='hpo.log',
             append_log=True,
         )
+        if 'x_test' in bundle:
+            run_kwargs['x_test'] = bundle['x_test']
+
+        result = run_boosting_experiment(**run_kwargs)
 
         final_stats = result['final_stats']
-        tvd = float(final_stats.get('tvd', float('nan')))
-        if not math.isfinite(tvd):
-            raise ValueError(f"Trial {trial.number} produced invalid TVD: {tvd}")
+        objective_metric = hpo_spec.get('objective_metric', 'tvd')
+        metric_value = float(final_stats.get(objective_metric, float('nan')))
+        if not math.isfinite(metric_value):
+            raise ValueError(f"Trial {trial.number} produced invalid {objective_metric}: {metric_value}")
 
         output_dir = Path(result['output_dir'])
         model_path = output_dir / 'ensemble.json'
@@ -236,8 +241,8 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
         fcfw_weights = result.get('ensemble_fcfw_weights')
         if fcfw_weights is not None:
             trial.set_user_attr('ensemble_fcfw_weights', np.asarray(fcfw_weights, dtype=np.float64).tolist())
-        trial.report(tvd, step=0)
-        return tvd
+        trial.report(metric_value, step=0)
+        return metric_value
 
     study.optimize(objective, n_trials=n_trials)
 
@@ -253,7 +258,7 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
     best_summary = {
         'study_name': study.study_name,
         'best_trial': best.number,
-        'best_value_tvd': best.value,
+        f'best_value_{objective_metric}': best.value,
         'best_params': best.params,
         'best_user_attrs': best.user_attrs,
         'best_model_path': str(best_model_dst),
@@ -274,7 +279,7 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
 
     (hpo_dir / 'best_trial.json').write_text(json.dumps(best_summary, indent=2, default=_json_default))
     (hpo_dir / 'hpo_config.json').write_text(json.dumps(hpo_spec, indent=2, default=_json_default))
-    print(f"Best trial: {best.number} TVD={best.value:.6f}")
+    print(f"Best trial: {best.number} {objective_metric.upper()}={best.value:.6f}")
     print(f"Best model saved to: {best_model_dst}")
     return study
 

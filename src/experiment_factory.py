@@ -700,13 +700,28 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         mcmc_burn_in = int(params.get('mcmc_burn_in', 256))
         mcmc_thinning = int(params.get('mcmc_thinning', 16))
         mcmc_sweeps_per_sample = int(params.get('mcmc_sweeps_per_sample', 1))
-        ds = HopfieldDataset(n_qubits=n_qubits, n_patterns=n_patterns,
-                             beta=beta, pattern_seed=pattern_seed,
-                             max_exact_states=max_exact_states,
-                             mcmc_burn_in=mcmc_burn_in,
-                             mcmc_thinning=mcmc_thinning,
-                             mcmc_sweeps_per_sample=mcmc_sweeps_per_sample)
-        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        test_samples = int(params.get('test_samples', 0))
+        train_split_ratio = float(params.get('train_split_ratio', 0.8)) if test_samples > 0 else None
+        if train_split_ratio is not None:
+            total_samples = train_samples + test_samples
+            ds = HopfieldDataset(n_qubits=n_qubits, n_patterns=n_patterns,
+                                 beta=beta, pattern_seed=pattern_seed,
+                                 max_exact_states=max_exact_states,
+                                 mcmc_burn_in=mcmc_burn_in,
+                                 mcmc_thinning=mcmc_thinning,
+                                 mcmc_sweeps_per_sample=mcmc_sweeps_per_sample,
+                                 train_split_ratio=train_split_ratio)
+            x_train = ds.generate(n_samples=total_samples, seed=data_seed, split='train')
+            x_test = ds.generate(split='test')
+        else:
+            ds = HopfieldDataset(n_qubits=n_qubits, n_patterns=n_patterns,
+                                 beta=beta, pattern_seed=pattern_seed,
+                                 max_exact_states=max_exact_states,
+                                 mcmc_burn_in=mcmc_burn_in,
+                                 mcmc_thinning=mcmc_thinning,
+                                 mcmc_sweeps_per_sample=mcmc_sweeps_per_sample)
+            x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+            x_test = None
         dataset_name = f'Hopfield ({n_qubits}q, {n_patterns}p)'
 
     elif dataset_key == 'rbm':
@@ -1050,7 +1065,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         coverage_fn = ds.coverage_rate
         top_k_tvd_fn = None
 
-    return {
+    bundle = {
         'dataset_name': dataset_name,
         'x_train': x_train,
         'validity_fn': validity_fn,
@@ -1060,3 +1075,6 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         'exact_probs': getattr(ds, 'probs', None),
         'generation_eval_fn': getattr(ds, 'evaluate_generation', None),
     }
+    if 'x_test' in locals() and x_test is not None:
+        bundle['x_test'] = x_test
+    return bundle

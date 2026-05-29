@@ -139,3 +139,58 @@ recall = evaluate_memory_recall(dataset, samples)
 ```
 
 These functions are intentionally not wired into the experiment runner and can be used independently for custom analyses.
+
+---
+
+## 45-Qubit Non-Simulable Regime
+
+Beyond classical simulability, we benchmark the IQP boosting framework on a **45-qubit Hopfield dataset** ($2^{45} \approx 3.5 \times 10^{13}$ states). At this scale, exact state-vector simulation is impossible, so the HPO objective switches from exact-reference TVD to **MMD on a held-out test set**.
+
+### Physical Regime Shift
+
+At $n=45$, the energy gap to random states is $\sim n/2 = 22.5$, so even $\beta=1.5$ yields thermal leakage of $\exp(-\beta n/2) \sim 10^{-16}$. The "soft vs. sharp" distinction that dominated the 20-qubit regime essentially vanishes. The dominant physics becomes **mode proliferation and capacity stress**: the Hopfield network capacity is $\sim 0.14n \approx 6.3$ patterns, so $P=4$ is safely within capacity but already exhibits significant pattern cross-talk and spurious mixture states.
+
+### Target Configurations
+
+| Configuration | $P$ | $\beta$ | Major Modes | Landscape Type | Generative Modeling Justification | Boosting-Specific Justification |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **45q-p2-b15** | 2 | 1.5 | 4 | Moderate Multimodal | $P=2$ gives 4 symmetric modes at $\pm p_1, \pm p_2$. $\beta=1.5$ yields moderate barriers; MCMC mixing is reliable. Serves as the **controlled hardware benchmark** for the heavy-hex ansatz on a tractable multimodal target. | Verifies that dual-MMD repulsion + Frank-Wolfe weights can cover 4 modes on hardware-native connectivity before scaling up. |
+| **45q-p2-b20** | 2 | 2.0 | 4 | Sharp Multimodal | Same 4 modes but with $\beta=2.0$ the energy barriers deepen by $\sim 33\%$. Each mode is a **$\delta$-like peak** in $2^{45}$ space. | **Gradient-sparsity test.** With vanishing gradients away from modes, the witness function $W(x)$ must provide strong directional signal to drive new models toward uncovered peaks. |
+| **45q-p4-b15** | 4 | 1.5 | 8 | Many-Mode Soft | $P=4$ creates 8 dominant modes. Pattern cross-talk generates spurious mixture states with non-trivial overlap. This is the **regime where the Hopfield landscape becomes genuinely complex**—not just isolated peaks. | **Mass allocation test with 8 modes.** Evaluates whether the ensemble can partition probability across many overlapping clusters. MMD must resolve 8 peaks in 45D Hamming space. |
+| **45q-p4-b20** | 4 | 2.0 | 8 | Ultra-Sharp Many-Mode | 8 modes separated by deep, forbidden energy barriers. Each mode occupies an exponentially small fraction of the space. The ultimate **mode-collapse stress test** in the non-simulable regime. | **Ultimate specialization test.** With $M \ge 8$ models required, each must discover a distinct mode. Tests the fundamental capacity of dual-MMD boosting to prevent mode collapse when exact simulation is impossible. |
+
+### Fourier Heuristic Sigmas for $n=45$
+
+`compute_sigma_fourier(45, 3)` targets expected $k$-body depths at $k \approx \{1, 4.7, 22.5\}$, yielding bandwidths approximately $\sigma \approx \{3.32, 1.45, 0.23\}$. These span 1-body (global) to near-$n/2$-body (ultra-local) interactions, giving the MMD estimator resolving power across all relevant Hamming scales.
+
+### HPO Configuration (45 Qubits)
+
+Each dataset configuration has its own independent HPO run with **60 TPE-sampled trials**.
+
+Fixed settings across all 45q configs:
+*   **Ansatz**: Aachen heavy-hex topology (45 qubits, 0 ancilla, 1 layer)
+*   **Total samples**: 10,000 (8,000 train / 2,000 test)
+*   **Operators**: 4,000 (fixed)
+*   **Sigmas**: 3 fixed via Fourier heuristic
+*   **Circuit shots**: 512 per step
+*   **Epochs per step**: 512
+*   **Weight strategy**: Frank-Wolfe schedule
+*   **Lambda schedule**: Frank-Wolfe
+*   **Caching**: none
+*   **Sampling**: skipped (no classical simulation possible)
+*   **Baseline**: none
+*   **FCFW reporting**: enabled (post-hoc diagnostic)
+*   **Objective**: minimize **test-set MMD** (`test_mmd`)
+
+Search space (2 parameters only):
+*   **Ensemble size**: `4` to `10` models
+*   **Learning rate**: log-uniform `[0.001, 0.05]`
+
+### Running HPO (45 Qubits)
+
+```bash
+uv run python -m src.hpo_optuna --config configs/hpo/hopfield_45q_p2_b15.json
+uv run python -m src.hpo_optuna --config configs/hpo/hopfield_45q_p2_b20.json
+uv run python -m src.hpo_optuna --config configs/hpo/hopfield_45q_p4_b15.json
+uv run python -m src.hpo_optuna --config configs/hpo/hopfield_45q_p4_b20.json
+```

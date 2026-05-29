@@ -19,6 +19,7 @@ class HopfieldDataset(BinaryDataset):
         mcmc_burn_in: int = 256,
         mcmc_thinning: int = 16,
         mcmc_sweeps_per_sample: int = 1, # Preserved for backward compatibility
+        train_split_ratio: float | None = None,
     ):
         super().__init__()
         if n_qubits <= 0: raise ValueError("n_qubits must be positive")
@@ -34,6 +35,9 @@ class HopfieldDataset(BinaryDataset):
         self.mcmc_burn_in = int(mcmc_burn_in)
         self.mcmc_thinning = int(mcmc_thinning)
         self.mcmc_sweeps_per_sample = int(mcmc_sweeps_per_sample)
+        self.train_split_ratio = train_split_ratio
+        self.active_split = "train"
+        self._all_data: np.ndarray | None = None
 
         rng = np.random.default_rng(pattern_seed)
         self.patterns = rng.choice([-1.0, 1.0], size=(n_patterns, n_qubits))
@@ -58,13 +62,47 @@ class HopfieldDataset(BinaryDataset):
             seed=seed,
         )
 
-    def generate(self, n_samples: int, seed: int = 0) -> np.ndarray:
+    def _generate(self, n_samples: int, seed: int = 0) -> np.ndarray:
         if self.probs is None:
             samples = self._generate_mcmc(n_samples, seed=seed)
         else:
             samples = sample_from_probs(self.probs, self.n_qubits, n_samples, seed=seed)
-        self.data = samples
+        return samples
+
+    def generate(self, n_samples: int | None = None, seed: int = 0, split: str = "train") -> np.ndarray:
+        if self.train_split_ratio is None:
+            samples = self._generate(n_samples, seed=seed)
+            self.data = samples
+            return self.data
+
+        # Split mode: generate once, cache, then return the requested split
+        if self._all_data is None:
+            total = n_samples
+            if total is None:
+                raise ValueError("n_samples must be provided when train_split_ratio is set")
+            self._all_data = self._generate(total, seed=seed)
+            split_idx = int(len(self._all_data) * self.train_split_ratio)
+            if split_idx == 0 or split_idx == len(self._all_data):
+                raise ValueError("train_split_ratio produced an empty train or test split")
+            self._train_data = self._all_data[:split_idx]
+            self._test_data = self._all_data[split_idx:]
+
+        if split == "train":
+            self.data = self._train_data
+        elif split == "test":
+            self.data = self._test_data
+        elif split == "all":
+            self.data = self._all_data
+        else:
+            raise ValueError(f"split must be 'train', 'test', or 'all', got {split!r}")
         return self.data
+
+    def set_split(self, split: str = "train") -> "HopfieldDataset":
+        if split in {"train", "test", "all"}:
+            self.active_split = split
+        else:
+            raise ValueError(f"split must be 'train', 'test', or 'all', got {split!r}")
+        return self
 
     def validity_rate(self, samples: np.ndarray) -> float:
         """Full-support Boltzmann distributions make strict validity trivial."""
