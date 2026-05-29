@@ -1,0 +1,48 @@
+{
+  "study_name": "ising_20q_b03",
+  "n_trials": 60,
+  "sampler_seed": 42,
+  "output_dir": "out/hpo",
+  "dataset": {
+    "name": "ising",
+    "params": {
+      "rows": 4,
+      "cols": 5,
+      "beta": 0.3,
+      "j_seed": 42,
+      "model": "grid",
+      "max_exact_states": 1048576
+    }
+  },
+  "plot": {"kind": "none"},
+  "fixed_config": {
+    "train_samples": 1000,
+    "data_seed": 42,
+    "n_samples": 512,
+    "n_models": 10,
+    "epochs_per_step": 512,
+    "caching_level": "none",
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_dual": 1.0,
+    "lambda_schedule": {"type": "frank_wolfe", "gamma": 1.0, "tau": 1.0},
+    "sigma_heuristic": {"method": "fourier", "n_sigmas": 4},
+    "weight_strategy": "frank_wolfe",
+    "baseline": "none",
+    "shots": 10000,
+    "acceptance_metric": "training_mmd",
+    "skip_sampling": true,
+    "final_eval_sampling": true,
+    "report_fcfw": true,
+    "stop_on_reject": false,
+    "rng_seed": 42,
+    "turbo": 10,
+    "circuit_config": {"topology": "aachen_heavy_hex", "n_ancilla": 0, "num_layers": 1}
+  },
+  "search_space": {
+    "sigma_heuristic.n_sigmas": {"type": "int", "low": 2, "high": 6},
+    "learning_rate": {"type": "float", "low": 0.001, "high": 0.05, "log": true},
+    "n_ops": {"type": "categorical", "choices": [1000, 2000, 4000]},
+    "keep_models_for_diagnosis": {"type": "categorical", "choices": [true, false]}
+  }
+}

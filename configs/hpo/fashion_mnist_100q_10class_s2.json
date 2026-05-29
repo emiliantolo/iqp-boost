@@ -1,0 +1,70 @@
+{
+  "study_name": "fashion_mnist_100q_10class_s2",
+  "n_trials": 15,
+  "sampler_seed": 2024,
+  "output_dir": "out/hpo",
+  "dataset": {
+    "name": "fashion_mnist",
+    "params": {
+      "rows": 10,
+      "cols": 10,
+      "threshold": 0.2,
+      "classes": null,
+      "test_samples": 2000,
+      "data_dir": "./data"
+    }
+  },
+  "plot": {
+    "kind": "none"
+  },
+  "fixed_config": {
+    "train_samples": 8000,
+    "data_seed": 42,
+    "n_samples": 512,
+    "epochs_per_step": 512,
+    "caching_level": "none",
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_dual": 1.0,
+    "lambda_schedule": {
+      "type": "frank_wolfe",
+      "gamma": 1.0,
+      "tau": 1.0
+    },
+    "sigma_heuristic": {
+      "method": "fourier",
+      "n_sigmas": 3
+    },
+    "weight_strategy": "frank_wolfe",
+    "baseline": "none",
+    "shots": 10000,
+    "acceptance_metric": "training_mmd",
+    "skip_sampling": true,
+    "final_eval_sampling": false,
+    "report_fcfw": true,
+    "keep_models_for_diagnosis": false,
+    "stop_on_reject": false,
+    "rng_seed": 42,
+    "turbo": 10,
+    "n_ops": 4000,
+    "circuit_config": {
+      "topology": "aachen_heavy_hex",
+      "n_ancilla": 0,
+      "num_layers": 1
+    }
+  },
+  "search_space": {
+    "n_models": {
+      "type": "int",
+      "low": 4,
+      "high": 10
+    },
+    "learning_rate": {
+      "type": "float",
+      "low": 0.001,
+      "high": 0.05,
+      "log": true
+    }
+  },
+  "objective_metric": "test_mmd"
+}
