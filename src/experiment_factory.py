@@ -881,17 +881,36 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         mcmc_burn_in = int(params.get('mcmc_burn_in', 256))
         mcmc_thinning = int(params.get('mcmc_thinning', 4))
         mcmc_sweeps_per_sample = int(params.get('mcmc_sweeps_per_sample', 1))
-        ds = FrustratedIsingDataset(
-            rows=rows,
-            cols=cols,
-            beta=beta,
-            j_seed=j_seed,
-            model=model,
-            mcmc_burn_in=mcmc_burn_in,
-            mcmc_thinning=mcmc_thinning,
-            mcmc_sweeps_per_sample=mcmc_sweeps_per_sample,
-        )
-        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        test_samples = int(params.get('test_samples', 0))
+        train_split_ratio = float(params.get('train_split_ratio', 0.8)) if test_samples > 0 else None
+        if train_split_ratio is not None:
+            total_samples = train_samples + test_samples
+            ds = FrustratedIsingDataset(
+                rows=rows,
+                cols=cols,
+                beta=beta,
+                j_seed=j_seed,
+                model=model,
+                mcmc_burn_in=mcmc_burn_in,
+                mcmc_thinning=mcmc_thinning,
+                mcmc_sweeps_per_sample=mcmc_sweeps_per_sample,
+                train_split_ratio=train_split_ratio,
+            )
+            x_train = ds.generate(n_samples=total_samples, seed=data_seed, split='train')
+            x_test = ds.generate(split='test')
+        else:
+            ds = FrustratedIsingDataset(
+                rows=rows,
+                cols=cols,
+                beta=beta,
+                j_seed=j_seed,
+                model=model,
+                mcmc_burn_in=mcmc_burn_in,
+                mcmc_thinning=mcmc_thinning,
+                mcmc_sweeps_per_sample=mcmc_sweeps_per_sample,
+            )
+            x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+            x_test = None
         dataset_name = f'Frustrated Ising {model.upper()} ({rows}x{cols}, beta={beta})'
         n_qubits = x_train.shape[1]
 

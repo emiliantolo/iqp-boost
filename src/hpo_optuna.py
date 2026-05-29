@@ -117,6 +117,10 @@ def _evaluate_best_model_hopfield_metrics(
 
     # Rebuild dataset
     ds_params = dict(dataset_spec.get('params', {}))
+    test_samples = int(ds_params.pop('test_samples', 0))
+    train_samples = int(best_cfg.get('train_samples', 8000))
+    if test_samples > 0:
+        ds_params['train_split_ratio'] = train_samples / (train_samples + test_samples)
     dataset = HopfieldDataset(**ds_params)
 
     # Rebuild circuit
@@ -161,6 +165,99 @@ def _evaluate_best_model_hopfield_metrics(
     }
 
 
+def _evaluate_best_model_ising_metrics(
+    hpo_spec: dict,
+    best_config_path: Path,
+    best_model_path: Path,
+    fcfw_weights_list: list | None,
+) -> dict | None:
+    """Reconstruct the best ensemble and evaluate Ising-specific metrics for both normal and FCFW weights."""
+    if best_config_path is None or not best_config_path.exists():
+        print("[Postprocess] best_config.json missing, skipping Ising metrics")
+        return None
+    if not best_model_path.exists():
+        print("[Postprocess] best_model.json missing, skipping Ising metrics")
+        return None
+
+    dataset_spec = hpo_spec.get('dataset', {})
+    if dataset_spec.get('name') != 'ising':
+        return None
+
+    try:
+        best_cfg = json.loads(best_config_path.read_text())
+    except Exception as e:
+        print(f"[Postprocess] Failed to read best config: {e}")
+        return None
+
+    try:
+        with open(best_model_path, 'r') as f:
+            model_data = json.load(f)
+    except Exception as e:
+        print(f"[Postprocess] Failed to read best model: {e}")
+        return None
+
+    from src.datasets.ising import FrustratedIsingDataset
+    from src.ising_evaluation import evaluate_pairwise_correlation_error, evaluate_magnetization_absolute_error
+    from src.hopfield_evaluation import evaluate_energy_wasserstein
+
+    # Rebuild dataset
+    ds_params = dict(dataset_spec.get('params', {}))
+    test_samples = int(ds_params.pop('test_samples', 0))
+    train_samples = int(best_cfg.get('train_samples', 8000))
+    if test_samples > 0:
+        ds_params['train_split_ratio'] = train_samples / (train_samples + test_samples)
+    dataset = FrustratedIsingDataset(**ds_params)
+
+    # Rebuild circuit
+    circuit_cfg = best_cfg.get('circuit_config', {})
+    n_qubits = dataset.n_qubits
+    circuit, _, _, _ = setup_iqp_circuit(n_qubits, **circuit_cfg)
+
+    # Rebuild ensemble
+    n_samples = int(best_cfg.get('n_samples', 512))
+    ensemble = BoostedEnsemble.load(str(best_model_path), iqp_circuit=circuit, n_samples=n_samples)
+
+    shots = int(best_cfg.get('shots', 10000))
+    rng_seed = int(best_cfg.get('rng_seed', 42))
+    rng = np.random.default_rng(rng_seed)
+
+    # Normal ensemble
+    normal_samples = ensemble.sample(shots, rng)
+    normal_metrics = {
+        'energy_wasserstein': evaluate_energy_wasserstein(
+            dataset, normal_samples, n_baseline=10000, seed=rng_seed + 999
+        ),
+        'pairwise_correlation_error': evaluate_pairwise_correlation_error(
+            dataset, normal_samples, n_baseline=10000, seed=rng_seed + 999
+        ),
+        'magnetization_absolute_error': evaluate_magnetization_absolute_error(
+            dataset, normal_samples, n_baseline=10000, seed=rng_seed + 999
+        ),
+    }
+
+    # FCFW ensemble
+    fcfw_metrics = {}
+    if fcfw_weights_list is not None and len(fcfw_weights_list) > 0:
+        fcfw_weights = np.asarray(fcfw_weights_list, dtype=np.float64)
+        fcfw_samples = ensemble.sample(shots, rng, weights_override=fcfw_weights)
+        fcfw_metrics = {
+            'energy_wasserstein': evaluate_energy_wasserstein(
+                dataset, fcfw_samples, n_baseline=10000, seed=rng_seed + 1000
+            ),
+            'pairwise_correlation_error': evaluate_pairwise_correlation_error(
+                dataset, fcfw_samples, n_baseline=10000, seed=rng_seed + 1000
+            ),
+            'magnetization_absolute_error': evaluate_magnetization_absolute_error(
+                dataset, fcfw_samples, n_baseline=10000, seed=rng_seed + 1000
+            ),
+        }
+
+    return {
+        'ensemble': normal_metrics,
+        'ensemble_fcfw': fcfw_metrics,
+    }
+
+
 def run_hpo(config_path: Path) -> optuna.study.Study:
     hpo_spec = _load_config(config_path)
     study_name = hpo_spec.get('study_name', config_path.stem)
@@ -193,6 +290,7 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
     dataset_spec = hpo_spec['dataset']
     plot_spec = hpo_spec.get('plot', {})
     search_space = hpo_spec.get('search_space', {})
+    objective_metric = hpo_spec.get('objective_metric', 'tvd')
 
     def objective(trial: optuna.Trial) -> float:
         run_config = _trial_config(base_config, search_space, trial)
@@ -276,6 +374,17 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
             json.dumps(hopfield_metrics, indent=2, default=_json_default)
         )
         print("Best model Hopfield metrics saved to best_hopfield_metrics.json")
+
+    # Evaluate new Ising metrics for the best model (normal + FCFW)
+    ising_metrics = _evaluate_best_model_ising_metrics(
+        hpo_spec, best_config_dst, best_model_dst, best.user_attrs.get('ensemble_fcfw_weights')
+    )
+    if ising_metrics is not None:
+        best_summary['ising_metrics'] = ising_metrics
+        (hpo_dir / 'best_ising_metrics.json').write_text(
+            json.dumps(ising_metrics, indent=2, default=_json_default)
+        )
+        print("Best model Ising metrics saved to best_ising_metrics.json")
 
     (hpo_dir / 'best_trial.json').write_text(json.dumps(best_summary, indent=2, default=_json_default))
     (hpo_dir / 'hpo_config.json').write_text(json.dumps(hpo_spec, indent=2, default=_json_default))

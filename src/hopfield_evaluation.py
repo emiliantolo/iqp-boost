@@ -40,7 +40,10 @@ def compute_hopfield_energies(dataset, samples: np.ndarray) -> np.ndarray:
     """
     binary = _as_binary_sample_matrix(samples, int(dataset.n_qubits))
     spins = 1.0 - 2.0 * binary
-    J = np.asarray(dataset.J, dtype=np.float64)
+    J_matrix = getattr(dataset, 'J', getattr(dataset, 'J_dense', None))
+    if J_matrix is None:
+        raise AttributeError("dataset has neither 'J' nor 'J_dense' coupling matrix attribute")
+    J = np.asarray(J_matrix, dtype=np.float64)
     return -0.5 * np.einsum('bi,ij,bj->b', spins, J, spins)
 
 
