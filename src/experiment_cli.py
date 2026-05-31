@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -221,7 +222,10 @@ def run_suite(config_path: Path, only: set[str] | None = None,
         metric_configs = run_spec.get('metric_configs', None)
         baseline_epochs = run_spec.get('baseline_epochs', None)
 
-        bundle = build_dataset_bundle(dataset_spec=dataset_spec, config=run_cfg, plot_spec=plot_spec)
+        bundle = build_dataset_bundle(
+            dataset_spec=dataset_spec, config=run_cfg, plot_spec=plot_spec,
+            output_base_dir=str(os.path.join(suite_dir, run_name)),
+        )
 
         print(f"\n[{idx + 1}/{len(runs)}] {run_name}: {bundle['dataset_name']}")
         if dry_run:

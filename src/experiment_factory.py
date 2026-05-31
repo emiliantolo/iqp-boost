@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Callable
+import os
 import re
 
 import numpy as np
@@ -33,6 +34,17 @@ from src.datasets.qaoa_maxcut import QAOAMaxCutDataset
 from src.datasets.rbm import RBMDataset
 from src.datasets.tfim_thermal import TFIMThermalDataset
 from src.datasets.rydberg import RydbergDataset
+from src.datasets.hamming_balls import HammingBallsDataset
+from src.datasets.mps import MPSDataset
+from src.benchmark_metrics import (
+    compute_hamming_balls_metrics,
+    compute_mps_nll,
+)
+from src.benchmark_plots import (
+    plot_mode_evolution,
+    plot_nll_convergence,
+    plot_probability_alignment,
+)
 from src.boltzmann_visualization import generate_boltzmann_visualizations
 
 
@@ -593,6 +605,8 @@ def _resolve_plot_kind(dataset_key: str, plot_spec: dict | None) -> str:
         'qaoa_maxcut': 'lorenz',
         'tfim_thermal': 'lorenz',
         'rydberg': 'lorenz',
+        'hamming_balls': 'hamming_balls_mode_evolution',
+        'mps': 'mps_nll_convergence',
     }
     return defaults.get(dataset_key, 'none')
 
@@ -604,6 +618,36 @@ def _build_custom_viz(dataset_key: str, dataset_obj, plot_spec: dict | None, n_q
 
     if kind == 'none':
         return None
+    if kind == 'hamming_balls_mode_evolution':
+        if not hasattr(dataset_obj, 'centers'):
+            return None
+        centers = dataset_obj.centers
+        radius_fraction = float(params.get('radius_fraction', 0.15))
+        exact_probs = getattr(dataset_obj, 'probs', None)
+        def _hamming_viz(output, x_train, baseline_samples, final_samples, per_model_samples, weights):
+            plot_mode_evolution(
+                output, x_train, baseline_samples, final_samples, per_model_samples, weights,
+                centers=centers, n_qubits=n_qubits, radius_fraction=radius_fraction,
+            )
+            if exact_probs is not None and n_qubits <= 20:
+                plot_probability_alignment(
+                    output, x_train, baseline_samples, final_samples, per_model_samples, weights,
+                    exact_probs=exact_probs, n_qubits=n_qubits,
+                )
+        return _hamming_viz
+    if kind == 'mps_nll_convergence':
+        exact_probs = getattr(dataset_obj, 'probs', None)
+        def _mps_viz(output, x_train, baseline_samples, final_samples, per_model_samples, weights):
+            plot_nll_convergence(
+                output, x_train, baseline_samples, final_samples, per_model_samples, weights,
+                mps_dataset=dataset_obj,
+            )
+            if exact_probs is not None and n_qubits <= 20:
+                plot_probability_alignment(
+                    output, x_train, baseline_samples, final_samples, per_model_samples, weights,
+                    exact_probs=exact_probs, n_qubits=n_qubits,
+                )
+        return _mps_viz
     if kind == 'histogram':
         title = params.get('title', f'{dataset_key.upper()} distribution comparison')
         filename = params.get('filename', f'{dataset_key}_distribution.pdf')
@@ -642,8 +686,15 @@ def _build_custom_viz(dataset_key: str, dataset_obj, plot_spec: dict | None, n_q
     raise ValueError(f"Unknown plot kind '{kind}'.")
 
 
-def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | None = None) -> dict:
-    """Create dataset, generated training set, metric callables, and optional viz callback."""
+def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | None = None,
+                         output_base_dir: str | None = None) -> dict:
+    """Create dataset, generated training set, metric callables, and optional viz callback.
+
+    When ``config.save_dataset`` is True and ``output_base_dir`` is provided, the generated
+    dataset (x_train, x_test, exact_probs) is saved to *output_base_dir*/dataset.npz together
+    with a JSON sidecar containing dataset metadata for reproducibility. On subsequent runs,
+    the saved files are loaded instead of re-generating.
+    """
     if not isinstance(dataset_spec, dict):
         raise ValueError("Each run requires a 'dataset' object with at least a 'name'.")
 
@@ -652,6 +703,39 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
 
     train_samples = int(config.get('train_samples', 1000))
     data_seed = int(config.get('data_seed', 0))
+
+    # --- dataset save/load ---
+    save_dataset = bool(config.get('save_dataset', False))
+    dataset_file = None
+    loaded_x_train = loaded_x_test = loaded_probs = None
+    loaded_centers = loaded_J = loaded_patterns = None
+    if save_dataset and output_base_dir is not None:
+        dataset_file = os.path.join(output_base_dir, 'dataset.npz')
+        dataset_json_file = os.path.join(output_base_dir, 'dataset.json')
+        # verify JSON metadata matches current config
+        if os.path.exists(dataset_json_file) and os.path.exists(dataset_file):
+            import json as _js
+            with open(dataset_json_file, 'r') as _f:
+                _meta = _js.load(_f)
+            if _meta.get('dataset_key') != dataset_key:
+                raise ValueError(
+                    f"Loaded dataset_key {_meta.get('dataset_key')} != config key {dataset_key}"
+                )
+            if _meta.get('dataset_params') != params:
+                raise ValueError(
+                    f"Saved dataset_params {_meta.get('dataset_params')} != config params {params}"
+                )
+            import numpy as _np
+            _d = _np.load(dataset_file, allow_pickle=False)
+            loaded_x_train = _d['x_train']
+            loaded_x_test = _d.get('x_test') if 'x_test' in _d else None
+            loaded_probs = _d.get('probs') if 'probs' in _d else None
+            loaded_centers = _d.get('centers') if 'centers' in _d else None
+            loaded_J = _d.get('J') if 'J' in _d else None
+            loaded_patterns = _d.get('patterns') if 'patterns' in _d else None
+            _d.close()
+            print(f"  [save_dataset] Loaded {loaded_x_train.shape[0]} samples, {loaded_x_train.shape[1]} qubits from {dataset_file}")
+    x_test = None  # ensure defined for branches that don't set it
 
     if dataset_key == 'bas':
         height, width = _resolve_rows_cols(params, config, default=(4, 4))
@@ -1080,22 +1164,87 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         x_train = ds.generate(n_samples=train_samples, seed=data_seed)
         dataset_name = f'Rydberg (N={n_qubits})'
 
+    elif dataset_key == 'hamming_balls':
+        n_qubits = int(params.get('n_qubits', 16))
+        K = int(params.get('K', 8))
+        p = float(params.get('p', 0.1))
+        pattern_seed = int(params.get('pattern_seed', 0))
+        ds = HammingBallsDataset(
+            n_qubits=n_qubits, K=K, p=p, pattern_seed=pattern_seed,
+        )
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'Hamming Balls (n={n_qubits}, K={K}, p={p})'
+        n_qubits = ds.n_qubits
+
+    elif dataset_key == 'mps':
+        n_qubits = int(params.get('n_qubits', 16))
+        chi = int(params.get('chi', 4))
+        seed = int(params.get('seed', 42))
+        ds = MPSDataset(n_qubits=n_qubits, chi=chi, seed=seed)
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed)
+        dataset_name = f'MPS (n={n_qubits}, chi={chi})'
+        n_qubits = ds.n_qubits
+
     else:
         raise ValueError(
             "Unknown dataset name. Supported values: "
             "bas, bipartite_graph, noisy_bas, blobs, dwave, gaussian, genomic, "
             "barabasi_albert_graph, fashion_mnist, graph_isomorphism, ising, "
-            "hopfield, k_body_parity, mnist, parity, qaoa_maxcut, random_circuit, "
-            "rbm, rydberg, scale_free, shapes, "
+            "hamming_balls, hopfield, k_body_parity, mnist, mps, parity, "
+            "qaoa_maxcut, random_circuit, rbm, rydberg, scale_free, shapes, "
             "tfim_thermal."
         )
+
+    # --- dataset save/load: override with loaded data ---
+    if loaded_x_train is not None:
+        x_train = loaded_x_train
+        if loaded_x_test is not None:
+            x_test = loaded_x_test
+        if loaded_probs is not None:
+            ds.probs = loaded_probs
+        if loaded_centers is not None:
+            ds.centers = loaded_centers
+        if loaded_J is not None:
+            ds.J = loaded_J
+        if loaded_patterns is not None:
+            ds.patterns = loaded_patterns
+
+    # --- dataset save/load: save if requested (first run only) ---
+    if dataset_file and loaded_x_train is None and output_base_dir is not None:
+        import numpy as _np
+        _sd = {'x_train': x_train}
+        if x_test is not None:
+            _sd['x_test'] = x_test
+        if hasattr(ds, 'probs') and ds.probs is not None:
+            _sd['probs'] = ds.probs
+        # dataset-specific arrays for full reproducibility of analytical distributions
+        if hasattr(ds, 'centers') and ds.centers is not None:
+            _sd['centers'] = ds.centers
+        if hasattr(ds, 'J') and ds.J is not None:
+            _sd['J'] = ds.J
+        if hasattr(ds, 'patterns') and ds.patterns is not None:
+            _sd['patterns'] = ds.patterns
+        os.makedirs(output_base_dir, exist_ok=True)
+        _np.savez_compressed(dataset_file, **_sd)
+        import json as _js
+        with open(os.path.join(output_base_dir, 'dataset.json'), 'w') as _f:
+            _js.dump({
+                'dataset_key': dataset_key,
+                'dataset_params': params,
+                'n_qubits': n_qubits,
+                'n_samples': x_train.shape[0],
+                'has_centers': (hasattr(ds, 'centers') and ds.centers is not None),
+                'has_J': (hasattr(ds, 'J') and ds.J is not None),
+                'has_patterns': (hasattr(ds, 'patterns') and ds.patterns is not None),
+            }, _f, indent=2)
+        print(f"  [save_dataset] Saved {x_train.shape[0]} samples, {x_train.shape[1]} qubits to {dataset_file}")
 
     custom_viz_fn = _build_custom_viz(dataset_key, ds, plot_spec, n_qubits)
 
     # Datasets where validity/coverage are not meaningful pass None
     # so evaluate_samples() skips those metrics (reports NaN).
     # Datasets without a meaningful pattern space pass None for validity/coverage.
-    no_pattern_space = {'ising', 'hopfield', 'rbm', 'noisy_bas', 'mnist', 'fashion_mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm', 'random_circuit', 'qaoa_maxcut', 'tfim_thermal', 'rydberg'}
+    no_pattern_space = {'ising', 'hopfield', 'rbm', 'noisy_bas', 'mnist', 'fashion_mnist', 'dwave', 'scale_free', 'genomic', 'pennylane_ising', 'pennylane_bas', 'pennylane_hm', 'random_circuit', 'qaoa_maxcut', 'tfim_thermal', 'rydberg', 'hamming_balls', 'mps'}
     if dataset_key in no_pattern_space:
         validity_fn = None
         coverage_fn = None
@@ -1105,6 +1254,16 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         coverage_fn = ds.coverage_rate
         top_k_tvd_fn = None
 
+    if dataset_key == 'hamming_balls':
+        generation_eval_fn = lambda samples: compute_hamming_balls_metrics(
+            ds.centers, samples, ds.n_qubits,
+            radius_fraction=float(params.get('radius_fraction', 0.15)),
+        )
+    elif dataset_key == 'mps':
+        generation_eval_fn = lambda samples: {'nll': compute_mps_nll(ds, samples)}
+    else:
+        generation_eval_fn = getattr(ds, 'evaluate_generation', None)
+
     bundle = {
         'dataset_name': dataset_name,
         'x_train': x_train,
@@ -1113,7 +1272,7 @@ def build_dataset_bundle(dataset_spec: dict, config: dict, plot_spec: dict | Non
         'top_k_tvd_fn': top_k_tvd_fn,
         'custom_viz_fn': custom_viz_fn,
         'exact_probs': getattr(ds, 'probs', None),
-        'generation_eval_fn': getattr(ds, 'evaluate_generation', None),
+        'generation_eval_fn': generation_eval_fn,
     }
     if 'x_test' in locals() and x_test is not None:
         bundle['x_test'] = x_test
