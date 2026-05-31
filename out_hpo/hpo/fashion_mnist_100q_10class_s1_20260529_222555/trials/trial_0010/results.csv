@@ -1,0 +1,10 @@
+step,alpha,corr_fro,coverage,f_score,jsd,kl,mmd,model_label,precision,recall,support_match,training_loss,tvd,validity
+-1,1.0,,,,,,0.01723256029321721,baseline,,,,,,
+-4,,nan,nan,nan,nan,nan,0.008245233166765413,ensemble_final,nan,nan,nan,nan,nan,nan
+-5,,nan,nan,nan,nan,nan,0.006434795934322067,ensemble_fcfw,nan,nan,nan,nan,nan,nan
+0,1.0,,,,,,0.01723256029321721,ensemble_step,,,,0.01723256029321721,,
+1,0.5,,,,,,0.017356724627677355,ensemble_step,,,,0.017356724627677355,,
+2,0.3333333333333333,,,,,,0.01728142574602676,ensemble_step,,,,0.01728142574602676,,
+3,0.25,,,,,,0.014230303697752243,ensemble_step,,,,0.014230303697752243,,
+4,0.2,,,,,,0.012133276019070419,ensemble_step,,,,0.012133276019070419,,
+5,0.16666666666666663,,,,,,0.008245233166765413,ensemble_step,,,,0.008245233166765413,,

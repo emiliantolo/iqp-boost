@@ -1,0 +1,50 @@
+{
+  "study_name": "fashion_mnist_100q_10class_s3",
+  "best_trial": 6,
+  "best_value_test_mmd": 0.004613778604127815,
+  "best_params": {
+    "n_models": 10,
+    "learning_rate": 0.01120516938416455
+  },
+  "best_user_attrs": {
+    "ensemble_fcfw_weights": [
+      0.0,
+      0.0,
+      0.07713986612861956,
+      0.12052153613852588,
+      0.07584039102886721,
+      0.11641517403876785,
+      0.1497361597935106,
+      0.22288308249999864,
+      0.12563823261818674,
+      0.1118255577535236
+    ],
+    "final_stats": {
+      "mmd": 0.004428660546857008,
+      "test_mmd": 0.004613778604127815,
+      "test_mmd_fcfw": 0.0033362514234594708
+    },
+    "model_path": "out/hpo/fashion_mnist_100q_10class_s3_20260529_222603/trials/trial_0006/ensemble.json",
+    "n_models_accepted": 10,
+    "output_dir": "out/hpo/fashion_mnist_100q_10class_s3_20260529_222603/trials/trial_0006",
+    "sampled_config": {
+      "n_models": 10,
+      "learning_rate": 0.01120516938416455
+    },
+    "weights": [
+      0.10000000000000002,
+      0.10000000000000002,
+      0.10000000000000002,
+      0.10000000000000002,
+      0.10000000000000002,
+      0.10000000000000002,
+      0.10000000000000002,
+      0.1,
+      0.1,
+      0.10000000000000003
+    ]
+  },
+  "best_model_path": "out/hpo/fashion_mnist_100q_10class_s3_20260529_222603/best_model.json",
+  "best_config_path": "out/hpo/fashion_mnist_100q_10class_s3_20260529_222603/best_config.json",
+  "config_path": "configs/hpo/fashion_mnist_100q_10class_s3.json"
+}
