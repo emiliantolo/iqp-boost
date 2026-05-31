@@ -10,6 +10,7 @@ import pennylane as qml
 PLOT_CONFIG = {
     'plot_data_loss': True,
     'plot_interval': 10,
+    'plot_lorenz_curve': True,
 }
 
 
