@@ -18,31 +18,62 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.circuit_artifacts import restore_circuit_artifact, execute_circuit_native
-from src.utils import compute_kl_divergence, compute_mmd, compute_tvd
+from src.utils import compute_kl_divergence, compute_mmd, compute_tvd, compute_jsd, compute_precision_recall_f1
+
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 
 def compute_sample_metrics(ground_truth: np.ndarray, samples: np.ndarray, sigma: float) -> dict:
-    """Compute standard metrics: TVD, MMD, KL divergence."""
+    """Compute standard metrics: MMD, TVD, KL, JSD, Precision/Recall/F1, plus sample statistics."""
     metrics = {}
-    
+
     try:
         metrics['mmd'] = float(compute_mmd(ground_truth, samples, sigma))
     except Exception as e:
         logger.warning("Failed to compute MMD: %s", e)
         metrics['mmd'] = float('nan')
-    
+
     try:
         metrics['tvd'] = float(compute_tvd(ground_truth, samples))
     except Exception as e:
         logger.warning("Failed to compute TVD: %s", e)
         metrics['tvd'] = float('nan')
-    
+
     try:
         metrics['kl'] = float(compute_kl_divergence(ground_truth, samples))
     except Exception as e:
         logger.warning("Failed to compute KL: %s", e)
         metrics['kl'] = float('nan')
-    
+
+    try:
+        metrics['jsd'] = float(compute_jsd(ground_truth, samples))
+    except Exception as e:
+        logger.warning("Failed to compute JSD: %s", e)
+        metrics['jsd'] = float('nan')
+
+    try:
+        sigma_f = sigma[0] if isinstance(sigma, (list, tuple, np.ndarray)) else sigma
+        pr = compute_precision_recall_f1(ground_truth, samples, sigma_f)
+        metrics.update(pr)
+    except Exception as e:
+        logger.warning("Failed to compute Precision/Recall/F1: %s", e)
+        metrics['precision'] = float('nan')
+        metrics['recall'] = float('nan')
+        metrics['f_score'] = float('nan')
+        metrics['support_match'] = float('nan')
+
+    try:
+        n_unique = len(np.unique(samples, axis=0))
+        metrics['unique_fraction'] = float(n_unique / len(samples)) if len(samples) > 0 else 0.0
+    except Exception as e:
+        logger.warning("Failed to compute unique fraction: %s", e)
+        metrics['unique_fraction'] = float('nan')
+
     return metrics
 
 
@@ -60,6 +91,104 @@ def compute_coverage_validity(samples: np.ndarray, ground_truth: np.ndarray) -> 
     metrics['validity'] = 100.0
     
     return metrics
+
+
+def plot_common_metrics(ground_truth: np.ndarray, methods: list[tuple[str, np.ndarray]], save_dir: Path) -> None:
+    """Dataset-agnostic sample-based plots: probability spectrum + cumulative mass, all methods overlaid."""
+    if plt is None or not methods:
+        return
+    n_qubits = ground_truth.shape[1]
+    n_states = 2 ** n_qubits
+
+    def _samples_to_sorted_probs(s):
+        if s is None or len(s) == 0:
+            return np.zeros(n_states, dtype=np.float64), np.zeros(n_states, dtype=np.float64)
+        indices = np.sum(s.astype(int) * (2 ** np.arange(n_qubits)), axis=1)
+        counts = np.bincount(indices, minlength=n_states)
+        p = counts.astype(np.float64) / counts.sum()
+        sorted_p = np.sort(p)[::-1]
+        return sorted_p, np.cumsum(sorted_p)
+
+    gt_sorted, gt_cum = _samples_to_sorted_probs(ground_truth)
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4.5), constrained_layout=True)
+
+    # Left: sorted probability spectrum (first 100 modes)
+    max_modes = min(100, n_states)
+    x = np.arange(1, max_modes + 1)
+    axes[0].plot(x, gt_sorted[:max_modes], 'o-', markersize=3, color='gray', label='Ground Truth', alpha=0.5)
+    axes[0].set_yscale('log')
+
+    # Right: cumulative probability mass with log x-scale
+    x_pct = np.linspace(1e-10, 1, n_states)
+    axes[1].plot(x_pct, gt_cum, color='gray', label='Ground Truth', alpha=0.5)
+    axes[1].plot([1e-10, 1], [1e-10, 1], 'k--', linewidth=0.5, alpha=0.4)
+    axes[1].set_xscale('log')
+
+    for i, (label, samples) in enumerate(methods):
+        model_sorted, model_cum = _samples_to_sorted_probs(samples)
+        axes[0].plot(x, model_sorted[:max_modes], 's-', markersize=3, color=colors[i], label=label, alpha=0.7)
+        axes[1].plot(x_pct, model_cum, color=colors[i], label=label, alpha=0.7)
+
+    axes[0].set_xlabel('Mode rank')
+    axes[0].set_ylabel('Probability')
+    axes[0].set_title('Probability spectrum (top 100 modes)')
+    axes[0].legend(fontsize=8)
+
+    axes[1].set_xlabel('Fraction of modes (log)')
+    axes[1].set_ylabel('Cumulative probability')
+    axes[1].set_title('Cumulative probability mass')
+    axes[1].legend(fontsize=8)
+
+    path = save_dir / 'common_metrics.png'
+    fig.savefig(path, dpi=160, bbox_inches='tight')
+    fig.savefig(str(path).replace('.png', '.pdf'), bbox_inches='tight')
+    logger.info('  Saved common metrics plot to: %s', path)
+    plt.close(fig)
+
+
+def plot_correlation_heatmaps(ground_truth: np.ndarray, methods: list[tuple[str, np.ndarray]], save_dir: Path) -> None:
+    """Pairwise bit correlation heatmaps: one row per method + ground truth, shared color scale."""
+    if plt is None or not methods:
+        return
+
+    def _corr(samples):
+        return np.corrcoef(samples.astype(np.float64).T)
+
+    gt_corr = _corr(ground_truth)
+    n_methods = len(methods)
+    n_rows = n_methods + 1  # +1 for ground truth
+
+    fig, axes = plt.subplots(1, n_rows, figsize=(4 * n_rows, 3.8), constrained_layout=True)
+
+    vmin = min(gt_corr.min(), 0)
+    vmax = max(gt_corr.max(), 1)
+    for _, s in methods:
+        c = _corr(s)
+        vmin = min(vmin, c.min())
+        vmax = max(vmax, c.max())
+
+    im = axes[0].imshow(gt_corr, cmap='coolwarm', vmin=vmin, vmax=vmax, aspect='equal')
+    axes[0].set_title('Ground Truth')
+    axes[0].tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    for i, (label, samples) in enumerate(methods):
+        ax = axes[i + 1]
+        c = _corr(samples)
+        ax.imshow(c, cmap='coolwarm', vmin=vmin, vmax=vmax, aspect='equal')
+        ax.set_title(label)
+        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+
+    cbar = fig.colorbar(im, ax=axes, orientation='vertical', fraction=0.02, pad=0.02)
+    cbar.set_label('Pearson correlation')
+
+    path = save_dir / 'common_correlations.png'
+    fig.savefig(path, dpi=160, bbox_inches='tight')
+    fig.savefig(str(path).replace('.png', '.pdf'), bbox_inches='tight')
+    logger.info('  Saved correlation heatmaps to: %s', path)
+    plt.close(fig)
 
 
 def subsample_shots(shots: np.ndarray, n_samples: int) -> np.ndarray:
@@ -220,63 +349,61 @@ def resolve_inference_dir(artifact_path: Path, inference_dir_arg: str | None) ->
     return root
 
 
-def main(args: argparse.Namespace):
-    """Compute metrics from backend inference shots."""
-    
-    artifact_path = Path(args.artifact_path)
-    if not artifact_path.exists():
-        logger.error("Artifact file not found: %s", artifact_path)
-        return
-    
-    logger.info("Loading circuit artifact: %s", artifact_path)
-    
-    try:
-        restored = restore_circuit_artifact(artifact_path)
-    except Exception as e:
-        logger.error("Failed to restore artifact: %s", e)
-        return
-    
+def find_inference_dirs(artifact_path: Path) -> list[Path]:
+    """Return all inference run subdirectories for an artifact, newest first."""
+    root = artifact_path.parent / "inference_results"
+    if not root.exists():
+        return []
+
+    metadata_runs = sorted(
+        [p.parent for p in root.glob("*/inference_metadata.json")],
+        key=lambda p: p.name,
+        reverse=True,
+    )
+    if metadata_runs:
+        return metadata_runs
+
+    subdirs = sorted(
+        [p for p in root.iterdir() if p.is_dir()],
+        key=lambda p: p.name,
+        reverse=True,
+    )
+    return subdirs
+
+
+def _process_inference_run(restored: dict, inference_dir: Path, shots_budget: int) -> None:
+    """Compute and save metrics for a single inference run directory."""
     artifact = restored["artifact"]
     dataset_train_samples = restored["dataset_train_samples"]
     sigma = restored["sigma"]
     ensemble_models = restored["ensemble"]["models"]
     ensemble_weights = restored["ensemble"]["weights"]
     n_qubits = artifact["circuit"]["n_visible_qubits"]
-    
-    if dataset_train_samples is None:
-        logger.error("Training dataset samples not available in artifact")
-        return
-    
-    logger.info("Dataset: %d training samples, %d qubits", len(dataset_train_samples), n_qubits)
-    logger.info("Sigma: %s", sigma)
-    logger.info("Ensemble: %d models, weights sum=%.4f", len(ensemble_models), ensemble_weights.sum())
-    
-    # Determine inference results directory
-    inference_dir = resolve_inference_dir(artifact_path, args.inference_dir)
+
     if not inference_dir.exists():
         logger.error("Inference results directory not found: %s", inference_dir)
-        logger.info("Run: python scripts/run_backend_inference.py %s", artifact_path)
         return
-    
-    # Load shot entries from metadata first, with filename fallback.
+
+    # Load shot entries
     shot_entries, inference_metadata = load_inference_shot_entries(inference_dir)
     if not shot_entries:
         logger.error("No shot files found in: %s", inference_dir)
         return
-    
+
     logger.info("Found %d shot entries", len(shot_entries))
-    
-    # Determine sampling configuration
-    shots_budget = args.shots
+
     if shots_budget is None:
         shots_budget = len(dataset_train_samples)
     logger.info("Using shots=%d (metric sample budget)", shots_budget)
-    
-    # Compute per-model metrics
+
+    metrics_dir = inference_dir / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+
+    # Per-model metrics
     model_metrics = []
     ensemble_shots_all = []
-    
     standalone_shots = None
+    methods_to_plot = []
 
     for entry_idx, entry in enumerate(shot_entries):
         shot_file = resolve_shot_path(inference_dir, entry.get("shots_file", ""))
@@ -297,12 +424,10 @@ def main(args: argparse.Namespace):
             logger.error("  Failed to load shots: %s", e)
             continue
         
-        # Subsample if needed
         if shots_budget and len(shots) > shots_budget:
             shots = subsample_shots(shots, shots_budget)
             logger.info("  Subsampled to %d shots", len(shots))
         
-        # Compute metrics
         sample_mets = compute_sample_metrics(dataset_train_samples, shots, sigma)
         coverage_mets = compute_coverage_validity(shots, dataset_train_samples)
         
@@ -315,67 +440,59 @@ def main(args: argparse.Namespace):
                 "metrics": {**sample_mets, **coverage_mets}
             })
         
-        logger.info("  MMD: %.6f, TVD: %.4f, KL: %.4f, Coverage: %.2f%%",
+        logger.info("  MMD: %.6f, TVD: %.4f, KL: %.4f, JSD: %.4f, Coverage: %.2f%%",
                    sample_mets.get('mmd', float('nan')),
                    sample_mets.get('tvd', float('nan')),
                    sample_mets.get('kl', float('nan')),
+                   sample_mets.get('jsd', float('nan')),
                    coverage_mets.get('coverage', float('nan')))
         
-        # Store for ensemble computation
         if kind != "standalone":
             ensemble_shots_all.append(shots)
-    
-    # Compute ensemble metrics (standard weights)
-    ensemble_sample_mets = None
-    ensemble_coverage_mets = None
-    ensemble_fcfw_sample_mets = None
-    ensemble_fcfw_coverage_mets = None
+
+    # Ensemble metrics (standard weights)
+    ensemble_sample_mets = ensemble_coverage_mets = None
+    ensemble_fcfw_sample_mets = ensemble_fcfw_coverage_mets = None
 
     if ensemble_shots_all and len(ensemble_weights) == len(ensemble_shots_all):
         logger.info("")
         logger.info("Computing ensemble metrics (standard weights)...")
-        total_n = shots_budget
-        ensemble_shots = combine_shots_by_weights(ensemble_shots_all, ensemble_weights, total_n)
+        ensemble_shots = combine_shots_by_weights(ensemble_shots_all, ensemble_weights, shots_budget)
         if ensemble_shots.size:
             ensemble_sample_mets = compute_sample_metrics(dataset_train_samples, ensemble_shots, sigma)
             ensemble_coverage_mets = compute_coverage_validity(ensemble_shots, dataset_train_samples)
-            logger.info("Ensemble MMD: %.6f", ensemble_sample_mets.get('mmd', float('nan')))
-            logger.info("Ensemble TVD: %.4f", ensemble_sample_mets.get('tvd', float('nan')))
-            logger.info("Ensemble KL: %.4f", ensemble_sample_mets.get('kl', float('nan')))
-            logger.info("Ensemble Coverage: %.2f%%", ensemble_coverage_mets.get('coverage', float('nan')))
+            log_ensemble_metrics("Ensemble", ensemble_sample_mets, ensemble_coverage_mets)
+            methods_to_plot.append(("Ensemble", ensemble_shots))
     else:
         logger.warning("Ensemble metrics skipped: incomplete shot data for standard weights")
 
-    # If FCFW weights are present in artifact, compute ensemble metrics using them as well
+    # FCFW ensemble metrics
     ensemble_fcfw_weights = restored.get('ensemble', {}).get('fcfw_weights', None)
     if ensemble_shots_all and ensemble_fcfw_weights is not None and len(ensemble_fcfw_weights) == len(ensemble_shots_all):
         logger.info("")
         logger.info("Computing ensemble metrics (FCFW weights)...")
-        total_n = shots_budget
-        ensemble_fcfw_shots = combine_shots_by_weights(ensemble_shots_all, ensemble_fcfw_weights, total_n)
+        ensemble_fcfw_shots = combine_shots_by_weights(ensemble_shots_all, ensemble_fcfw_weights, shots_budget)
         if ensemble_fcfw_shots.size:
             ensemble_fcfw_sample_mets = compute_sample_metrics(dataset_train_samples, ensemble_fcfw_shots, sigma)
             ensemble_fcfw_coverage_mets = compute_coverage_validity(ensemble_fcfw_shots, dataset_train_samples)
-            logger.info("Ensemble(FCFW) MMD: %.6f", ensemble_fcfw_sample_mets.get('mmd', float('nan')))
-            logger.info("Ensemble(FCFW) TVD: %.4f", ensemble_fcfw_sample_mets.get('tvd', float('nan')))
-            logger.info("Ensemble(FCFW) KL: %.4f", ensemble_fcfw_sample_mets.get('kl', float('nan')))
-            logger.info("Ensemble(FCFW) Coverage: %.2f%%", ensemble_fcfw_coverage_mets.get('coverage', float('nan')))
+            log_ensemble_metrics("Ensemble(FCFW)", ensemble_fcfw_sample_mets, ensemble_fcfw_coverage_mets)
+            methods_to_plot.append(("Ensemble_FCFW", ensemble_fcfw_shots))
     else:
         if ensemble_fcfw_weights is not None:
             logger.warning("Ensemble FCFW metrics skipped: inconsistent shot count or missing shots")
-    
-    # Optional standalone baseline metrics from inference output.
-    standalone_sample_mets = None
-    standalone_coverage_mets = None
+
+    # Standalone baseline
+    standalone_sample_mets = standalone_coverage_mets = None
     if standalone_shots is not None:
         logger.info("")
         logger.info("Computing standalone baseline metrics...")
         standalone_sample_mets = compute_sample_metrics(dataset_train_samples, standalone_shots, sigma)
         standalone_coverage_mets = compute_coverage_validity(standalone_shots, dataset_train_samples)
+        methods_to_plot.append(("Standalone", standalone_shots))
 
-    # Save results
+    # Build results
     results = {
-        "artifact_path": str(artifact_path),
+        "artifact_path": str(restored.get('_artifact_path', '')),
         "inference_dir": str(inference_dir),
         "timestamp": datetime.now().isoformat(),
         "configuration": {
@@ -399,44 +516,210 @@ def main(args: argparse.Namespace):
     if standalone_sample_mets is not None:
         results.setdefault("baselines", {})
         results["baselines"]["standalone"] = {**standalone_sample_mets, **standalone_coverage_mets}
-    
     if ensemble_sample_mets is not None:
         results["ensemble"]["metrics_standard"] = {**ensemble_sample_mets, **ensemble_coverage_mets}
     if ensemble_fcfw_sample_mets is not None:
         results["ensemble"]["metrics_fcfw"] = {**ensemble_fcfw_sample_mets, **ensemble_fcfw_coverage_mets}
 
-    # Baseline: data-only ensemble metrics (sample directly from saved models if present)
+    # Data-only baselines
     data_only_entry = restored.get('data_only', None)
     if data_only_entry is not None:
         results.setdefault('baselines', {})
-        data_only_models = data_only_entry.get('models', [])
-        data_only_weights = data_only_entry.get('weights', None)
-        data_only_fcfw_weights = data_only_entry.get('fcfw_weights', None)
+        do_models = data_only_entry.get('models', [])
+        do_weights = data_only_entry.get('weights', None)
+        do_fcfw = data_only_entry.get('fcfw_weights', None)
 
-        if data_only_models and data_only_weights is not None:
+        if do_models and do_weights is not None:
             logger.info("")
-            logger.info("Computing data-only baseline metrics (standard weights) by sampling from saved models...")
-            sampled = sample_models_direct(data_only_models, data_only_weights, restored['circuit'], restored['wires'], shots_budget)
+            logger.info("Computing data-only metrics (standard weights)...")
+            sampled = sample_models_direct(do_models, do_weights, restored['circuit'], restored['wires'], shots_budget)
             if sampled.size:
                 mets = compute_sample_metrics(dataset_train_samples, sampled, sigma)
                 cov = compute_coverage_validity(sampled, dataset_train_samples)
                 results['baselines']['data_only_metrics_standard'] = {**mets, **cov}
+                methods_to_plot.append(("DataOnly", sampled))
 
-        if data_only_models and data_only_fcfw_weights is not None:
+        if do_models and do_fcfw is not None:
             logger.info("")
-            logger.info("Computing data-only baseline metrics (FCFW weights) by sampling from saved models...")
-            sampled_fcfw = sample_models_direct(data_only_models, data_only_fcfw_weights, restored['circuit'], restored['wires'], shots_budget)
-            if sampled_fcfw.size:
-                mets_f = compute_sample_metrics(dataset_train_samples, sampled_fcfw, sigma)
-                cov_f = compute_coverage_validity(sampled_fcfw, dataset_train_samples)
-                results['baselines']['data_only_metrics_fcfw'] = {**mets_f, **cov_f}
-    
-    output_file = inference_dir / f"backend_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            logger.info("Computing data-only metrics (FCFW weights)...")
+            sampled = sample_models_direct(do_models, do_fcfw, restored['circuit'], restored['wires'], shots_budget)
+            if sampled.size:
+                mets = compute_sample_metrics(dataset_train_samples, sampled, sigma)
+                cov = compute_coverage_validity(sampled, dataset_train_samples)
+                results['baselines']['data_only_metrics_fcfw'] = {**mets, **cov}
+                methods_to_plot.append(("DataOnly_FCFW", sampled))
+
+    # Plot all methods in canonical order (skip missing)
+    _order = ["Standalone", "DataOnly", "DataOnly_FCFW", "Ensemble", "Ensemble_FCFW"]
+    _method_map = dict(methods_to_plot)
+    methods_ordered = [(k, _method_map[k]) for k in _order if k in _method_map]
+    plot_common_metrics(dataset_train_samples, methods_ordered, metrics_dir)
+    plot_correlation_heatmaps(dataset_train_samples, methods_ordered, metrics_dir)
+    methods_to_plot.clear()
+
+    output_file = metrics_dir / "backend_metrics.json"
     with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
-    
-    logger.info("")
     logger.info("Metrics saved to: %s", output_file)
+
+
+def log_ensemble_metrics(label: str, sample_mets: dict, coverage_mets: dict) -> None:
+    """Log ensemble-level metrics."""
+    logger.info("%s MMD: %.6f", label, sample_mets.get('mmd', float('nan')))
+    logger.info("%s TVD: %.4f", label, sample_mets.get('tvd', float('nan')))
+    logger.info("%s KL: %.4f", label, sample_mets.get('kl', float('nan')))
+    logger.info("%s JSD: %.4f", label, sample_mets.get('jsd', float('nan')))
+    logger.info("%s Precision: %.4f, Recall: %.4f, F1: %.4f",
+                label, sample_mets.get('precision', float('nan')),
+                sample_mets.get('recall', float('nan')),
+                sample_mets.get('f_score', float('nan')))
+    logger.info("%s Coverage: %.2f%%", label, coverage_mets.get('coverage', float('nan')))
+
+
+def process_artifact(artifact_path: Path, shots_budget: int, inference_dir_override: str | None = None) -> None:
+    """Compute metrics for a single circuit artifact.
+
+    When *inference_dir_override* is given, only that run is processed.
+    Otherwise, all inference runs under ``inference_results/`` are processed.
+    """
+    if not artifact_path.exists():
+        logger.error("Artifact file not found: %s", artifact_path)
+        return
+
+    logger.info("Loading circuit artifact: %s", artifact_path)
+    try:
+        restored = restore_circuit_artifact(artifact_path)
+    except Exception as e:
+        logger.error("Failed to restore artifact: %s", e)
+        return
+
+    restored.setdefault('_artifact_path', str(artifact_path))
+
+    dataset_train_samples = restored["dataset_train_samples"]
+    if dataset_train_samples is None:
+        logger.error("Training dataset samples not available in artifact")
+        return
+
+    ensemble_models = restored["ensemble"]["models"]
+    ensemble_weights = restored["ensemble"]["weights"]
+    sigma = restored["sigma"]
+    n_qubits = restored["artifact"]["circuit"]["n_visible_qubits"]
+
+    logger.info("Dataset: %d training samples, %d qubits", len(dataset_train_samples), n_qubits)
+    logger.info("Sigma: %s", sigma)
+    logger.info("Ensemble: %d models, weights sum=%.4f", len(ensemble_models), ensemble_weights.sum())
+
+    if inference_dir_override is not None:
+        dirs = [resolve_inference_dir(artifact_path, inference_dir_override)]
+    else:
+        dirs = find_inference_dirs(artifact_path)
+        if not dirs:
+            logger.error("No inference runs found under %s", artifact_path.parent / "inference_results")
+            logger.info("Run: python scripts/run_backend_inference.py %s", artifact_path)
+            return
+        logger.info("Found %d inference run(s)", len(dirs))
+
+    for inf_dir in dirs:
+        logger.info("")
+        logger.info("--- Inference run: %s ---", inf_dir.name)
+        _process_inference_run(restored, inf_dir, shots_budget)
+
+
+def build_recap_table(root: Path) -> str:
+    """Aggregate metrics from all artifacts under *root* into a Markdown table."""
+    headers = ['Dataset', 'Method', 'MMD', 'TVD', 'KL', 'JSD', 'Precision', 'Recall', 'F1', 'Coverage (%)']
+    rows = []
+    artifacts = sorted(root.rglob('circuit_artifact.json'))
+    for ap in artifacts:
+        dataset_name = ap.parent.name
+        # Pick the latest inference run
+        inf_dirs = find_inference_dirs(ap)
+        if not inf_dirs:
+            continue
+        metrics_file = inf_dirs[0] / "metrics" / "backend_metrics.json"
+        if not metrics_file.exists():
+            continue
+        with open(metrics_file) as f:
+            data = json.load(f)
+        dataset_rows = []
+        for method_key, method_label in [('standalone', 'Standalone'),
+                                          ('data_only_metrics_standard', 'DataOnly'),
+                                          ('data_only_metrics_fcfw', 'DataOnly_FCFW'),
+                                          ('metrics_standard', 'Ensemble'),
+                                          ('metrics_fcfw', 'Ensemble_FCFW')]:
+            baselines = data.get('baselines', {})
+            ens = data.get('ensemble', {})
+            m = baselines.get(method_key, {}) if method_key in baselines else ens.get(method_key, {})
+            if not m:
+                continue
+            dataset_rows.append([dataset_name, method_label,
+                                 f"{m.get('mmd', float('nan')):.4f}",
+                                 f"{m.get('tvd', float('nan')):.4f}",
+                                 f"{m.get('kl', float('nan')):.4f}",
+                                 f"{m.get('jsd', float('nan')):.4f}",
+                                 f"{m.get('precision', float('nan')):.3f}",
+                                 f"{m.get('recall', float('nan')):.3f}",
+                                 f"{m.get('f_score', float('nan')):.3f}",
+                                 f"{m.get('coverage', float('nan')):.1f}"])
+        if dataset_rows:
+            if rows:
+                rows.append(None)  # separator
+            rows.extend(dataset_rows)
+
+    if not rows:
+        return ""
+
+    valid_rows = [r for r in rows if r is not None]
+    col_widths = [max([len(str(r[i])) for r in valid_rows] + [len(headers[i])]) for i in range(len(headers))]
+    sep = '| ' + ' | '.join(h.ljust(w) for h, w in zip(headers, col_widths)) + ' |'
+    line = '|-' + '-|-'.join('-' * w for w in col_widths) + '-|'
+    sep_line = '| ' + ' | '.join(' ' * w for w in col_widths) + ' |'
+
+    parts = [sep, line]
+    for r in rows:
+        if r is None:
+            parts.append(sep_line)
+        else:
+            parts.append('| ' + ' | '.join(str(r[i]).ljust(w) for i, w in enumerate(col_widths)) + ' |')
+    return '\n'.join(parts)
+
+
+def main(args: argparse.Namespace):
+    """Compute metrics from backend inference shots.
+
+    Single-artifact mode: pass a path to a ``circuit_artifact.json`` file.
+    Batch mode: pass a parent directory; all ``circuit_artifact.json`` files
+    found recursively under it are processed.
+    """
+    root = Path(args.artifact_path)
+
+    if root.is_file():
+        # Single mode (original behavior)
+        process_artifact(root, args.shots, inference_dir_override=args.inference_dir)
+    else:
+        # Batch mode
+        artifacts = sorted(root.rglob('circuit_artifact.json'))
+        if not artifacts:
+            logger.error("No circuit_artifact.json found under %s", root)
+            return
+        logger.info("Batch mode: found %d artifact(s) under %s", len(artifacts), root)
+        for ap in artifacts:
+            logger.info("")
+            logger.info("=" * 60)
+            logger.info("Processing: %s", ap)
+            logger.info("=" * 60)
+            process_artifact(ap, args.shots, inference_dir_override=None)
+
+        # Recap table across all datasets
+        table = build_recap_table(root)
+        if table:
+            table_path = root / 'metrics_recap.md'
+            with open(table_path, 'w') as f:
+                f.write('# Metrics Recap\n\n')
+                f.write(table)
+                f.write('\n')
+            logger.info("")
+            logger.info("Recap table saved to: %s", table_path)
 
 
 if __name__ == "__main__":
@@ -446,7 +729,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "artifact_path",
         type=str,
-        help="Path to the circuit_artifact.json file",
+        help="Path to a circuit_artifact.json file (single mode), or a parent directory"
+             " whose subdirectories are searched recursively for circuit_artifact.json files"
+             " (batch mode).",
     )
     parser.add_argument(
         "--shots",

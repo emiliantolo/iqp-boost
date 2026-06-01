@@ -1,14 +1,90 @@
-# Backend inference & metrics
+# iqp-boost
 
-## Prerequisites
-- Python and project dependencies installed (see `pyproject.toml`).
-- Iqpopt installed.
+Config-driven experiments for IQP ensemble boosting on binary datasets (BAS, parity, Gaussian mixture, blobs, and shapes).
+
+## Run Experiments
+
+Use a single CLI entrypoint and pass a JSON/TOML experiment file containing a list of runs.
+
+```bash
+uv run main.py --config configs/experiments.example.json
+```
+
+Optional controls:
+
+```bash
+# list run names found in the config
+uv run main.py --config configs/experiments.example.json --list-runs
+
+# validate config and selected runs without training
+uv run main.py --config configs/experiments.example.json --dry-run
+
+# run only selected named runs from the config
+uv run main.py --config configs/experiments.example.json --only blobs_default parity_scan
+
+# run selection also accepts 0-based indices from --list-runs order
+uv run main.py --config configs/experiments.example.json --only 0 2
+
+# override output base directory
+uv run main.py --config configs/experiments.example.json --output-dir out_custom
+
+# override config values for all selected runs
+uv run main.py --config configs/experiments.example.json --set n_models=16 --set learning_rate=0.03
+
+# example: force analytical mode for speed
+uv run main.py --config configs/experiments.example.json --set skip_sampling=true
+```
+
+## Dataset Configs
+
+Dataset-specific config files are available in:
+
+- `configs/datasets/bas_4x4.json`
+- `configs/datasets/bas_3x3.json`
+- `configs/datasets/blobs.json`
+- `configs/datasets/gaussian.json`
+- `configs/datasets/parity.json`
+- `configs/datasets/shapes.json`
+
+Examples:
+
+```bash
+uv run main.py --config configs/datasets/blobs.json
+uv run main.py --config configs/datasets/shapes.json --set skip_sampling=true
+```
+
+## Config Schema
+
+- `output`: suite output settings (`base_dir`, `suite_name`)
+- `defaults`: default training/circuit config merged into each run
+- `runs`: list of run objects
+
+Each run supports:
+
+- `name`: subfolder name for the run output
+- `dataset`: dataset selection (`name`: `bas|blobs|gaussian|parity|shapes`) and optional params
+- `config`: per-run overrides merged on top of `defaults`
+- `plot`: standardized plotting mode and params (`none|histogram|sample_grid|gaussian_summary`)
+- `metric_configs`: optional metric progression overrides
+- `baseline_epochs`: optional standalone baseline epochs override
+
+Example config: `configs/experiments.example.json`
+
+## Outputs
+
+Each invocation creates one suite folder, then one subfolder per run:
+
+- `out/<suite_name>_<timestamp>/<run_name>/log.txt`
+- `out/<suite_name>_<timestamp>/<run_name>/results.csv`
+- `out/<suite_name>_<timestamp>/<run_name>/config.json`
+- plus plots and optional custom visualization files
+
+
+## Backend inference & metrics
 
 Scripts
 - `scripts/run_backend_inference.py` — replay a saved circuit artifact to produce shot files (.npy).
 - `scripts/compute_backend_metrics.py` — compute metrics from shot files and the original artifact.
-
-## Usage
 
 ### 1) Run inference (replay saved models):
 #### run_backend_inference.py
@@ -42,15 +118,18 @@ Outputs a timestamped per-run folder under `inference_results/` containing `infe
 #### compute_backend_metrics.py
 
 ```bash
+# Single mode (original behavior)
 python scripts/compute_backend_metrics.py /path/to/circuit_artifact.json [--inference-dir PATH] [--shots N]
+
+# Batch mode: process all artifacts in a directory tree
+python scripts/compute_backend_metrics.py /path/to/experiments/ [--shots N]
 ```
-- `artifact_path`: required path to the `circuit_artifact.json` produced by training.
-- `--inference-dir`: optional path to a specific run folder under `inference_results/`. If omitted the script picks the latest run.
-- `--shots`: sample budget, total number of generated samples for metrics (default 1024).
 
-#### Output
+- `artifact_path`: path to a `circuit_artifact.json` file (single mode) **or** a parent directory whose subdirectories are searched recursively for artifacts (batch mode).
+- `--inference-dir`: optional path to a specific run folder under `inference_results/`. If omitted, **all** inference runs under `inference_results/` are processed.
+- `--shots`: number of generated samples to use for metrics (default: 1024).
 
-Creates `inference_results/backend_metrics_*.json` saved into the selected run folder; includes per-model metrics and ensemble aggregates (standard and FCFW-weighted when available), plus baselines.
+Creates `metrics/backend_metrics.json` and `metrics/common_metrics_*.png` plots inside the selected inference run folder; includes per-model metrics and ensemble aggregates (standard and FCFW-weighted when available), plus baselines.
 
 #### Metrics Definitions:
 - **MMD**: Maximum Mean Discrepancy (lower is better)
@@ -59,27 +138,3 @@ Creates `inference_results/backend_metrics_*.json` saved into the selected run f
 - **Coverage**: % of training set states observed in samples (higher is better)
 - **Validity**: % of samples that are valid bitstrings (always 100% for binary data)
 
-
-## Example (BAS on Simulator)
-
-### 1. Execute on local simulator
-
-```bash
-uv run scripts/run_backend_inference.py out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/circuit_artifact.json --backend simulator --shots 1024
-```
-
-#### Expected output:
-```
-out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/inference_results/model_*.npy
-out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/inference_results/inference_metadata.json
-```
-
-### 2. Compute metrics
-```bash
-uv run scripts/compute_backend_metrics.py out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/circuit_artifact.json --shots 1024
-```
-
-#### Expected output:
-```
-out_benchmark_suite_aachen/benchmark_suite_bas_16q_20260528_184359/binary_bas_16q/inference_results/backend_metrics_*.json
-```
