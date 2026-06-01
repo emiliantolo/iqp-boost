@@ -1,0 +1,14 @@
+{
+  "dataset_key": "hopfield",
+  "dataset_params": {
+    "n_qubits": 20,
+    "n_patterns": 2,
+    "beta": 1.5,
+    "pattern_seed": 42
+  },
+  "n_qubits": 20,
+  "n_samples": 1024,
+  "has_centers": false,
+  "has_J": true,
+  "has_patterns": true
+}

@@ -1,0 +1,100 @@
+{
+  "artifact_path": "out_benchmark_suite_qpu_v2/benchmark_suite_binary_blobs_20260531_211141/binary_blobs_16q/circuit_artifact.json",
+  "backend": "simulator",
+  "mode": "both",
+  "shots": 1024,
+  "n_qubits": 16,
+  "ensemble_models_run": 10,
+  "standalone_run": true,
+  "run_dir": "inference_results/run_20260601_160234_simulator_both",
+  "timestamp": "2026-06-01T16:02:35.096726",
+  "shot_results": [
+    {
+      "sample_name": "ensemble_model_0",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_0_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 0,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "ensemble_model_1",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_1_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 1,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "ensemble_model_2",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_2_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 2,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "ensemble_model_3",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_3_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 3,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "ensemble_model_4",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_4_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 4,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "ensemble_model_5",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_5_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 5,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "ensemble_model_6",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_6_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 6,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "ensemble_model_7",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_7_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 7,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "ensemble_model_8",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_8_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 8,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "ensemble_model_9",
+      "shots_file": "run_20260601_160234_simulator_both/ensemble_model_9_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "model_index": 9,
+      "kind": "ensemble"
+    },
+    {
+      "sample_name": "standalone",
+      "shots_file": "run_20260601_160234_simulator_both/standalone_shots_20260601_160235.npy",
+      "num_shots": 1024,
+      "timestamp": "20260601_160235",
+      "kind": "standalone"
+    }
+  ]
+}

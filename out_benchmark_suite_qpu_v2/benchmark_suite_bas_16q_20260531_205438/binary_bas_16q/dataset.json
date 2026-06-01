@@ -1,0 +1,15 @@
+{
+  "dataset_key": "bas",
+  "dataset_params": {
+    "dims": [
+      4,
+      4
+    ],
+    "min_spacing": 5
+  },
+  "n_qubits": 16,
+  "n_samples": 1024,
+  "has_centers": false,
+  "has_J": false,
+  "has_patterns": false
+}

@@ -1,0 +1,9 @@
+{
+  "dataset_key": "blobs",
+  "dataset_params": {},
+  "n_qubits": 16,
+  "n_samples": 1024,
+  "has_centers": false,
+  "has_J": false,
+  "has_patterns": false
+}
