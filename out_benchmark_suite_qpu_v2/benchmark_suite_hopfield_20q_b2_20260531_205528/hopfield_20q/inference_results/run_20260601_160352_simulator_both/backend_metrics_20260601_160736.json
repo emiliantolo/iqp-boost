@@ -1,0 +1,173 @@
+{
+  "artifact_path": "out_benchmark_suite_qpu_v2/benchmark_suite_hopfield_20q_b2_20260531_205528/hopfield_20q/circuit_artifact.json",
+  "inference_dir": "out_benchmark_suite_qpu_v2/benchmark_suite_hopfield_20q_b2_20260531_205528/hopfield_20q/inference_results/run_20260601_160352_simulator_both",
+  "timestamp": "2026-06-01T16:07:36.250852",
+  "configuration": {
+    "n_qubits": 20,
+    "n_training_samples": 1024,
+    "shots_for_metrics": 1024,
+    "sigma": "[2.178442285330266, 1.435514624263164, 0.8952068537663009, 0.20839733249326398]"
+  },
+  "model_results": [
+    {
+      "sample_name": "ensemble_model_0",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.08615414425730705,
+        "tvd": 0.9853515625,
+        "kl": 25.03974904309538,
+        "coverage": 5.017921146953405,
+        "validity": 100.0
+      }
+    },
+    {
+      "sample_name": "ensemble_model_1",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.21839512139558792,
+        "tvd": 0.7548828125,
+        "kl": 15.89887106000262,
+        "coverage": 22.939068100358423,
+        "validity": 100.0
+      }
+    },
+    {
+      "sample_name": "ensemble_model_2",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.3513663709163666,
+        "tvd": 0.79296875,
+        "kl": 19.707967416496846,
+        "coverage": 17.921146953405017,
+        "validity": 100.0
+      }
+    },
+    {
+      "sample_name": "ensemble_model_3",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.560128852725029,
+        "tvd": 0.849609375,
+        "kl": 21.235079940551437,
+        "coverage": 3.942652329749104,
+        "validity": 100.0
+      }
+    },
+    {
+      "sample_name": "ensemble_model_4",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.7054926306009293,
+        "tvd": 0.8935546875,
+        "kl": 22.369468740262008,
+        "coverage": 0.35842293906810035,
+        "validity": 100.0
+      }
+    },
+    {
+      "sample_name": "ensemble_model_5",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.567764401435852,
+        "tvd": 0.84765625,
+        "kl": 21.091118793114596,
+        "coverage": 5.376344086021505,
+        "validity": 100.0
+      }
+    },
+    {
+      "sample_name": "ensemble_model_6",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.3877316862344742,
+        "tvd": 0.796875,
+        "kl": 19.92517830737703,
+        "coverage": 15.053763440860216,
+        "validity": 100.0
+      }
+    },
+    {
+      "sample_name": "ensemble_model_7",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.41907863318920135,
+        "tvd": 0.8251953125,
+        "kl": 20.412322927671333,
+        "coverage": 6.810035842293908,
+        "validity": 100.0
+      }
+    },
+    {
+      "sample_name": "ensemble_model_8",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.4690900146961212,
+        "tvd": 0.8359375,
+        "kl": 20.753308835130117,
+        "coverage": 5.734767025089606,
+        "validity": 100.0
+      }
+    },
+    {
+      "sample_name": "ensemble_model_9",
+      "n_shots_used": 1024,
+      "metrics": {
+        "mmd": 0.32841379567980766,
+        "tvd": 0.7880859375,
+        "kl": 19.72429875726239,
+        "coverage": 15.412186379928317,
+        "validity": 100.0
+      }
+    }
+  ],
+  "ensemble": {
+    "n_models": 10,
+    "weights": [
+      0.35239410400390625,
+      0.11746470133463544,
+      0.0939717610677083,
+      0.08054722377232142,
+      0.07159753224206349,
+      0.06508866567460318,
+      0.06008184523809523,
+      0.056076388888888884,
+      0.05277777777777776,
+      0.05
+    ],
+    "weights_fcfw": [
+      0.1038967574900585,
+      0.12422708439584064,
+      0.15357072730970509,
+      1.347629419081592e-17,
+      0.0030752885862750925,
+      0.03173332737763365,
+      0.0730369677149086,
+      0.209836125883673,
+      0.1833481082084988,
+      0.11727561303340667
+    ],
+    "metrics_standard": {
+      "mmd": 0.006486009806394577,
+      "tvd": 0.4267578125,
+      "kl": 7.400232402275714,
+      "coverage": 29.03225806451613,
+      "validity": 100.0
+    },
+    "metrics_fcfw": {
+      "mmd": 6.756186485290527e-05,
+      "tvd": 0.31640625,
+      "kl": 6.441073654618626,
+      "coverage": 31.899641577060933,
+      "validity": 100.0
+    }
+  },
+  "baselines": {
+    "standalone": {
+      "mmd": 0.0863809296861291,
+      "tvd": 0.9814453125,
+      "kl": 22.221298989426728,
+      "coverage": 5.734767025089606,
+      "validity": 100.0
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "dataset_key": "hamming_balls",
+  "dataset_params": {
+    "n_qubits": 50,
+    "K": 6,
+    "p": 0.1,
+    "pattern_seed": 0
+  },
+  "n_qubits": 50,
+  "n_samples": 4096,
+  "has_centers": true,
+  "has_J": false,
+  "has_patterns": false
+}
