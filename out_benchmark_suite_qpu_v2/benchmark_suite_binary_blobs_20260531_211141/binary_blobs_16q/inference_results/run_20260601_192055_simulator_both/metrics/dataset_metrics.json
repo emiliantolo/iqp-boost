@@ -1,0 +1,11 @@
+{
+  "artifact_path": "out_benchmark_suite_qpu_v2/benchmark_suite_binary_blobs_20260531_211141/binary_blobs_16q/circuit_artifact.json",
+  "inference_dir": "out_benchmark_suite_qpu_v2/benchmark_suite_binary_blobs_20260531_211141/binary_blobs_16q/inference_results/run_20260601_192055_simulator_both",
+  "dataset_key": "blobs",
+  "timestamp": "2026-06-02T12:25:07.262204",
+  "configuration": {
+    "n_qubits": 16,
+    "shots_for_metrics": 1024
+  },
+  "step_metrics": []
+}

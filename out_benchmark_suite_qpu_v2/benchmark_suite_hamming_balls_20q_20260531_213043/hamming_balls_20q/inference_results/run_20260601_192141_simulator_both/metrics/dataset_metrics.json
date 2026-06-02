@@ -1,0 +1,55 @@
+{
+  "artifact_path": "/home/emiliano/iqpa/iqp-boost/out_benchmark_suite_qpu_v2/benchmark_suite_hamming_balls_20q_20260531_213043/hamming_balls_20q/circuit_artifact.json",
+  "inference_dir": "/home/emiliano/iqpa/iqp-boost/out_benchmark_suite_qpu_v2/benchmark_suite_hamming_balls_20q_20260531_213043/hamming_balls_20q/inference_results/run_20260601_192141_simulator_both",
+  "dataset_key": "hamming_balls",
+  "timestamp": "2026-06-02T12:29:31.415849",
+  "configuration": {
+    "n_qubits": 20,
+    "shots_for_metrics": 1024
+  },
+  "step_metrics": [
+    {
+      "recall_distance": 5.69921875
+    },
+    {
+      "recall_distance": 4.986328125
+    },
+    {
+      "recall_distance": 4.4873046875
+    },
+    {
+      "recall_distance": 4.1171875
+    },
+    {
+      "recall_distance": 3.7431640625
+    },
+    {
+      "recall_distance": 3.6845703125
+    },
+    {
+      "recall_distance": 3.51171875
+    },
+    {
+      "recall_distance": 3.353515625
+    },
+    {
+      "recall_distance": 3.201171875
+    },
+    {
+      "recall_distance": 3.2041015625
+    }
+  ],
+  "ensemble": {
+    "metrics_standard": {
+      "recall_distance": 3.1875
+    },
+    "metrics_fcfw": {
+      "recall_distance": 2.6181640625
+    }
+  },
+  "baselines": {
+    "standalone": {
+      "recall_distance": 5.7607421875
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "artifact_path": "out_benchmark_suite_qpu_v2/benchmark_suite_bas_16q_20260531_205438/binary_bas_16q/circuit_artifact.json",
+  "inference_dir": "out_benchmark_suite_qpu_v2/benchmark_suite_bas_16q_20260531_205438/binary_bas_16q/inference_results/run_20260601_192043_simulator_both",
+  "dataset_key": "bas",
+  "timestamp": "2026-06-02T12:25:04.880572",
+  "configuration": {
+    "n_qubits": 16,
+    "shots_for_metrics": 1024
+  },
+  "step_metrics": [
+    {
+      "validity": 12.01171875,
+      "coverage": 55.55555555555556
+    },
+    {
+      "validity": 12.109375,
+      "coverage": 55.55555555555556
+    },
+    {
+      "validity": 13.76953125,
+      "coverage": 55.55555555555556
+    },
+    {
+      "validity": 18.84765625,
+      "coverage": 66.66666666666666
+    },
+    {
+      "validity": 26.171875,
+      "coverage": 55.55555555555556
+    },
+    {
+      "validity": 31.73828125,
+      "coverage": 77.77777777777779
+    },
+    {
+      "validity": 37.98828125,
+      "coverage": 88.88888888888889
+    },
+    {
+      "validity": 42.87109375,
+      "coverage": 100.0
+    },
+    {
+      "validity": 46.09375,
+      "coverage": 88.88888888888889
+    },
+    {
+      "validity": 47.8515625,
+      "coverage": 100.0
+    }
+  ],
+  "ensemble": {
+    "metrics_standard": {
+      "validity": 48.53515625,
+      "coverage": 100.0
+    },
+    "metrics_fcfw": {
+      "validity": 80.6640625,
+      "coverage": 88.88888888888889
+    }
+  },
+  "baselines": {
+    "standalone": {
+      "validity": 13.671875,
+      "coverage": 44.44444444444444
+    }
+  }
+}

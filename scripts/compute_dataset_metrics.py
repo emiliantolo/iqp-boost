@@ -319,33 +319,43 @@ def compute_hopfield_metrics(samples: np.ndarray, J: np.ndarray, patterns: np.nd
     }
 
 
-def _hamming_balls_analytical_recall(ds) -> float | None:
-    """Expected recall distance under the true Hamming Balls mixture distribution.
+def _hamming_balls_analytical_recall(ds) -> tuple[float | None, float | None]:
+    """(true_expected, random_expected) recall distance for Hamming Balls.
 
-    Uses the exact probabilities (*ds.probs*) when available (n ≤ 20-25),
-    otherwise falls back to *None*.
+    *true_expected* is the expectation under the true mixture distribution
+    (from *ds.probs*).  *random_expected* is the expectation under the
+    uniform distribution over all 2ⁿ states.
+    Both are *None* when the state space is too large (n > 22).
     """
     probs = getattr(ds, "probs", None)
     centers = getattr(ds, "centers", None)
     nq = getattr(ds, "n_qubits", 0)
     if probs is None or centers is None or nq == 0:
-        return None
+        return None, None
     if 2 ** nq > 2 ** 22:
-        return None
+        return None, None
     indices = np.arange(2 ** nq, dtype=np.int64)
     bits = ((indices[:, None] >> np.arange(nq, dtype=np.int64)) & 1).astype(np.int8)
     H = (bits[:, None, :] != centers[None, :, :]).sum(axis=2)
     min_dists = H.min(axis=1)
-    return float((probs * min_dists).sum())
+    true_exp = float((probs * min_dists).sum())
+    random_exp = float(min_dists.mean())
+    return true_exp, random_exp
 
 
 def compute_hamming_balls_metrics(centers: np.ndarray, samples: np.ndarray,
-                                  n_qubits: int = 0, radius_fraction: float = 0.15) -> dict:
-    """Recall distance: mean min Hamming distance to nearest center (threshold-free)."""
+                                  n_qubits: int = 0, radius_fraction: float = 0.15,
+                                  analytical_threshold: float | None = None) -> dict:
+    """Recall distance + coverage (fraction of samples below *analytical_threshold*)."""
     if len(samples) == 0 or len(centers) == 0:
-        return {"recall_distance": float("nan")}
+        return {"recall_distance": float("nan"), "coverage": float("nan")}
     recall_dist = compute_hamming_balls_recall_distance(centers, samples)
-    return {"recall_distance": float(recall_dist)}
+    m = {"recall_distance": float(recall_dist)}
+    if analytical_threshold is not None:
+        dists = compute_hamming_matrix(samples, centers).min(axis=1)
+        coverage = float((dists < analytical_threshold).mean())
+        m["coverage"] = coverage
+    return m
 
 
 # ---------------------------------------------------------------------------
@@ -397,12 +407,14 @@ def _build_dataset_figures(ground_truth, step_metrics, methods, dataset_key, ds)
     if dataset_key == "hamming_balls":
         centers = getattr(ds, "centers", None)
         nq = getattr(ds, "n_qubits", centers.shape[1] if centers is not None else 0)
-        analytical = _hamming_balls_analytical_recall(ds)
-        fig = _plot_hamming_balls_stepwise(step_metrics, analytical=analytical)
+        analytical_true, analytical_random = _hamming_balls_analytical_recall(ds)
+        fig = _plot_hamming_balls_stepwise(step_metrics, analytical=analytical_true,
+                                           random_analytical=analytical_random)
         if fig:
             figs.append(("stepwise", fig))
         fig = _plot_hamming_balls_distance_dist(ground_truth, methods, centers,
-                                                analytical=analytical)
+                                                analytical=analytical_true,
+                                                random_analytical=analytical_random)
         if fig:
             figs.append(("distance_dist", fig))
         return figs
@@ -489,26 +501,39 @@ def _plot_hopfield_energy_hist(ground_truth, methods, ds) -> object | None:
 
 
 def _plot_hamming_balls_stepwise(step_metrics: list[dict] | None,
-                                 analytical: float | None = None) -> object | None:
+                                 analytical: float | None = None,
+                                 random_analytical: float | None = None) -> object | None:
     if not step_metrics or plt is None:
         return None
     steps = list(range(len(step_metrics)))
     distances = [m.get("recall_distance", float("nan")) for m in step_metrics]
+    coverages = [m.get("coverage", float("nan")) for m in step_metrics]
 
-    fig, ax = plt.subplots(figsize=(8, 4.5), constrained_layout=True)
-    ax.plot(steps, distances, "o-", color="tab:green", label="Incremental ensemble")
+    fig, ax1 = plt.subplots(figsize=(8, 4.5), constrained_layout=True)
+    ax1.plot(steps, distances, "o-", color="tab:green", label="Incremental ensemble")
     if analytical is not None:
-        ax.axhline(analytical, color="black", ls=":", lw=1.2, label=f"Analytical = {analytical:.3f}")
-    ax.set_xlabel("Boosting step")
-    ax.set_ylabel("Mean Hamming distance to nearest center")
-    ax.set_title("Hamming Balls — incremental ensemble recall distance")
-    ax.legend(fontsize=8)
+        ax1.axhline(analytical, color="black", ls=":", lw=1.2,
+                    label=f"Analytical (true) = {analytical:.3f}")
+    if random_analytical is not None:
+        ax1.axhline(random_analytical, color="gray", ls="--", lw=1.0,
+                    label=f"Random = {random_analytical:.3f}")
+    ax1.set_xlabel("Boosting step")
+    ax1.set_ylabel("Mean Hamming distance to nearest center")
+    ax1.set_title("Hamming Balls — incremental ensemble recall distance")
+    ax1.legend(fontsize=8, loc="upper right")
+
+    ax2 = ax1.twinx()
+    ax2.plot(steps, coverages, "s--", color="tab:orange", markerfacecolor="none",
+             label="Coverage")
+    ax2.set_ylabel("Coverage (fraction below true analytical)")
+    ax2.legend(fontsize=8, loc="center right")
     return fig
 
 
 def _plot_hamming_balls_distance_dist(ground_truth, methods, centers,
-                                      analytical: float | None = None) -> object | None:
-    """Side-by-side panels: one subplot per method, histogram + line + analytical value."""
+                                      analytical: float | None = None,
+                                      random_analytical: float | None = None) -> object | None:
+    """Side-by-side panels: one subplot per method, histogram + line + analytical values."""
     if plt is None or len(centers) == 0:
         return None
     if not methods and ground_truth is None:
@@ -544,7 +569,10 @@ def _plot_hamming_balls_distance_dist(ground_truth, methods, centers,
         else:
             ax.axvline(method_mean, color=color, ls="--", lw=1.0, alpha=0.6, label=f"Mean = {method_mean:.3f}")
         if analytical is not None:
-            ax.axvline(analytical, color="black", ls=":", lw=1.2, label=f"Analytical = {analytical:.3f}")
+            ax.axvline(analytical, color="black", ls=":", lw=1.2, label=f"Analytical (true) = {analytical:.3f}")
+        if random_analytical is not None:
+            ax.axvline(random_analytical, color="gray", ls=(0, (3, 1, 1, 1)), lw=1.0,
+                       label=f"Random = {random_analytical:.3f}")
 
         ax.set_xlabel("Hamming distance")
         ax.set_ylabel("Density")
@@ -577,7 +605,10 @@ def _compute_dataset_metrics_fn(dataset_key: str, ds, samples: np.ndarray) -> di
         if centers is None:
             return {}
         nq = getattr(ds, "n_qubits", centers.shape[1])
-        return compute_hamming_balls_metrics(centers, samples, nq)
+        analytical = _hamming_balls_analytical_recall(ds)
+        analytical_threshold = analytical[0]
+        return compute_hamming_balls_metrics(centers, samples, nq,
+                                             analytical_threshold=analytical_threshold)
     return {}
 
 
