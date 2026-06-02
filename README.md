@@ -1,56 +1,53 @@
 # iqp-boost
 
-Config-driven experiments for IQP ensemble boosting on binary datasets (BAS, parity, Gaussian mixture, blobs, and shapes).
+Config-driven experiments for IQP ensemble boosting on Hopfield binary datasets.
 
 ## Run Experiments
 
 Use a single CLI entrypoint and pass a JSON/TOML experiment file containing a list of runs.
 
 ```bash
-uv run main.py --config configs/experiments.example.json
+uv run main.py --config configs/datasets/hopfield_16q_grid.json
 ```
 
 Optional controls:
 
 ```bash
 # list run names found in the config
-uv run main.py --config configs/experiments.example.json --list-runs
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --list-runs
 
 # validate config and selected runs without training
-uv run main.py --config configs/experiments.example.json --dry-run
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --dry-run
 
 # run only selected named runs from the config
-uv run main.py --config configs/experiments.example.json --only blobs_default parity_scan
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --only 0
 
 # run selection also accepts 0-based indices from --list-runs order
-uv run main.py --config configs/experiments.example.json --only 0 2
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --only 0
 
 # override output base directory
-uv run main.py --config configs/experiments.example.json --output-dir out_custom
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --output-dir out_custom
 
 # override config values for all selected runs
-uv run main.py --config configs/experiments.example.json --set n_models=16 --set learning_rate=0.03
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --set n_models=16 --set learning_rate=0.03
 
 # example: force analytical mode for speed
-uv run main.py --config configs/experiments.example.json --set skip_sampling=true
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampling=true
 ```
 
 ## Dataset Configs
 
 Dataset-specific config files are available in:
 
-- `configs/datasets/bas_4x4.json`
-- `configs/datasets/bas_3x3.json`
-- `configs/datasets/blobs.json`
-- `configs/datasets/gaussian.json`
-- `configs/datasets/parity.json`
-- `configs/datasets/shapes.json`
+- `configs/datasets/hopfield_16q_grid.json`
+
+`hamming_ball` is reserved as the future config key for `HammingBallDataset`; it is not runnable until that dataset implementation lands.
 
 Examples:
 
 ```bash
-uv run main.py --config configs/datasets/blobs.json
-uv run main.py --config configs/datasets/shapes.json --set skip_sampling=true
+uv run main.py --config configs/datasets/hopfield_16q_grid.json
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampling=true
 ```
 
 ## Config Schema
@@ -62,13 +59,13 @@ uv run main.py --config configs/datasets/shapes.json --set skip_sampling=true
 Each run supports:
 
 - `name`: subfolder name for the run output
-- `dataset`: dataset selection (`name`: `bas|blobs|gaussian|parity|shapes`) and optional params
+- `dataset`: dataset selection (`name`: `hopfield`) and optional params
 - `config`: per-run overrides merged on top of `defaults`
-- `plot`: standardized plotting mode and params (`none|histogram|sample_grid|gaussian_summary`)
+- `plot`: optional plotting mode and params (`none|boltzmann_summary`)
 - `metric_configs`: optional metric progression overrides
 - `baseline_epochs`: optional standalone baseline epochs override
 
-Example config: `configs/experiments.example.json`
+Example config: `configs/datasets/hopfield_16q_grid.json`
 
 ## Outputs
 
