@@ -17,92 +17,11 @@ from src.reporting import (
 from src.core import (
     setup_iqp_circuit, get_params_init, compute_lambda_schedule
 )
-from src.utils import compute_mmd, compute_kl_divergence, compute_metrics, compute_precision_recall_f1, compute_jsd, compute_tvd
-from src.boltzmann_metrics import pairwise_correlation_frobenius_error
+from src.evaluation import EvaluationPolicy
 from src.dual_mmd_loss import gradient_snr, dual_mmd_loss, EnsembleTerms
 import jax
 import numpy as np
 import gc
-
-
-def evaluate_samples(ground_truth: np.ndarray, samples: np.ndarray, sigma: float | list,
-                     validity_fn: callable = None, coverage_fn: callable = None,
-                     exact_probs: np.ndarray = None,
-                     generation_eval_fn: callable = None) -> dict:
-    """Evaluate all metrics: MMD, KL, validity, coverage, precision, recall, F1.
-
-    When validity_fn / coverage_fn are None (e.g. for datasets where
-    validity is not meaningful) those metrics and F1 are reported as NaN.
-
-    When ``exact_probs`` is provided (a 2^n probability vector), TVD / KL / JSD
-    are computed against the exact distribution instead of the empirical
-    ground-truth histogram, giving noise-free reference values.
-    """
-    mmd = compute_mmd(ground_truth, samples, sigma)
-
-    kl = compute_kl_divergence(ground_truth, samples, exact_probs=exact_probs)
-    jsd = compute_jsd(ground_truth, samples, exact_probs=exact_probs)
-    tvd = compute_tvd(ground_truth, samples, exact_probs=exact_probs)
-    corr_fro = pairwise_correlation_frobenius_error(ground_truth, samples, exact_probs=exact_probs)
-
-    if validity_fn is not None and coverage_fn is not None:
-        metrics = compute_metrics(ground_truth, samples, validity_fn, coverage_fn)
-        sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
-        prf_metrics = compute_precision_recall_f1(ground_truth, samples, sigmas[0])
-    else:
-        metrics = {'validity_rate': float('nan'), 'coverage': float('nan')}
-        prf_metrics = {'precision': float('nan'), 'recall': float('nan'),
-                       'support_match': float('nan'), 'f_score': float('nan')}
-
-    stats = {
-        'mmd': mmd,
-        'kl': kl,
-        'jsd': jsd,
-        'tvd': tvd,
-        'validity': metrics['validity_rate'],
-        'coverage': metrics['coverage'],
-        'precision': prf_metrics['precision'],
-        'recall': prf_metrics['recall'],
-        'support_match': prf_metrics['support_match'],
-        'f_score': prf_metrics['f_score'],
-        'corr_fro': corr_fro,
-    }
-    if generation_eval_fn is not None:
-        stats.update(generation_eval_fn(samples))
-    return stats
-
-
-def compute_ensemble_training_mmd(ensemble: BoostedEnsemble, ground_truth: np.ndarray) -> float:
-    """Compute analytical ensemble MMD^2 wrt data using cached trace estimates."""
-    if not ensemble.models or not ensemble.weights:
-        return float('nan')
-
-    n_samples = ensemble.n_samples
-    m = len(ground_truth)
-    n_sigmas = len(ensemble.terms.ops)
-    if n_sigmas == 0:
-        return float('nan')
-
-    weights = np.asarray(ensemble.weights, dtype=float)
-    mmd_vals = []
-
-    for sigma_idx, (_, visible_ops) in ensemble.terms.ops.items():
-        tr_data = np.mean(1 - 2 * ((ground_truth @ np.asarray(visible_ops).T) % 2), axis=0)
-
-        tr_enss = np.asarray([np.asarray(t[sigma_idx]) for t in ensemble.terms.trs])
-        corr_enss = np.asarray([np.asarray(c[sigma_idx]) for c in ensemble.terms.corrs])
-
-        tr_mix = np.sum(weights[:, None] * tr_enss, axis=0)
-        tr_mix_sq = np.einsum('i,ik,jk,j->k', weights, tr_enss, tr_enss, weights)
-        corr_mix = np.sum((weights**2)[:, None] * corr_enss, axis=0)
-
-        term_mix_mix = np.mean((tr_mix_sq - corr_mix) * n_samples / (n_samples - 1))
-        term_mix_data = np.mean(tr_mix * tr_data)
-        term_data_data = np.mean((tr_data * tr_data * m - 1) / (m - 1))
-
-        mmd_vals.append(term_mix_mix - 2.0 * term_mix_data + term_data_data)
-
-    return float(np.mean(mmd_vals))
 
 
 def compute_dual_components_from_traces(traces: dict, n_samples: int, n_data: int) -> dict:
@@ -416,18 +335,14 @@ def run_data_only_ensemble_baseline(
     sigma: float | list,
     n_ops: int,
     n_samples: int,
-    shots: int,
     wires: list | None,
     monitor_interval: int | None,
     turbo_opt: int | None,
-    skip_sampling: bool,
-    final_eval_sampling: bool,
+    evaluation: EvaluationPolicy,
     acceptance_metric: str,
     min_alpha_accept: float,
     validity_fn: callable,
     coverage_fn: callable,
-    exact_probs: np.ndarray = None,
-    generation_eval_fn: callable = None,
 ) -> tuple:
     """Train a data-only iterative ensemble baseline (lambda_dual=0)."""
     n_models = int(config['n_models'])
@@ -448,24 +363,19 @@ def run_data_only_ensemble_baseline(
         max_batch_samples=config.get('max_batch_samples', None),
     )
 
-    rng_seed = int(cfg.get('rng_seed', 0))
-
     key, trainer_m0, alpha_0 = train_ensemble_model_0(ensemble, x_train, key, cfg, monitor_interval, turbo_opt)
-    m0_training_mmd = compute_ensemble_training_mmd(ensemble, x_train)
+    m0_training_mmd = evaluation.evaluate_ensemble_training_mmd(ensemble)
 
-    if skip_sampling:
-        ens_stats = {'mmd': m0_training_mmd}
+    if not evaluation.sampling_enabled:
+        ens_stats = evaluation.analytical_mmd_stats(m0_training_mmd)
     else:
-        eval_rng = np.random.default_rng(rng_seed)
-        ens_samples = ensemble.sample(shots, eval_rng)
-        ens_stats = evaluate_samples(x_train, ens_samples, sigma, validity_fn, coverage_fn,
-                                     exact_probs=exact_probs, generation_eval_fn=generation_eval_fn)
+        _, ens_stats = evaluation.sample_and_evaluate_ensemble(ensemble, step=0)
 
     report_step(
         0,
         n_models,
         training_mmd=m0_training_mmd,
-        sampled_mmd=ens_stats['mmd'] if not skip_sampling else None,
+        sampled_mmd=ens_stats['mmd'] if evaluation.sampling_enabled else None,
         alpha_opt=alpha_0,
     )
 
@@ -490,20 +400,17 @@ def run_data_only_ensemble_baseline(
             ensemble.restore_state(snapshot)
             continue
 
-        mixture_training_mmd = compute_ensemble_training_mmd(ensemble, x_train)
-        if skip_sampling:
-            ens_stats = {'mmd': mixture_training_mmd}
+        mixture_training_mmd = evaluation.evaluate_ensemble_training_mmd(ensemble)
+        if not evaluation.sampling_enabled:
+            ens_stats = evaluation.analytical_mmd_stats(mixture_training_mmd)
         else:
-            eval_rng = np.random.default_rng(rng_seed + step * 7919)
-            ens_samples = ensemble.sample(shots, eval_rng)
-            ens_stats = evaluate_samples(x_train, ens_samples, sigma, validity_fn, coverage_fn,
-                                         exact_probs=exact_probs, generation_eval_fn=generation_eval_fn)
+            _, ens_stats = evaluation.sample_and_evaluate_ensemble(ensemble, step=step)
 
         report_step(
             step,
             n_models,
             training_mmd=mixture_training_mmd,
-            sampled_mmd=ens_stats['mmd'] if not skip_sampling else None,
+            sampled_mmd=ens_stats['mmd'] if evaluation.sampling_enabled else None,
             alpha_opt=alpha,
         )
 
@@ -540,13 +447,12 @@ def run_data_only_ensemble_baseline(
         prev_ens_stats = ens_stats
         prev_training_mmd = mixture_training_mmd
 
-    if skip_sampling and not final_eval_sampling:
-        final_stats = {'mmd': history['training_loss'][-1] if history['training_loss'] else float('nan')}
+    if not evaluation.final_sampling_enabled:
+        final_stats = evaluation.analytical_mmd_stats(
+            history['training_loss'][-1] if history['training_loss'] else float('nan')
+        )
     else:
-        final_eval_rng = np.random.default_rng(rng_seed + n_models * 7919)
-        final_samples = ensemble.sample(shots, final_eval_rng)
-        final_stats = evaluate_samples(x_train, final_samples, sigma, validity_fn, coverage_fn,
-                                       exact_probs=exact_probs, generation_eval_fn=generation_eval_fn)
+        _, final_stats = evaluation.sample_and_evaluate_ensemble(ensemble, step=n_models)
 
     return key, ensemble, history, final_stats
 
@@ -577,9 +483,7 @@ def _resolve_baselines_to_run(config: dict) -> list[str]:
 
 def compute_fcfw_stats(base_ensemble: BoostedEnsemble, x_train: np.ndarray, sigma: float | list,
                        shots: int | None, final_eval_rng: np.random.Generator | None,
-                       validity_fn: callable, coverage_fn: callable,
-                       exact_probs: np.ndarray = None,
-                       generation_eval_fn: callable = None,
+                       evaluation: EvaluationPolicy,
                        sampling_enabled: bool = True) -> dict:
     """Compute Fully Corrective Frank-Wolfe weights for an ensemble and evaluate.
     
@@ -603,10 +507,9 @@ def compute_fcfw_stats(base_ensemble: BoostedEnsemble, x_train: np.ndarray, sigm
     fcfw_ensemble.apply_weight_strategy('fully_corrective', trs_data=trs_data)
     if sampling_enabled:
         final_fcfw_samples = fcfw_ensemble.sample(shots, final_eval_rng)
-        fcfw_stats = evaluate_samples(x_train, final_fcfw_samples, sigma, validity_fn, coverage_fn,
-                                      exact_probs=exact_probs, generation_eval_fn=generation_eval_fn)
+        fcfw_stats = evaluation.evaluate_samples(final_fcfw_samples)
     else:
-        fcfw_mmd = compute_ensemble_training_mmd(fcfw_ensemble, x_train)
+        fcfw_mmd = evaluation.evaluate_ensemble_training_mmd(fcfw_ensemble)
         fcfw_stats = {
             'mmd': fcfw_mmd,
             'kl': float('nan'),
@@ -687,18 +590,26 @@ def run_boosting_experiment(
         plot_cfg = get_plot_config()
         monitor_interval = plot_cfg['plot_interval'] if plot_cfg['plot_data_loss'] else None
         turbo_opt = config.get('turbo', None)
-        skip_sampling = config.get('skip_sampling', False)
-        final_eval_sampling = bool(config.get('final_eval_sampling', False))
-        final_sampling_enabled = (not skip_sampling) or final_eval_sampling
-        sampling_enabled = not skip_sampling
+        evaluation = EvaluationPolicy(
+            x_train=x_train,
+            sigma=sigma,
+            shots=shots,
+            rng_seed=rng_seed,
+            skip_sampling=config.get('skip_sampling', False),
+            final_eval_sampling=bool(config.get('final_eval_sampling', False)),
+            validity_fn=validity_fn,
+            coverage_fn=coverage_fn,
+            exact_probs=exact_probs,
+            generation_eval_fn=generation_eval_fn,
+        )
         min_alpha_accept = float(config.get('min_alpha_accept', 1e-10))
         acceptance_metric = config.get(
             'acceptance_metric',
-            'sample_mmd' if sampling_enabled else 'training_mmd'
+            'sample_mmd' if evaluation.sampling_enabled else 'training_mmd'
         )
         if acceptance_metric not in {'sample_mmd', 'training_mmd'}:
             raise ValueError("acceptance_metric must be 'sample_mmd' or 'training_mmd'")
-        if acceptance_metric == 'sample_mmd' and not sampling_enabled:
+        if acceptance_metric == 'sample_mmd' and not evaluation.sampling_enabled:
             acceptance_metric = 'training_mmd'
 
         if config.get('weight_strategy', 'frank_wolfe') == 'frank_wolfe':
@@ -738,21 +649,14 @@ def run_boosting_experiment(
             baseline_train_losses = getattr(trainer_base, "losses", [])
             baseline_final_loss = float(baseline_train_losses[-1]) if len(baseline_train_losses) > 0 else float('nan')
 
-            if not final_sampling_enabled:
+            if not evaluation.final_sampling_enabled:
                 print(f"  [skip_sampling=True] Skipping baseline state vector evaluation. Using training loss: {baseline_final_loss:.6f}")
                 baseline_samples = None
                 standalone_stats = {'mmd': baseline_final_loss, 'training_loss': baseline_final_loss}
                 report_baseline(baseline_final_loss, standalone_stats)
             else:
-                try:
-                    baseline_samples = circuit.sample(baseline_params, shots=shots, wires=wires)
-                except TypeError:
-                    baseline_samples = circuit.sample(baseline_params, shots=shots)
-                if wires is not None and baseline_samples.shape[1] != len(wires):
-                    baseline_samples = baseline_samples[:, wires]
-                standalone_stats = evaluate_samples(
-                    x_train, baseline_samples, sigma, validity_fn, coverage_fn,
-                    exact_probs=exact_probs, generation_eval_fn=generation_eval_fn
+                baseline_samples, standalone_stats = evaluation.sample_and_evaluate_circuit(
+                    circuit, baseline_params, wires=wires
                 )
                 standalone_stats['training_loss'] = baseline_final_loss
                 print()
@@ -769,18 +673,14 @@ def run_boosting_experiment(
                 sigma=sigma,
                 n_ops=n_ops,
                 n_samples=n_samples,
-                shots=shots,
                 wires=wires,
                 monitor_interval=monitor_interval,
                 turbo_opt=turbo_opt,
-                skip_sampling=skip_sampling,
-                final_eval_sampling=final_eval_sampling,
+                evaluation=evaluation,
                 acceptance_metric=acceptance_metric,
                 min_alpha_accept=min_alpha_accept,
                 validity_fn=validity_fn,
                 coverage_fn=coverage_fn,
-                exact_probs=exact_probs,
-                generation_eval_fn=generation_eval_fn,
             )
             print(f"Data-only iterative baseline final MMD={data_only_stats['mmd']:.4f}")
             report_baseline(data_only_stats['mmd'], data_only_stats)
@@ -802,24 +702,19 @@ def run_boosting_experiment(
             print(f"Model 0 final loss: {float(m0_losses[-1]):.6f}")
 
         # Initial Ensemble Evaluation
-        m0_training_mmd = compute_ensemble_training_mmd(ensemble, x_train)
-        if skip_sampling:
+        m0_training_mmd = evaluation.evaluate_ensemble_training_mmd(ensemble)
+        if not evaluation.sampling_enabled:
             ens_samples = None
-            ens_stats = {'mmd': m0_training_mmd}
+            ens_stats = evaluation.analytical_mmd_stats(m0_training_mmd)
         else:
-            eval_rng = np.random.default_rng(rng_seed)
-            ens_samples = ensemble.sample(shots, eval_rng)
-            ens_stats = evaluate_samples(
-                x_train, ens_samples, sigma, validity_fn, coverage_fn,
-                exact_probs=exact_probs, generation_eval_fn=generation_eval_fn
-            )
+            ens_samples, ens_stats = evaluation.sample_and_evaluate_ensemble(ensemble, step=0)
 
         report_step(
             0,
             config['n_models'],
             training_mmd=m0_training_mmd,
-            sampled_mmd=ens_stats['mmd'] if sampling_enabled else None,
-            sampled_tvd=ens_stats.get('tvd') if sampling_enabled else None,
+            sampled_mmd=ens_stats['mmd'] if evaluation.sampling_enabled else None,
+            sampled_tvd=ens_stats.get('tvd') if evaluation.sampling_enabled else None,
             alpha_opt=alpha_0,
             oracle_tvd=top_k_tvd_fn(1) if top_k_tvd_fn else None,
         )
@@ -863,25 +758,20 @@ def run_boosting_experiment(
                 continue
 
             # Evaluate ensemble
-            mixture_training_mmd = compute_ensemble_training_mmd(ensemble, x_train)
+            mixture_training_mmd = evaluation.evaluate_ensemble_training_mmd(ensemble)
 
-            if skip_sampling:
+            if not evaluation.sampling_enabled:
                 ens_samples = None
-                ens_stats = {'mmd': mixture_training_mmd}
+                ens_stats = evaluation.analytical_mmd_stats(mixture_training_mmd)
             else:
-                eval_rng = np.random.default_rng(rng_seed + step * 7919)
-                ens_samples = ensemble.sample(shots, eval_rng)
-                ens_stats = evaluate_samples(
-                    x_train, ens_samples, sigma, validity_fn, coverage_fn,
-                    exact_probs=exact_probs, generation_eval_fn=generation_eval_fn
-                )
+                ens_samples, ens_stats = evaluation.sample_and_evaluate_ensemble(ensemble, step=step)
 
             report_step(
                 step,
                 config['n_models'],
                 training_mmd=mixture_training_mmd,
-                sampled_mmd=ens_stats['mmd'] if sampling_enabled else None,
-                sampled_tvd=ens_stats.get('tvd') if sampling_enabled else None,
+                sampled_mmd=ens_stats['mmd'] if evaluation.sampling_enabled else None,
+                sampled_tvd=ens_stats.get('tvd') if evaluation.sampling_enabled else None,
                 alpha_opt=alpha,
                 oracle_tvd=top_k_tvd_fn(step + 1) if top_k_tvd_fn else None,
             )
@@ -966,7 +856,7 @@ def run_boosting_experiment(
         ensemble_fcfw_stats = None
         ensemble_fcfw_weights = None
 
-        if not final_sampling_enabled:
+        if not evaluation.final_sampling_enabled:
             print("\n[skip_sampling=True] Skipping final state vector sampling. Using final training losses.")
             final_ensemble_samples, final_counts, per_model_samples = None, None, []
             
@@ -986,10 +876,7 @@ def run_boosting_experiment(
                 if config.get('report_fcfw', True):
                     print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for Data-only baseline (Analytical)...")
                     data_only_fcfw_result = compute_fcfw_stats(
-                        data_only_ensemble, x_train, sigma, None, None,
-                        validity_fn, coverage_fn, exact_probs=exact_probs,
-                        generation_eval_fn=generation_eval_fn,
-                        sampling_enabled=False
+                        data_only_ensemble, x_train, sigma, None, None, evaluation, sampling_enabled=False
                     )
                     data_only_fcfw_stats = data_only_fcfw_result["metrics"]
                     data_only_fcfw_weights = data_only_fcfw_result["weights"]
@@ -1005,10 +892,7 @@ def run_boosting_experiment(
             if config.get('report_fcfw', True):
                 print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble (Analytical)...")
                 ensemble_fcfw_result = compute_fcfw_stats(
-                    ensemble, x_train, sigma, None, None,
-                    validity_fn, coverage_fn, exact_probs=exact_probs,
-                    generation_eval_fn=generation_eval_fn,
-                    sampling_enabled=False
+                    ensemble, x_train, sigma, None, None, evaluation, sampling_enabled=False
                 )
                 ensemble_fcfw_stats = ensemble_fcfw_result["metrics"]
                 ensemble_fcfw_weights = ensemble_fcfw_result["weights"]
@@ -1038,10 +922,7 @@ def run_boosting_experiment(
             final_eval_rng = np.random.default_rng(rng_seed + config['n_models'] * 7919)
             final_ensemble_samples, final_counts, per_model_samples = ensemble.sample(
                 shots, final_eval_rng, return_details=True)
-            final_stats = evaluate_samples(
-                x_train, final_ensemble_samples, sigma, validity_fn, coverage_fn,
-                exact_probs=exact_probs, generation_eval_fn=generation_eval_fn
-            )
+            final_stats = evaluation.evaluate_samples(final_ensemble_samples)
 
             report_final(reference_stats['mmd'], final_stats['mmd'], len(ensemble.models), final_stats)
 
@@ -1060,9 +941,7 @@ def run_boosting_experiment(
                 if config.get('report_fcfw', True):
                     print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for Data-only baseline...")
                     data_only_fcfw_result = compute_fcfw_stats(
-                        data_only_ensemble, x_train, sigma, shots, final_eval_rng,
-                        validity_fn, coverage_fn, exact_probs=exact_probs,
-                        generation_eval_fn=generation_eval_fn
+                        data_only_ensemble, x_train, sigma, shots, final_eval_rng, evaluation
                     )
                     data_only_fcfw_stats = data_only_fcfw_result["metrics"]
                     data_only_fcfw_weights = data_only_fcfw_result["weights"]
@@ -1074,10 +953,7 @@ def run_boosting_experiment(
             # 2. Individual models
             for i, model_samples in enumerate(per_model_samples):
                 if len(model_samples) > 0:
-                    model_stats = evaluate_samples(
-                        x_train, model_samples, sigma, validity_fn, coverage_fn,
-                        exact_probs=exact_probs, generation_eval_fn=generation_eval_fn
-                    )
+                    model_stats = evaluation.evaluate_samples(model_samples)
                 else:
                     model_stats = {'mmd': float('nan')}
                 model_rows.append((f"Model {i}", model_stats))
@@ -1087,9 +963,7 @@ def run_boosting_experiment(
             if config.get('report_fcfw', True):
                 print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...")
                 ensemble_fcfw_result = compute_fcfw_stats(
-                    ensemble, x_train, sigma, shots, final_eval_rng,
-                    validity_fn, coverage_fn, exact_probs=exact_probs,
-                    generation_eval_fn=generation_eval_fn
+                    ensemble, x_train, sigma, shots, final_eval_rng, evaluation
                 )
                 ensemble_fcfw_stats = ensemble_fcfw_result["metrics"]
                 ensemble_fcfw_weights = ensemble_fcfw_result["weights"]
@@ -1120,7 +994,7 @@ def run_boosting_experiment(
 
         # Compute test-set MMD if held-out data is provided (no extra sampling)
         if x_test is not None and len(x_test) > 0:
-            test_mmd = compute_ensemble_training_mmd(ensemble, x_test)
+            test_mmd = evaluation.evaluate_ensemble_training_mmd(ensemble, x_test)
             final_stats['test_mmd'] = test_mmd
             print(f"\n[Test MMD] {test_mmd:.6f}")
             if ensemble_fcfw_stats is not None:
@@ -1139,7 +1013,7 @@ def run_boosting_experiment(
                         tr_test = np.mean(1 - 2 * ((x_test @ np.asarray(visible_ops).T) % 2), axis=0)
                         trs_data_test.append(tr_test)
                 fcfw_ensemble_test.apply_weight_strategy('fully_corrective', trs_data=trs_data_test)
-                test_mmd_fcfw = compute_ensemble_training_mmd(fcfw_ensemble_test, x_test)
+                test_mmd_fcfw = evaluation.evaluate_ensemble_training_mmd(fcfw_ensemble_test, x_test)
                 final_stats['test_mmd_fcfw'] = test_mmd_fcfw
                 print(f"[Test MMD FCFW] {test_mmd_fcfw:.6f}")
 
@@ -1154,7 +1028,7 @@ def run_boosting_experiment(
                 data_only_history=data_only_history,
             )
 
-            if sampling_enabled:
+            if evaluation.sampling_enabled:
                 if metric_configs is None:
                     metric_configs = [
                         ('mmd', 'Sampled MMD^2', 1, 'blue', 's'),
@@ -1169,9 +1043,9 @@ def run_boosting_experiment(
         if custom_viz_fn is not None:
             try:
                 custom_viz_fn(output, x_train,
-                              baseline_samples if final_sampling_enabled else None,
-                              final_ensemble_samples if final_sampling_enabled else None,
-                              per_model_samples if final_sampling_enabled else [],
+                              baseline_samples if evaluation.final_sampling_enabled else None,
+                              final_ensemble_samples if evaluation.final_sampling_enabled else None,
+                              per_model_samples if evaluation.final_sampling_enabled else [],
                               ensemble.weights)
             except Exception as e:
                 print(f"Custom visualization failed: {e}")

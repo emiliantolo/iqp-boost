@@ -79,6 +79,27 @@ All supported datasets accept optional split params under `dataset.params`:
 `test_samples` enables an `x_test` split, and `train_split_ratio` can override
 the inferred train/test ratio.
 
+## Experiment Architecture
+
+Experiment runs are orchestrated by `src/runner.py`, with two focused modules
+owning the main config-driven seams:
+
+- `src/dataset_catalog.py` builds a typed dataset bundle from each run's
+  `dataset` spec.
+- `src/evaluation.py` owns sampling and metric evaluation through
+  `EvaluationPolicy`.
+
+`EvaluationPolicy` centralizes the run's training data, kernel sigma, shot
+count, RNG seed, optional dataset metric callbacks, exact probabilities, and
+the `skip_sampling` / `final_eval_sampling` flags. The runner uses it for
+baseline, ensemble, FCFW, final, and held-out test evaluation so sampling
+rules and metric shapes stay consistent across those paths.
+
+When `skip_sampling=true`, intermediate ensemble reporting uses analytical
+training MMD without drawing samples. When `final_eval_sampling=true`, final
+sample-based metrics are still computed even if intermediate sampling was
+skipped.
+
 ## Outputs
 
 Each invocation creates one suite folder, then one subfolder per run:
