@@ -1,6 +1,6 @@
 # iqp-boost
 
-Config-driven experiments for IQP ensemble boosting on Hopfield binary datasets.
+Config-driven experiments for IQP ensemble boosting on Hopfield and Hamming Balls binary datasets.
 
 ## Run Experiments
 
@@ -40,8 +40,12 @@ uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampl
 Dataset-specific config files are available in:
 
 - `configs/datasets/hopfield_16q_grid.json`
+- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_16q.json`
+- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_20q.json`
+- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_50q.json`
+- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_100q.json`
 
-`hamming_ball` is reserved as the future config key for `HammingBallDataset`; it is not runnable until that dataset implementation lands.
+Use `hamming_balls` as the dataset key for Hamming Balls configs.
 
 Examples:
 
@@ -59,7 +63,7 @@ uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampl
 Each run supports:
 
 - `name`: subfolder name for the run output
-- `dataset`: dataset selection (`name`: `hopfield`) and optional params
+- `dataset`: dataset selection (`name`: `hopfield|hamming_balls`) and optional params
 - `config`: per-run overrides merged on top of `defaults`
 - `plot`: optional plotting mode and params (`none|boltzmann_summary`)
 - `metric_configs`: optional metric progression overrides
