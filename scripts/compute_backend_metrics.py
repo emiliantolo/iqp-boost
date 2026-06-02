@@ -142,8 +142,8 @@ def plot_common_metrics(ground_truth: np.ndarray, methods: list[tuple[str, np.nd
     axes[1].legend(fontsize=8)
 
     path = save_dir / 'common_metrics.png'
-    fig.savefig(path, dpi=160, bbox_inches='tight')
-    fig.savefig(str(path).replace('.png', '.pdf'), bbox_inches='tight')
+    fig.savefig(path, dpi=160)
+    fig.savefig(save_dir / 'common_metrics.pdf')
     logger.info('  Saved common metrics plot to: %s', path)
     plt.close(fig)
 
@@ -185,8 +185,8 @@ def plot_correlation_heatmaps(ground_truth: np.ndarray, methods: list[tuple[str,
     cbar.set_label('Pearson correlation')
 
     path = save_dir / 'common_correlations.png'
-    fig.savefig(path, dpi=160, bbox_inches='tight')
-    fig.savefig(str(path).replace('.png', '.pdf'), bbox_inches='tight')
+    fig.savefig(path, dpi=160)
+    fig.savefig(save_dir / 'common_correlations.pdf')
     logger.info('  Saved correlation heatmaps to: %s', path)
     plt.close(fig)
 
