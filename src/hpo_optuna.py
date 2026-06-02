@@ -299,15 +299,7 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
 
         run_kwargs = dict(
             config=run_config,
-            dataset_name=bundle['dataset_name'],
             dataset_spec=dataset_spec,
-            x_train=bundle['x_train'],
-            validity_fn=bundle['validity_fn'],
-            coverage_fn=bundle['coverage_fn'],
-            custom_viz_fn=bundle['custom_viz_fn'],
-            top_k_tvd_fn=bundle.get('top_k_tvd_fn'),
-            exact_probs=bundle.get('exact_probs'),
-            generation_eval_fn=bundle.get('generation_eval_fn'),
             metric_configs=hpo_spec.get('metric_configs'),
             baseline_epochs=hpo_spec.get('baseline_epochs'),
             output_base_dir=str(trial_dir),
@@ -315,9 +307,8 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
             log_dir=str(hpo_dir),
             log_filename='hpo.log',
             append_log=True,
+            **bundle.to_runner_kwargs(),
         )
-        if 'x_test' in bundle:
-            run_kwargs['x_test'] = bundle['x_test']
 
         result = run_boosting_experiment(**run_kwargs)
 

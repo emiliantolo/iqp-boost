@@ -16,8 +16,9 @@ class HammingBallsDataset(BinaryDataset):
         pattern_seed: int = 0,
         batch_size: int = 2**20,
         max_exact_states: int = 2**20,
+        train_split_ratio: float | None = None,
     ):
-        super().__init__()
+        super().__init__(train_split_ratio=train_split_ratio)
         if n_qubits <= 0:
             raise ValueError("n_qubits must be positive")
         if K <= 0:
@@ -50,6 +51,8 @@ class HammingBallsDataset(BinaryDataset):
         return probs / probs.sum()
 
     def _generate_samples(self, n_samples: int, seed: int = 0) -> np.ndarray:
+        if self.probs is not None:
+            return sample_from_probs(self.probs, self.n_qubits, n_samples, seed=seed)
         rng = np.random.default_rng(seed)
         k_indices = rng.integers(0, self.K, size=n_samples)
         samples = self.centers[k_indices].copy()
@@ -63,14 +66,6 @@ class HammingBallsDataset(BinaryDataset):
         d = np.sum(x[None, :] != self.centers, axis=1)
         probs_per_center = (self.p ** d) * ((1.0 - self.p) ** (self.n_qubits - d))
         return float(probs_per_center.mean())
-
-    def generate(self, n_samples: int | None = None, seed: int = 0, split: str = "train") -> np.ndarray:
-        if self.probs is not None:
-            samples = sample_from_probs(self.probs, self.n_qubits, n_samples, seed=seed)
-        else:
-            samples = self._generate_samples(n_samples, seed=seed)
-        self.data = samples
-        return self.data
 
     def validity_rate(self, samples: np.ndarray) -> float:
         return 1.0

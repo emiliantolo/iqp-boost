@@ -227,20 +227,13 @@ def run_suite(config_path: Path, only: set[str] | None = None,
             output_base_dir=str(os.path.join(suite_dir, run_name)),
         )
 
-        print(f"\n[{idx + 1}/{len(runs)}] {run_name}: {bundle['dataset_name']}")
+        print(f"\n[{idx + 1}/{len(runs)}] {run_name}: {bundle.dataset_name}")
         if dry_run:
             continue
 
         run_boosting_experiment(
             config=run_cfg,
-            dataset_name=bundle['dataset_name'],
             dataset_spec=dataset_spec,
-            x_train=bundle['x_train'],
-            validity_fn=bundle['validity_fn'],
-            coverage_fn=bundle['coverage_fn'],
-            custom_viz_fn=bundle['custom_viz_fn'],
-            top_k_tvd_fn=bundle.get('top_k_tvd_fn'),
-            exact_probs=bundle.get('exact_probs'),
             metric_configs=metric_configs,
             baseline_epochs=baseline_epochs,
             output_base_dir=str(suite_dir),
@@ -248,6 +241,7 @@ def run_suite(config_path: Path, only: set[str] | None = None,
             log_dir=str(suite_dir),
             log_filename='suite.log',
             append_log=True,
+            **bundle.to_runner_kwargs(),
         )
 
 
