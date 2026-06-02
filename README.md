@@ -65,11 +65,19 @@ Each run supports:
 - `name`: subfolder name for the run output
 - `dataset`: dataset selection (`name`: `hopfield|hamming_balls`) and optional params
 - `config`: per-run overrides merged on top of `defaults`
-- `plot`: optional plotting mode and params (`none|boltzmann_summary`)
+- `plot`: optional plotting mode and params (`none|boltzmann_summary|hamming_balls_mode_evolution`)
 - `metric_configs`: optional metric progression overrides
 - `baseline_epochs`: optional standalone baseline epochs override
 
 Example config: `configs/datasets/hopfield_16q_grid.json`
+
+The dataset catalog in `src/dataset_catalog.py` is the source of truth for
+supported dataset keys, construction defaults, and dataset-specific plot modes.
+See `docs/dataset_catalog.md` when adding or changing dataset integrations.
+
+All supported datasets accept optional split params under `dataset.params`:
+`test_samples` enables an `x_test` split, and `train_split_ratio` can override
+the inferred train/test ratio.
 
 ## Outputs
 
