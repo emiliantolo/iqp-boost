@@ -1,10 +1,10 @@
 # Experiments
 
-This branch keeps Hopfield as the only runnable dataset family.
+This branch keeps Hopfield and Hamming Balls as the runnable dataset families.
 
 ## Supported Datasets
 
 - `hopfield`: available now through `configs/datasets/hopfield_16q_grid.json` and the Hopfield HPO configs in `configs/hpo/`.
-- `hamming_ball`: reserved for the future `HammingBallDataset` implementation. Do not use it in configs until `src/datasets/hamming_ball.py` lands.
+- `hamming_balls`: available now through `configs/datasets/benchmark_suite_hamming_balls/`.
 
-Historical benchmark and grid configs for removed datasets were deleted so stale experiments are not advertised as runnable.
+Historical benchmark and grid configs for other removed datasets were deleted so stale experiments are not advertised as runnable.
