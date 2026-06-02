@@ -48,7 +48,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_12q_1p_b1_distribution.pdf"
                 }
@@ -75,7 +75,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_12q_1p_b2_distribution.pdf"
                 }
@@ -102,7 +102,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_12q_2p_b1_distribution.pdf"
                 }
@@ -129,7 +129,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_12q_2p_b2_distribution.pdf"
                 }
@@ -156,7 +156,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_12q_3p_b1_distribution.pdf"
                 }
@@ -183,7 +183,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_12q_3p_b2_distribution.pdf"
                 }
@@ -210,7 +210,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_12q_4p_b1_distribution.pdf"
                 }
@@ -237,7 +237,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_12q_4p_b2_distribution.pdf"
                 }
@@ -264,7 +264,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_16q_1p_b1_distribution.pdf"
                 }
@@ -291,7 +291,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_16q_1p_b2_distribution.pdf"
                 }
@@ -318,7 +318,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_16q_2p_b1_distribution.pdf"
                 }
@@ -345,7 +345,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_16q_2p_b2_distribution.pdf"
                 }
@@ -372,7 +372,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_16q_3p_b1_distribution.pdf"
                 }
@@ -399,7 +399,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_16q_3p_b2_distribution.pdf"
                 }
@@ -426,7 +426,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_16q_4p_b1_distribution.pdf"
                 }
@@ -453,7 +453,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_16q_4p_b2_distribution.pdf"
                 }
@@ -480,7 +480,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_20q_1p_b1_distribution.pdf"
                 }
@@ -507,7 +507,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_20q_1p_b2_distribution.pdf"
                 }
@@ -534,7 +534,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_20q_2p_b1_distribution.pdf"
                 }
@@ -561,7 +561,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_20q_2p_b2_distribution.pdf"
                 }
@@ -588,7 +588,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_20q_3p_b1_distribution.pdf"
                 }
@@ -615,7 +615,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_20q_3p_b2_distribution.pdf"
                 }
@@ -642,7 +642,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_20q_4p_b1_distribution.pdf"
                 }
@@ -669,7 +669,7 @@
                 }
             },
             "plot": {
-                "kind": "ising_lorenz",
+                "kind": "boltzmann_summary",
                 "params": {
                     "filename": "hopfield_20q_4p_b2_distribution.pdf"
                 }
