@@ -42,7 +42,7 @@ def compute_dynamic_proposal(ensemble, x_train: np.ndarray, step: int, config: d
         tr_enss = jnp.array([t[0] for t in ensemble.terms.trs])
     else:
         # Caching is disabled: dynamically sample and evaluate previous model traces
-        from src.dual_mmd_loss import _make_ops
+        from src.core.dual_mmd_loss import _make_ops
         if key is None:
             key = jax.random.PRNGKey(config.get('rng_seed', 0) + step * 7919)
         key, temp_key = jax.random.split(key)

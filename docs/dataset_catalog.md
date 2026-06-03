@@ -1,6 +1,6 @@
 # Dataset Catalog
 
-`src/dataset_catalog.py` is the source of truth for config-driven datasets.
+`src/datasets/catalog.py` is the source of truth for config-driven datasets.
 It owns supported dataset keys, dataset construction, plot defaults, and the
 typed `DatasetBundle` Interface consumed by experiment runners.
 
@@ -56,7 +56,7 @@ Balls.
 ## Adding A Dataset
 
 To add a dataset, implement the dataset class under `src/datasets/`, then add a
-catalog entry in `src/dataset_catalog.py` that builds a `DatasetBundle`.
+catalog entry in `src/datasets/catalog.py` that builds a `DatasetBundle`.
 
 The entry should define:
 

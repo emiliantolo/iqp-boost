@@ -1,8 +1,14 @@
 # Experiments
 
 This branch keeps Hopfield and Hamming Balls as the runnable dataset families.
-`src/dataset_catalog.py` is the source of truth for supported config keys and
+`src/datasets/catalog.py` is the source of truth for supported config keys and
 dataset-specific defaults.
+
+Runnable experiment entrypoints now live under `src/experiments/`:
+
+- Suite runs: `uv run main.py --config <config>` or
+  `python3 -m src.experiments.suite --config <config>`.
+- HPO runs: `python3 -m src.experiments.hpo --config <config>`.
 
 ## Supported Datasets
 

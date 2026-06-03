@@ -7,8 +7,8 @@ from typing import Callable
 
 import numpy as np
 
-from src.boltzmann_metrics import pairwise_correlation_frobenius_error
-from src.utils import (
+from src.datasets.boltzmann_metrics import pairwise_correlation_frobenius_error
+from src.core.metrics import (
     compute_jsd,
     compute_kl_divergence,
     compute_metrics,

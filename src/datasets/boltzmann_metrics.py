@@ -1,3 +1,5 @@
+"""Metrics for Boltzmann-style dataset integrations."""
+
 from __future__ import annotations
 
 import numpy as np

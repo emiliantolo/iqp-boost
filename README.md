@@ -10,6 +10,13 @@ Use a single CLI entrypoint and pass a JSON/TOML experiment file containing a li
 uv run main.py --config configs/datasets/hopfield_16q_grid.json
 ```
 
+`main.py` is a thin wrapper around `src.experiments.suite`. The equivalent
+direct module command is:
+
+```bash
+python3 -m src.experiments.suite --config configs/datasets/hopfield_16q_grid.json
+```
+
 Optional controls:
 
 ```bash
@@ -54,6 +61,14 @@ uv run main.py --config configs/datasets/hopfield_16q_grid.json
 uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampling=true
 ```
 
+## Run HPO
+
+Optuna HPO configs live under `configs/hpo/` and use the HPO entrypoint:
+
+```bash
+python3 -m src.experiments.hpo --config configs/hpo/hopfield_20q_p1_b15.json
+```
+
 ## Config Schema
 
 - `output`: suite output settings (`base_dir`, `suite_name`)
@@ -71,7 +86,7 @@ Each run supports:
 
 Example config: `configs/datasets/hopfield_16q_grid.json`
 
-The dataset catalog in `src/dataset_catalog.py` is the source of truth for
+The dataset catalog in `src/datasets/catalog.py` is the source of truth for
 supported dataset keys, construction defaults, and dataset-specific plot modes.
 See `docs/dataset_catalog.md` when adding or changing dataset integrations.
 
@@ -81,12 +96,32 @@ the inferred train/test ratio.
 
 ## Experiment Architecture
 
-Experiment runs are orchestrated by `src/runner.py`, with two focused modules
-owning the main config-driven seams:
+The source tree is organized into layer packages:
 
-- `src/dataset_catalog.py` builds a typed dataset bundle from each run's
+- `src/run/`: experiment execution flow (`runner`, baselines, boosting steps,
+  and final evaluation).
+- `src/core/`: circuit setup, ensembles, losses, metrics, weighting, sigma
+  selection, and evaluation policy.
+- `src/datasets/`: dataset catalog, dataset classes, exact probability helpers,
+  and dataset-specific visualization/evaluation adapters.
+- `src/io/`: reporting, plotting, logging, output paths, and CSV/JSON writing.
+- `src/experiments/`: runnable suite and HPO entrypoints.
+
+The main public imports are curated at the package level:
+
+- `src.run` exports `run_boosting_experiment` and run phase context/result types.
+- `src.core` exports `BoostedEnsemble`, `EvaluationPolicy`, circuit setup, and
+  weight strategy interfaces.
+- `src.datasets` exports `DatasetBundle`, `SUPPORTED_DATASETS`, and
+  `build_dataset_bundle`.
+- `src.experiments` exports suite/HPO entrypoints and dataset factory helpers.
+
+Experiment runs are orchestrated by `src/run/runner.py`, with two focused
+modules owning the main config-driven seams:
+
+- `src/datasets/catalog.py` builds a typed dataset bundle from each run's
   `dataset` spec.
-- `src/evaluation.py` owns sampling and metric evaluation through
+- `src/core/evaluation.py` owns sampling and metric evaluation through
   `EvaluationPolicy`.
 
 `EvaluationPolicy` centralizes the run's training data, kernel sigma, shot

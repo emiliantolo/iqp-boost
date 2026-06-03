@@ -1,3 +1,5 @@
+"""Plot builders for Boltzmann-style dataset integrations."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -6,7 +8,6 @@ import seaborn as sns
 
 from .boltzmann_metrics import (
     samples_to_hamming_weights,
-    samples_to_histogram,
     spin_covariance_from_probs,
     spin_covariance_from_samples,
     covariance_matrices,

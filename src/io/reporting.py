@@ -1,3 +1,5 @@
+"""Reporting, plotting, and output IO for experiment runs."""
+
 import sys
 from datetime import datetime
 from pathlib import Path

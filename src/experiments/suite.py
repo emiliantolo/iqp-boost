@@ -10,8 +10,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from src.experiment_factory import build_dataset_bundle
-from src.runner import run_boosting_experiment
+from src.experiments.factory import build_dataset_bundle
+from src.run import run_boosting_experiment
 
 
 DEFAULT_RUN_CONFIG = {

@@ -6,16 +6,16 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from src.dataset_catalog import DatasetBundle
-from src.ensemble import BoostedEnsemble
-from src.evaluation import EvaluationPolicy
-from src.reporting import (
+from src.core import BoostedEnsemble, EvaluationPolicy
+from src.datasets import DatasetBundle
+from src.io.reporting import (
     get_plot_config,
     plot_data_ensemble_loss,
     plot_metrics_progression,
     report_final,
     report_metrics_table,
 )
+from src.core import WeightStrategyContext, apply_weight_strategy
 
 
 @dataclass(frozen=True)
@@ -118,7 +118,11 @@ def compute_fcfw_stats(
     target_data = x_train if evaluation_data is None else evaluation_data
     trs_data = _data_traces(fcfw_ensemble, target_data)
 
-    fcfw_ensemble.apply_weight_strategy('fully_corrective', trs_data=trs_data)
+    apply_weight_strategy(WeightStrategyContext(
+        ensemble=fcfw_ensemble,
+        strategy='fully_corrective',
+        trs_data=trs_data,
+    ))
     if sampling_enabled:
         final_fcfw_samples = fcfw_ensemble.sample(shots, final_eval_rng)
         fcfw_stats = evaluation.evaluate_samples(final_fcfw_samples)
