@@ -4,6 +4,12 @@
 It owns supported dataset keys, dataset construction, plot defaults, and the
 typed `DatasetBundle` Interface consumed by experiment runners.
 
+`DatasetBundle` is the runner-facing dataset integration Module. It carries the
+generated train/test samples, exact probabilities when available, dataset metric
+hooks, and custom visualization hook behind one Interface. Runners should pass a
+bundle directly instead of unpacking dataset capabilities into separate keyword
+arguments.
+
 ## Supported Dataset Keys
 
 - `hopfield`: Hopfield patterns with exact probabilities when feasible.
@@ -59,6 +65,7 @@ The entry should define:
 - supported params and defaults;
 - generated `x_train` and optional `x_test`;
 - exact probabilities and generation evaluation hooks when available.
+- any dataset metric or custom visualization hooks exposed through the bundle.
 
 Also add at least one single-instance config, an HPO config if the dataset is
 expected to support HPO, catalog tests for construction and unsupported keys,

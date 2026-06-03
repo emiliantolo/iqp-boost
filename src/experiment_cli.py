@@ -229,6 +229,7 @@ def run_suite(config_path: Path, only: set[str] | None = None,
 
         run_boosting_experiment(
             config=run_cfg,
+            dataset=bundle,
             dataset_spec=dataset_spec,
             metric_configs=metric_configs,
             baseline_epochs=baseline_epochs,
@@ -237,7 +238,6 @@ def run_suite(config_path: Path, only: set[str] | None = None,
             log_dir=str(suite_dir),
             log_filename='suite.log',
             append_log=True,
-            **bundle.to_runner_kwargs(),
         )
 
 

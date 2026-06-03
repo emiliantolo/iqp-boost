@@ -10,11 +10,12 @@ import numpy as np
 from src.boltzmann_visualization import generate_boltzmann_visualizations
 from src.datasets.hamming_balls import HammingBallsDataset
 from src.datasets.hopfield import HopfieldDataset
+from src.evaluation import EvaluationPolicy
 
 
 @dataclass(frozen=True)
 class DatasetBundle:
-    """Dataset artifacts consumed by experiment runners."""
+    """Catalog-owned dataset integration consumed by experiment runners."""
 
     dataset_name: str
     x_train: np.ndarray
@@ -26,20 +27,42 @@ class DatasetBundle:
     generation_eval_fn: Callable | None = None
     x_test: np.ndarray | None = None
 
-    def to_runner_kwargs(self) -> dict[str, Any]:
-        kwargs = {
-            "dataset_name": self.dataset_name,
-            "x_train": self.x_train,
-            "validity_fn": self.validity_fn,
-            "coverage_fn": self.coverage_fn,
-            "top_k_tvd_fn": self.top_k_tvd_fn,
-            "custom_viz_fn": self.custom_viz_fn,
-            "exact_probs": self.exact_probs,
-            "generation_eval_fn": self.generation_eval_fn,
-        }
-        if self.x_test is not None:
-            kwargs["x_test"] = self.x_test
-        return kwargs
+    @property
+    def n_qubits(self) -> int:
+        return int(self.x_train.shape[1])
+
+    def build_evaluation_policy(
+        self,
+        sigma: float | list,
+        shots: int,
+        rng_seed: int,
+        skip_sampling: bool = False,
+        final_eval_sampling: bool = False,
+    ) -> EvaluationPolicy:
+        return EvaluationPolicy(
+            x_train=self.x_train,
+            sigma=sigma,
+            shots=shots,
+            rng_seed=rng_seed,
+            skip_sampling=skip_sampling,
+            final_eval_sampling=final_eval_sampling,
+            validity_fn=self.validity_fn,
+            coverage_fn=self.coverage_fn,
+            exact_probs=self.exact_probs,
+            generation_eval_fn=self.generation_eval_fn,
+        )
+
+    def run_custom_visualization(
+        self,
+        output,
+        baseline_samples,
+        final_samples,
+        per_model_samples,
+        weights,
+    ) -> None:
+        if self.custom_viz_fn is None:
+            return
+        self.custom_viz_fn(output, self.x_train, baseline_samples, final_samples, per_model_samples, weights)
 
 
 @dataclass(frozen=True)
