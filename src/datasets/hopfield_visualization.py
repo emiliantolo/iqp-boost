@@ -1,8 +1,8 @@
-import os
+"""Visualization utilities for Hopfield dataset integrations."""
+
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-from pathlib import Path
 
 def samples_to_probs(samples, n_qubits):
     """Convert binary samples in {0, 1} to empirical probabilities of length 2^N."""

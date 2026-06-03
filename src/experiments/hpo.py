@@ -14,13 +14,12 @@ from typing import Any
 import numpy as np
 import optuna
 
-from src.core import setup_iqp_circuit
+from src.core import BoostedEnsemble, setup_iqp_circuit
 from src.datasets.hopfield import HopfieldDataset
-from src.ensemble import BoostedEnsemble
-from src.experiment_cli import DEFAULT_RUN_CONFIG
-from src.experiment_factory import build_dataset_bundle
-from src.hopfield_evaluation import evaluate_energy_wasserstein, evaluate_memory_recall
-from src.runner import run_boosting_experiment
+from src.experiments.factory import build_dataset_bundle
+from src.experiments.suite import DEFAULT_RUN_CONFIG
+from src.datasets.hopfield_evaluation import evaluate_energy_wasserstein, evaluate_memory_recall
+from src.run import run_boosting_experiment
 
 
 def _load_config(path: Path) -> dict:

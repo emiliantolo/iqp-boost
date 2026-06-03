@@ -1,3 +1,5 @@
+"""Visualization adapter for Boltzmann-style dataset integrations."""
+
 from __future__ import annotations
 
 from .boltzmann_metrics import spin_covariance_from_samples, spin_covariance_from_probs

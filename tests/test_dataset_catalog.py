@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 import inspect
 
-from src import experiment_factory
-from src.dataset_catalog import DatasetBundle, SUPPORTED_DATASETS, build_dataset_bundle
-from src.runner import run_boosting_experiment
+from src.experiments import factory as experiment_factory
+from src.datasets import DatasetBundle, SUPPORTED_DATASETS, build_dataset_bundle
+from src.run import run_boosting_experiment
 
 
 def test_supported_datasets_are_catalog_owned():

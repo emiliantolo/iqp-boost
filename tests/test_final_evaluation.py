@@ -1,7 +1,8 @@
 import numpy as np
 
-from src.dataset_catalog import DatasetBundle
-from src.final_evaluation import FcfwEvaluationResult, FinalEvaluationContext, run_final_evaluation
+from src.datasets import DatasetBundle
+from src.run.final_evaluation import FcfwEvaluationResult
+from src.run import FinalEvaluationContext, run_final_evaluation
 
 
 class RecordingOutput:
@@ -143,7 +144,7 @@ def test_fcfw_enabled_adds_summary_rows_and_weights(monkeypatch):
             weights=np.array([1.0]),
         )
 
-    monkeypatch.setattr("src.final_evaluation.compute_fcfw_stats", fake_fcfw)
+    monkeypatch.setattr("src.run.final_evaluation.compute_fcfw_stats", fake_fcfw)
     context = _context(
         data_only_ensemble=FakeEnsemble(),
         data_only_stats={"mmd": 0.9},
@@ -168,7 +169,7 @@ def test_data_only_fcfw_skipped_when_data_only_is_reference(monkeypatch):
         calls.append((args, kwargs))
         return FcfwEvaluationResult(metrics={"mmd": 0.123}, weights=np.array([1.0]))
 
-    monkeypatch.setattr("src.final_evaluation.compute_fcfw_stats", fake_fcfw)
+    monkeypatch.setattr("src.run.final_evaluation.compute_fcfw_stats", fake_fcfw)
     context = _context(
         data_only_ensemble=FakeEnsemble(),
         data_only_stats={"mmd": 0.9},
@@ -244,6 +245,6 @@ def _context(
 
 
 def _disable_plotting(monkeypatch):
-    monkeypatch.setattr("src.final_evaluation.get_plot_config", lambda: {"plot_data_loss": False})
-    monkeypatch.setattr("src.final_evaluation.report_final", lambda *args, **kwargs: None)
-    monkeypatch.setattr("src.final_evaluation.report_metrics_table", lambda *args, **kwargs: None)
+    monkeypatch.setattr("src.run.final_evaluation.get_plot_config", lambda: {"plot_data_loss": False})
+    monkeypatch.setattr("src.run.final_evaluation.report_final", lambda *args, **kwargs: None)
+    monkeypatch.setattr("src.run.final_evaluation.report_metrics_table", lambda *args, **kwargs: None)

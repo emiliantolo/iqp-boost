@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 
-from src.evaluation import EvaluationPolicy, compute_ensemble_training_mmd, evaluate_samples
+from src.core import EvaluationPolicy, compute_ensemble_training_mmd, evaluate_samples
 
 
 def test_sampled_evaluation_keeps_metric_keys_and_exact_probability_tvd():

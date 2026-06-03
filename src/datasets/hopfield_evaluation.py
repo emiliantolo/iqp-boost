@@ -1,4 +1,4 @@
-"""Standalone evaluation utilities for Hopfield generative models.
+"""Standalone evaluation utilities for Hopfield dataset integrations.
 
 These functions are intentionally not wired into the experiment runner or HPO
 loop. They can be imported after training to evaluate saved/final samples.

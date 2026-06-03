@@ -7,10 +7,10 @@ from typing import Any, Callable
 
 import numpy as np
 
-from src.boltzmann_visualization import generate_boltzmann_visualizations
+from src.datasets.boltzmann_visualization import generate_boltzmann_visualizations
 from src.datasets.hamming_balls import HammingBallsDataset
 from src.datasets.hopfield import HopfieldDataset
-from src.evaluation import EvaluationPolicy
+from src.core import EvaluationPolicy
 
 
 @dataclass(frozen=True)
