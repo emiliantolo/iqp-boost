@@ -299,6 +299,7 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
 
         run_kwargs = dict(
             config=run_config,
+            dataset=bundle,
             dataset_spec=dataset_spec,
             metric_configs=hpo_spec.get('metric_configs'),
             baseline_epochs=hpo_spec.get('baseline_epochs'),
@@ -307,7 +308,6 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
             log_dir=str(hpo_dir),
             log_filename='hpo.log',
             append_log=True,
-            **bundle.to_runner_kwargs(),
         )
 
         result = run_boosting_experiment(**run_kwargs)

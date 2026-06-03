@@ -9,15 +9,16 @@ try:
 except ModuleNotFoundError:
     save_circuit_artifact = None
 from src.reporting import (
-    report_metrics_table, get_plot_config, OutputManager, plot_data_ensemble_loss,
-    plot_metrics_progression, report_baseline, report_final, report_rejection,
+    get_plot_config, OutputManager, report_baseline, report_rejection,
     report_step, report_gradient_snr, report_config, report_circuit, report_kernel,
     report_loss_components, report_acceptance, save_circuit_plot
 )
 from src.core import (
     setup_iqp_circuit, get_params_init, compute_lambda_schedule
 )
+from src.dataset_catalog import DatasetBundle
 from src.evaluation import EvaluationPolicy
+from src.final_evaluation import FinalEvaluationContext, run_final_evaluation
 from src.dual_mmd_loss import gradient_snr, dual_mmd_loss, EnsembleTerms
 import jax
 import numpy as np
@@ -481,66 +482,10 @@ def _resolve_baselines_to_run(config: dict) -> list[str]:
     return baselines
 
 
-def compute_fcfw_stats(base_ensemble: BoostedEnsemble, x_train: np.ndarray, sigma: float | list,
-                       shots: int | None, final_eval_rng: np.random.Generator | None,
-                       evaluation: EvaluationPolicy,
-                       sampling_enabled: bool = True) -> dict:
-    """Compute Fully Corrective Frank-Wolfe weights for an ensemble and evaluate.
-    
-    Returns:
-        Dict with keys 'metrics' (stats dict) and 'weights' (numpy array).
-    """
-    fcfw_ensemble = BoostedEnsemble(
-        base_ensemble.iqp_circuit, base_ensemble.n_models, base_ensemble.sigma, base_ensemble.n_ops,
-        base_ensemble.n_samples, base_ensemble.lambda_dual, base_ensemble.wires,
-        base_ensemble.max_batch_ops, base_ensemble.max_batch_samples
-    )
-    fcfw_ensemble.restore_state(base_ensemble.snapshot_state())
-    trs_data = []
-    sigmas = base_ensemble.sigma if hasattr(base_ensemble.sigma, '__iter__') else [base_ensemble.sigma]
-    for sigma_idx in range(len(sigmas)):
-        if sigma_idx in fcfw_ensemble.terms.ops:
-            _, visible_ops = fcfw_ensemble.terms.ops[sigma_idx]
-            tr_train = np.mean(1 - 2 * ((x_train @ np.asarray(visible_ops).T) % 2), axis=0)
-            trs_data.append(tr_train)
-            
-    fcfw_ensemble.apply_weight_strategy('fully_corrective', trs_data=trs_data)
-    if sampling_enabled:
-        final_fcfw_samples = fcfw_ensemble.sample(shots, final_eval_rng)
-        fcfw_stats = evaluation.evaluate_samples(final_fcfw_samples)
-    else:
-        fcfw_mmd = evaluation.evaluate_ensemble_training_mmd(fcfw_ensemble)
-        fcfw_stats = {
-            'mmd': fcfw_mmd,
-            'kl': float('nan'),
-            'jsd': float('nan'),
-            'tvd': float('nan'),
-            'validity': float('nan'),
-            'coverage': float('nan'),
-            'precision': float('nan'),
-            'recall': float('nan'),
-            'support_match': float('nan'),
-            'f_score': float('nan'),
-            'corr_fro': float('nan'),
-        }
-    
-    return {
-        "metrics": fcfw_stats,
-        "weights": np.asarray(fcfw_ensemble.weights, dtype=np.float64),
-    }
-
-
 def run_boosting_experiment(
     config: dict,
-    dataset_name: str,
+    dataset: DatasetBundle,
     dataset_spec: dict | None,
-    x_train: np.ndarray,
-    validity_fn: callable,
-    coverage_fn: callable,
-    custom_viz_fn: callable = None,
-    top_k_tvd_fn: callable = None,
-    exact_probs: np.ndarray = None,
-    generation_eval_fn: callable = None,
     metric_configs: list = None,
     baseline_epochs: int | None = None,
     output_base_dir: str = 'out',
@@ -548,10 +493,12 @@ def run_boosting_experiment(
     log_dir: str | None = None,
     log_filename: str = 'log.txt',
     append_log: bool = False,
-    x_test: np.ndarray | None = None,
 ):
     """Run a complete ensemble boosting experiment."""
     np.random.seed(config['rng_seed'])
+    x_train = dataset.x_train
+    validity_fn = dataset.validity_fn
+    coverage_fn = dataset.coverage_fn
 
     output = OutputManager(
         base_dir=output_base_dir,
@@ -562,10 +509,10 @@ def run_boosting_experiment(
     )
 
     with output:
-        report_config(config, dataset_name)
+        report_config(config, dataset.dataset_name)
         output.save_config(config)
 
-        n_qubits = x_train.shape[1]
+        n_qubits = dataset.n_qubits
 
         # Circuit setup
         circuit_config = config.get('circuit_config', {'topology': 'neighbour', 'distance': 3, 'max_weight': 2})
@@ -590,17 +537,12 @@ def run_boosting_experiment(
         plot_cfg = get_plot_config()
         monitor_interval = plot_cfg['plot_interval'] if plot_cfg['plot_data_loss'] else None
         turbo_opt = config.get('turbo', None)
-        evaluation = EvaluationPolicy(
-            x_train=x_train,
+        evaluation = dataset.build_evaluation_policy(
             sigma=sigma,
             shots=shots,
             rng_seed=rng_seed,
             skip_sampling=config.get('skip_sampling', False),
             final_eval_sampling=bool(config.get('final_eval_sampling', False)),
-            validity_fn=validity_fn,
-            coverage_fn=coverage_fn,
-            exact_probs=exact_probs,
-            generation_eval_fn=generation_eval_fn,
         )
         min_alpha_accept = float(config.get('min_alpha_accept', 1e-10))
         acceptance_metric = config.get(
@@ -630,10 +572,6 @@ def run_boosting_experiment(
         data_only_stats = None
         data_only_history = None
         data_only_ensemble = None
-        data_only_fcfw_stats = None
-        data_only_fcfw_weights = None
-        ensemble_fcfw_stats = None
-        ensemble_fcfw_weights = None
 
         # 1. Optional standalone baseline
         if 'standalone' in baselines_to_run:
@@ -716,7 +654,7 @@ def run_boosting_experiment(
             sampled_mmd=ens_stats['mmd'] if evaluation.sampling_enabled else None,
             sampled_tvd=ens_stats.get('tvd') if evaluation.sampling_enabled else None,
             alpha_opt=alpha_0,
-            oracle_tvd=top_k_tvd_fn(1) if top_k_tvd_fn else None,
+            oracle_tvd=dataset.top_k_tvd_fn(1) if dataset.top_k_tvd_fn else None,
         )
         prev_ens_stats = ens_stats
         prev_training_mmd = m0_training_mmd
@@ -773,7 +711,7 @@ def run_boosting_experiment(
                 sampled_mmd=ens_stats['mmd'] if evaluation.sampling_enabled else None,
                 sampled_tvd=ens_stats.get('tvd') if evaluation.sampling_enabled else None,
                 alpha_opt=alpha,
-                oracle_tvd=top_k_tvd_fn(step + 1) if top_k_tvd_fn else None,
+                oracle_tvd=dataset.top_k_tvd_fn(step + 1) if dataset.top_k_tvd_fn else None,
             )
 
             # Check acceptance using configured comparison metric
@@ -850,203 +788,37 @@ def run_boosting_experiment(
                 print(f"Baseline used as reference: {reference_label}")
                 break
 
-        # Final reporting - sample once, reuse everywhere
-        data_only_fcfw_stats = None
-        data_only_fcfw_weights = None
-        ensemble_fcfw_stats = None
-        ensemble_fcfw_weights = None
-
-        if not evaluation.final_sampling_enabled:
-            print("\n[skip_sampling=True] Skipping final state vector sampling. Using final training losses.")
-            final_ensemble_samples, final_counts, per_model_samples = None, None, []
-            
-            # Use last ensemble loss as final stats
-            final_loss = ensemble_metrics_history['training_loss'][-1] if ensemble_metrics_history['training_loss'] else float('nan')
-            final_stats = {'mmd': final_loss}
-            
-            report_stats = {**final_stats}
-            report_final(reference_stats['mmd'], final_stats['mmd'], len(ensemble.models), report_stats)
-            
-            # Simplified metrics table (only MMD)
-            model_rows = []
-            if data_only_stats is not None and reference_label != 'Data-only':
-                model_rows.append(("Data-only", {'mmd': data_only_stats.get('mmd', float('nan'))}))
-                
-                # 1b. Data-only FCFW
-                if config.get('report_fcfw', True):
-                    print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for Data-only baseline (Analytical)...")
-                    data_only_fcfw_result = compute_fcfw_stats(
-                        data_only_ensemble, x_train, sigma, None, None, evaluation, sampling_enabled=False
-                    )
-                    data_only_fcfw_stats = data_only_fcfw_result["metrics"]
-                    data_only_fcfw_weights = data_only_fcfw_result["weights"]
-                    print(f"  FCFW Analytical MMD^2: {data_only_fcfw_stats['mmd']:.6f}")
-                    model_rows.append(("Data-only (FCFW)", data_only_fcfw_stats))
-            for i in range(len(ensemble.models)):
-                # Try to get training loss at each step if recorded
-                m_loss = ensemble_metrics_history['training_loss'][i] if i < len(ensemble_metrics_history['training_loss']) else float('nan')
-                model_rows.append((f"Model {i}", {'mmd': m_loss}))
-            
-            # 3. Ensemble FCFW
-            table_title = "FINAL MODEL COMPARISON (Analytical)"
-            if config.get('report_fcfw', True):
-                print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble (Analytical)...")
-                ensemble_fcfw_result = compute_fcfw_stats(
-                    ensemble, x_train, sigma, None, None, evaluation, sampling_enabled=False
-                )
-                ensemble_fcfw_stats = ensemble_fcfw_result["metrics"]
-                ensemble_fcfw_weights = ensemble_fcfw_result["weights"]
-                print(f"  FCFW Analytical MMD^2: {ensemble_fcfw_stats['mmd']:.6f}")
-                
-                model_rows.append(("Ensemble (FCFW)", ensemble_fcfw_stats))
-                table_title = "FINAL MODEL COMPARISON (Analytical, inc. FCFW)"
-
-            report_metrics_table(reference_stats, final_stats, model_rows, table_title)
-
-            baseline_for_csv = standalone_stats if standalone_stats is not None else reference_stats
-            summary_rows = []
-            if data_only_stats is not None:
-                summary_rows.append({'step': -2, 'label': 'data_only', 'metrics': data_only_stats})
-            if data_only_fcfw_stats is not None:
-                summary_rows.append({'step': -3, 'label': 'data_only_fcfw', 'metrics': data_only_fcfw_stats})
-            summary_rows.append({'step': -4, 'label': 'ensemble_final', 'metrics': final_stats})
-            if ensemble_fcfw_stats is not None:
-                summary_rows.append({'step': -5, 'label': 'ensemble_fcfw', 'metrics': ensemble_fcfw_stats})
-
-            output.save_results_csv(
-                ensemble_metrics_history,
-                baseline_stats=baseline_for_csv,
-                summary_rows=summary_rows,
-            )
-        else:
-            final_eval_rng = np.random.default_rng(rng_seed + config['n_models'] * 7919)
-            final_ensemble_samples, final_counts, per_model_samples = ensemble.sample(
-                shots, final_eval_rng, return_details=True)
-            final_stats = evaluation.evaluate_samples(final_ensemble_samples)
-
-            report_final(reference_stats['mmd'], final_stats['mmd'], len(ensemble.models), final_stats)
-
-            # Per-model metrics from existing samples (no re-sampling)
-            model_rows = []
-            data_only_fcfw_stats = None
-            data_only_fcfw_weights = None
-            ensemble_fcfw_stats = None
-            ensemble_fcfw_weights = None
-            
-            # 1. Data-only baseline
-            if data_only_stats is not None and reference_label != 'Data-only':
-                model_rows.append(("Data-only", data_only_stats))
-                
-                # 1b. Data-only FCFW
-                if config.get('report_fcfw', True):
-                    print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for Data-only baseline...")
-                    data_only_fcfw_result = compute_fcfw_stats(
-                        data_only_ensemble, x_train, sigma, shots, final_eval_rng, evaluation
-                    )
-                    data_only_fcfw_stats = data_only_fcfw_result["metrics"]
-                    data_only_fcfw_weights = data_only_fcfw_result["weights"]
-                    print(f"  FCFW Sampled MMD^2: {data_only_fcfw_stats['mmd']:.6f}")
-                    if 'tvd' in data_only_fcfw_stats and not np.isnan(data_only_fcfw_stats['tvd']):
-                        print(f"  FCFW Sampled TVD:   {data_only_fcfw_stats['tvd']:.4f}")
-                    model_rows.append(("Data-only (FCFW)", data_only_fcfw_stats))
-                    
-            # 2. Individual models
-            for i, model_samples in enumerate(per_model_samples):
-                if len(model_samples) > 0:
-                    model_stats = evaluation.evaluate_samples(model_samples)
-                else:
-                    model_stats = {'mmd': float('nan')}
-                model_rows.append((f"Model {i}", model_stats))
-
-            # 3. Ensemble FCFW
-            table_title = "FINAL MODEL COMPARISON"
-            if config.get('report_fcfw', True):
-                print("\n[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...")
-                ensemble_fcfw_result = compute_fcfw_stats(
-                    ensemble, x_train, sigma, shots, final_eval_rng, evaluation
-                )
-                ensemble_fcfw_stats = ensemble_fcfw_result["metrics"]
-                ensemble_fcfw_weights = ensemble_fcfw_result["weights"]
-                print(f"  FCFW Sampled MMD^2: {ensemble_fcfw_stats['mmd']:.6f}")
-                if 'tvd' in ensemble_fcfw_stats and not np.isnan(ensemble_fcfw_stats['tvd']):
-                    print(f"  FCFW Sampled TVD:   {ensemble_fcfw_stats['tvd']:.4f}")
-                
-                model_rows.append(("Ensemble (FCFW)", ensemble_fcfw_stats))
-                table_title = "FINAL MODEL COMPARISON (inc. FCFW)"
-
-            report_metrics_table(reference_stats, final_stats, model_rows, table_title)
-
-            baseline_for_csv = standalone_stats if standalone_stats is not None else reference_stats
-            summary_rows = []
-            if data_only_stats is not None:
-                summary_rows.append({'step': -2, 'label': 'data_only', 'metrics': data_only_stats})
-            if data_only_fcfw_stats is not None:
-                summary_rows.append({'step': -3, 'label': 'data_only_fcfw', 'metrics': data_only_fcfw_stats})
-            summary_rows.append({'step': -4, 'label': 'ensemble_final', 'metrics': final_stats})
-            if ensemble_fcfw_stats is not None:
-                summary_rows.append({'step': -5, 'label': 'ensemble_fcfw', 'metrics': ensemble_fcfw_stats})
-
-            output.save_results_csv(
-                ensemble_metrics_history,
-                baseline_stats=baseline_for_csv,
-                summary_rows=summary_rows,
-            )
-
-        # Compute test-set MMD if held-out data is provided (no extra sampling)
-        if x_test is not None and len(x_test) > 0:
-            test_mmd = evaluation.evaluate_ensemble_training_mmd(ensemble, x_test)
-            final_stats['test_mmd'] = test_mmd
-            print(f"\n[Test MMD] {test_mmd:.6f}")
-            if ensemble_fcfw_stats is not None:
-                # Build a temporary FCFW ensemble to compute test MMD analytically
-                fcfw_ensemble_test = BoostedEnsemble(
-                    ensemble.iqp_circuit, ensemble.n_models, ensemble.sigma, ensemble.n_ops,
-                    ensemble.n_samples, ensemble.lambda_dual, ensemble.wires,
-                    ensemble.max_batch_ops, ensemble.max_batch_samples
-                )
-                fcfw_ensemble_test.restore_state(ensemble.snapshot_state())
-                trs_data_test = []
-                sigmas = ensemble.sigma if hasattr(ensemble.sigma, '__iter__') else [ensemble.sigma]
-                for sigma_idx in range(len(sigmas)):
-                    if sigma_idx in fcfw_ensemble_test.terms.ops:
-                        _, visible_ops = fcfw_ensemble_test.terms.ops[sigma_idx]
-                        tr_test = np.mean(1 - 2 * ((x_test @ np.asarray(visible_ops).T) % 2), axis=0)
-                        trs_data_test.append(tr_test)
-                fcfw_ensemble_test.apply_weight_strategy('fully_corrective', trs_data=trs_data_test)
-                test_mmd_fcfw = evaluation.evaluate_ensemble_training_mmd(fcfw_ensemble_test, x_test)
-                final_stats['test_mmd_fcfw'] = test_mmd_fcfw
-                print(f"[Test MMD FCFW] {test_mmd_fcfw:.6f}")
-
-        # Plotting
-        if get_plot_config()['plot_data_loss']:
-            plot_data_ensemble_loss(
-                ensemble,
-                ensemble_metrics_history,
-                reference_stats,
-                output,
-                baseline_train_losses=np.array(baseline_train_losses) if baseline_train_losses is not None else None,
-                data_only_history=data_only_history,
-            )
-
-            if evaluation.sampling_enabled:
-                if metric_configs is None:
-                    metric_configs = [
-                        ('mmd', 'Sampled MMD^2', 1, 'blue', 's'),
-                        ('tvd', 'TVD', 1, 'green', '^'),
-                        ('coverage', 'Coverage (%)', 100, 'purple', 'v'),
-                        ('validity', 'Validity (%)', 100, 'orange', 'd'),
-                    ]
-                plot_metrics_progression(ensemble_metrics_history, reference_stats, output, metric_configs)
+        final_evaluation = run_final_evaluation(FinalEvaluationContext(
+            config=config,
+            dataset=dataset,
+            output=output,
+            ensemble=ensemble,
+            data_only_ensemble=data_only_ensemble,
+            data_only_stats=data_only_stats,
+            data_only_history=data_only_history,
+            standalone_stats=standalone_stats,
+            baseline_train_losses=baseline_train_losses,
+            ensemble_metrics_history=ensemble_metrics_history,
+            evaluation=evaluation,
+            sigma=sigma,
+            shots=shots,
+            rng_seed=rng_seed,
+            reference_stats=reference_stats,
+            reference_label=reference_label,
+            metric_configs=metric_configs,
+        ))
 
         # Custom Visualization -- always attempt if a viz callback is set.
         # The viz function handles None samples gracefully (e.g. Ising Lorenz).
-        if custom_viz_fn is not None:
+        if dataset.custom_viz_fn is not None:
             try:
-                custom_viz_fn(output, x_train,
-                              baseline_samples if evaluation.final_sampling_enabled else None,
-                              final_ensemble_samples if evaluation.final_sampling_enabled else None,
-                              per_model_samples if evaluation.final_sampling_enabled else [],
-                              ensemble.weights)
+                dataset.run_custom_visualization(
+                    output,
+                    baseline_samples if evaluation.final_sampling_enabled else None,
+                    final_evaluation.final_ensemble_samples if evaluation.final_sampling_enabled else None,
+                    final_evaluation.per_model_samples if evaluation.final_sampling_enabled else [],
+                    ensemble.weights,
+                )
             except Exception as e:
                 print(f"Custom visualization failed: {e}")
 
@@ -1058,7 +830,7 @@ def run_boosting_experiment(
                     raise ImportError("src.circuit_artifacts is not available")
                 artifact_path = save_circuit_artifact(
                     path=output.get_path('circuit_artifact.json'),
-                    dataset_name=dataset_name,
+                    dataset_name=dataset.dataset_name,
                     run_name=run_name,
                     config=config,
                     dataset_spec=dataset_spec,
@@ -1070,24 +842,24 @@ def run_boosting_experiment(
                     wires=wires,
                     ensemble=ensemble,
                     ensemble_metrics_history=ensemble_metrics_history,
-                    ensemble_fcfw_weights=ensemble_fcfw_weights,
+                    ensemble_fcfw_weights=final_evaluation.ensemble_fcfw_weights,
                     standalone_params=baseline_params,
                     data_only_ensemble=data_only_ensemble,
                     data_only_history=data_only_history,
-                    data_only_fcfw_weights=data_only_fcfw_weights,
+                    data_only_fcfw_weights=final_evaluation.data_only_fcfw_weights,
                 )
                 print(f"[ARTIFACTS] Circuit artifact saved to: {artifact_path}")
             except Exception as e:
                 print(f"[ARTIFACTS] Failed to save circuit artifact: {e}")
 
         return {
-            'final_stats': final_stats,
+            'final_stats': final_evaluation.final_stats,
             'ensemble_metrics_history': ensemble_metrics_history,
             'ensemble': ensemble,
             'baseline_stats': standalone_stats,
             'data_only_stats': data_only_stats,
-            'ensemble_fcfw_stats': ensemble_fcfw_stats,
-            'ensemble_fcfw_weights': ensemble_fcfw_weights,
+            'ensemble_fcfw_stats': final_evaluation.ensemble_fcfw_stats,
+            'ensemble_fcfw_weights': final_evaluation.ensemble_fcfw_weights,
             'output_dir': str(output.run_dir),
             'weights': np.asarray(ensemble.weights, dtype=np.float64),
             'n_models_accepted': len(ensemble.models),
