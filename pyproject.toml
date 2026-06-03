@@ -24,3 +24,8 @@ members = [
 
 [tool.uv.sources]
 iqpopt = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "vulture>=2.16",
+]
