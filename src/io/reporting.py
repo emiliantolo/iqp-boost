@@ -196,19 +196,27 @@ def report_metrics_table(baseline_stats: dict, ensemble_stats: dict, model_list:
         stats_list.extend(stats for _, stats in model_list)
     graph_cols = [(label, key) for label, key in graph_specs
                   if any(isinstance(stats, dict) and key in stats for stats in stats_list)]
+    include_exact_tvd = any(isinstance(stats, dict) and "tvd_exact" in stats for stats in stats_list)
 
     # Show concise, decision-relevant metrics
-    headers = ["Model", "MMD", "TVD", "Valid", "Cover", "F1"] + [label for label, _ in graph_cols]
+    headers = ["Model", "MMD", "TVD"]
+    if include_exact_tvd:
+        headers.append("TVD*")
+    headers += ["Valid", "Cover", "F1"] + [label for label, _ in graph_cols]
 
     def _row(name: str, stats: dict) -> list:
         row = [
             name,
             _fmt(stats, 'mmd', 'float4'),
             _fmt(stats, 'tvd', 'float3'),
+        ]
+        if include_exact_tvd:
+            row.append(_fmt(stats, 'tvd_exact', 'float3'))
+        row.extend([
             _fmt(stats, 'validity', 'pct1'),
             _fmt(stats, 'coverage', 'pct1'),
             _fmt(stats, 'f_score', 'pct1'),
-        ]
+        ])
         row.extend(_fmt(stats, key, 'pct1') for _, key in graph_cols)
         return row
 

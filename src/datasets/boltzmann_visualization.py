@@ -7,6 +7,7 @@ from .boltzmann_metrics import covariance_matrices
 from .boltzmann_plots import (
     plot_hamming_weight_histogram,
     plot_covariance_heatmaps,
+    plot_lorenz_curve,
 )
 
 
@@ -16,7 +17,6 @@ def generate_boltzmann_visualizations(output_manager, x_train, baseline_samples,
     """Generate scalable Boltzmann diagnostics for a dataset run.
 
     The callback compares the baseline and final ensemble directly.
-    (Lorenz curve is now plotted globally by the runner.)
     """
     del weights
 
@@ -42,10 +42,18 @@ def generate_boltzmann_visualizations(output_manager, x_train, baseline_samples,
     else:
         sigma_reference = spin_covariance_from_samples(reference_samples)
     sigma_baseline, sigma_ensemble = covariance_matrices(
-        baseline_samples, final_ensemble_samples, exact_probs=None,
+        baseline_samples,
+        final_ensemble_samples,
+        exact_probs=None,
     )
     fig = plot_covariance_heatmaps(sigma_reference, sigma_baseline, sigma_ensemble)
     path = output_manager.get_path('boltzmann_covariance_heatmaps.png')
     fig.savefig(path, dpi=160, bbox_inches='tight')
     fig.savefig(str(path).replace('.png', '.pdf'), bbox_inches='tight')
     print(f'Saved Boltzmann covariance heatmaps to: {path}')
+
+    fig = plot_lorenz_curve(exact_probs, baseline_samples, final_ensemble_samples, reference_samples=x_train)
+    path = output_manager.get_path('boltzmann_lorenz_curve.png')
+    fig.savefig(path, dpi=160, bbox_inches='tight')
+    fig.savefig(str(path).replace('.png', '.pdf'), bbox_inches='tight')
+    print(f'Saved Boltzmann Lorenz curve to: {path}')

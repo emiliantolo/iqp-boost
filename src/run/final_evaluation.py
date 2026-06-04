@@ -8,6 +8,7 @@ import numpy as np
 
 from src.core import BoostedEnsemble, EvaluationPolicy
 from src.datasets import DatasetBundle
+from src.datasets.dataset_metrics import compute_and_save_dataset_metrics
 from src.io.reporting import (
     get_plot_config,
     plot_data_ensemble_loss,
@@ -67,6 +68,7 @@ def run_final_evaluation(context: FinalEvaluationContext) -> FinalEvaluationResu
     result = build_final_result(context)
     comparison = build_comparison(context, result)
     publish_final_outputs(context, result, comparison)
+    _save_dataset_metrics(context, result)
     return result
 
 
@@ -107,6 +109,7 @@ def compute_fcfw_stats(
     evaluation: EvaluationPolicy,
     sampling_enabled: bool = True,
     evaluation_data: np.ndarray | None = None,
+    exact_phase: str = "fcfw",
 ) -> FcfwEvaluationResult:
     """Compute Fully Corrective Frank-Wolfe weights for an ensemble and evaluate."""
     fcfw_ensemble = BoostedEnsemble(
@@ -123,11 +126,18 @@ def compute_fcfw_stats(
         strategy='fully_corrective',
         trs_data=trs_data,
     ))
+    model_probs = (
+        evaluation.exact_ensemble_probs(fcfw_ensemble)
+        if hasattr(evaluation, "exact_metrics_enabled") and evaluation.exact_metrics_enabled(exact_phase)
+        else None
+    )
     if sampling_enabled:
         final_fcfw_samples = fcfw_ensemble.sample(shots, final_eval_rng)
-        fcfw_stats = evaluation.evaluate_samples(final_fcfw_samples)
+        fcfw_stats = evaluation.evaluate_samples(final_fcfw_samples, model_probs=model_probs)
     else:
         fcfw_stats = _analytical_stats(evaluation.evaluate_ensemble_training_mmd(fcfw_ensemble, target_data))
+        if model_probs is not None:
+            fcfw_stats.update(evaluation.evaluate_exact_probs(model_probs))
 
     return FcfwEvaluationResult(
         metrics=fcfw_stats,
@@ -142,7 +152,14 @@ def _analytical_final_result(context: FinalEvaluationContext) -> FinalEvaluation
         if context.ensemble_metrics_history['training_loss']
         else float('nan')
     )
+    model_probs = (
+        context.evaluation.exact_ensemble_probs(context.ensemble)
+        if hasattr(context.evaluation, "exact_metrics_enabled") and context.evaluation.exact_metrics_enabled("final")
+        else None
+    )
     final_stats = {'mmd': final_loss}
+    if model_probs is not None:
+        final_stats.update(context.evaluation.evaluate_exact_probs(model_probs))
     report_final(
         context.reference_stats['mmd'],
         final_stats['mmd'],
@@ -163,7 +180,12 @@ def _sampled_final_result(context: FinalEvaluationContext) -> FinalEvaluationRes
         final_eval_rng,
         return_details=True,
     )
-    final_stats = context.evaluation.evaluate_samples(final_ensemble_samples)
+    model_probs = (
+        context.evaluation.exact_ensemble_probs(context.ensemble)
+        if hasattr(context.evaluation, "exact_metrics_enabled") and context.evaluation.exact_metrics_enabled("final")
+        else None
+    )
+    final_stats = context.evaluation.evaluate_samples(final_ensemble_samples, model_probs=model_probs)
     report_final(
         context.reference_stats['mmd'],
         final_stats['mmd'],
@@ -215,7 +237,16 @@ def _add_model_rows(
     if context.evaluation.final_sampling_enabled:
         for i, model_samples in enumerate(per_model_samples):
             if len(model_samples) > 0:
-                model_stats = context.evaluation.evaluate_samples(model_samples)
+                model_probs = (
+                    context.evaluation.exact_model_probs(
+                        context.ensemble.iqp_circuit,
+                        context.ensemble.models[i],
+                        context.ensemble.wires,
+                    )
+                    if hasattr(context.evaluation, "exact_metrics_enabled") and context.evaluation.exact_metrics_enabled("per_model")
+                    else None
+                )
+                model_stats = context.evaluation.evaluate_samples(model_samples, model_probs=model_probs)
             else:
                 model_stats = {'mmd': float('nan')}
             model_rows.append((f"Model {i}", model_stats))
@@ -323,6 +354,20 @@ def _plot_final_progression(context: FinalEvaluationContext) -> None:
                 ('validity', 'Validity (%)', 100, 'orange', 'd'),
             ]
         plot_metrics_progression(context.ensemble_metrics_history, context.reference_stats, context.output, metric_configs)
+
+
+def _save_dataset_metrics(context: FinalEvaluationContext, result: FinalEvaluationResult) -> None:
+    if not bool(context.config.get('dataset_metrics', True)):
+        return
+    if not context.evaluation.final_sampling_enabled or result.final_ensemble_samples is None:
+        print("Skipping dataset metrics because final sampled outputs are unavailable.")
+        return
+    compute_and_save_dataset_metrics(
+        dataset_bundle=context.dataset,
+        output=context.output,
+        final_samples=result.final_ensemble_samples,
+        per_model_samples=result.per_model_samples,
+    )
 
 
 def _data_traces(ensemble: BoostedEnsemble, data: np.ndarray) -> list:

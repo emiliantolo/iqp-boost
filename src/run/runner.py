@@ -81,6 +81,7 @@ def run_boosting_experiment(
             rng_seed=rng_seed,
             skip_sampling=config.get('skip_sampling', False),
             final_eval_sampling=bool(config.get('final_eval_sampling', False)),
+            exact_metrics=config,
         )
         min_alpha_accept = float(config.get('min_alpha_accept', 1e-10))
         acceptance_metric = config.get(

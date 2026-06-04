@@ -23,10 +23,14 @@ class FakeEvaluation:
         self.sampling_enabled = sampling_enabled
         self.sample_evaluations = []
         self.training_evaluations = []
+        self.exact_phases = set()
 
-    def evaluate_samples(self, samples):
+    def evaluate_samples(self, samples, model_probs=None):
         self.sample_evaluations.append(np.asarray(samples))
-        return {"mmd": float(np.asarray(samples).sum())}
+        stats = {"mmd": float(np.asarray(samples).sum())}
+        if model_probs is not None:
+            stats["tvd_exact"] = float(np.asarray(model_probs).sum())
+        return stats
 
     def evaluate_ensemble_training_mmd(self, ensemble, ground_truth=None):
         self.training_evaluations.append(ground_truth)
@@ -34,12 +38,33 @@ class FakeEvaluation:
             return 0.5
         return float(np.asarray(ground_truth).sum())
 
+    def exact_metrics_enabled(self, phase):
+        return phase in self.exact_phases
+
+    def exact_ensemble_probs(self, ensemble):
+        return np.array([0.25, 0.75])
+
+    def exact_model_probs(self, circuit, params, wires=None):
+        return np.array([0.4, 0.6])
+
+    def evaluate_exact_probs(self, model_probs):
+        return {"tvd_exact": float(np.asarray(model_probs).sum())}
+
 
 class FakeEnsemble:
     def __init__(self):
         self.models = [np.array([0]), np.array([1])]
         self.weights = [0.5, 0.5]
         self.sample_calls = []
+        self.iqp_circuit = object()
+        self.wires = None
+        self.n_models = 2
+        self.sigma = 1.0
+        self.n_ops = 4
+        self.n_samples = 8
+        self.lambda_dual = 1.0
+        self.max_batch_ops = None
+        self.max_batch_samples = None
 
     def sample(self, shots, rng, return_details=False):
         self.sample_calls.append({"shots": shots, "return_details": return_details})
@@ -51,6 +76,13 @@ class FakeEnsemble:
             np.ones((1, 2), dtype=np.int8),
         ]
         return final_samples, np.array([1, 1]), per_model
+
+    def snapshot_state(self):
+        return {"models": self.models, "weights": self.weights}
+
+    def restore_state(self, snapshot):
+        self.models = snapshot["models"]
+        self.weights = snapshot["weights"]
 
 
 def test_analytical_final_evaluation_writes_final_stats_and_no_samples(monkeypatch):
@@ -194,6 +226,44 @@ def test_final_evaluation_context_does_not_require_baseline_samples(monkeypatch)
     result = run_final_evaluation(context)
 
     assert result.final_stats["mmd"] == 0.7
+
+
+def test_sampled_final_evaluation_adds_exact_final_and_per_model_rows(monkeypatch):
+    _disable_plotting(monkeypatch)
+    evaluation = FakeEvaluation(final_sampling_enabled=True, sampling_enabled=True)
+    evaluation.exact_phases = {"final", "per_model"}
+    context = _context(evaluation=evaluation, shots=3, report_fcfw=False)
+
+    result = run_final_evaluation(context)
+
+    assert result.final_stats["tvd_exact"] == 1.0
+    model_rows = context.output.saved["summary_rows"]
+    assert model_rows[-1]["metrics"]["tvd_exact"] == 1.0
+    assert len(evaluation.sample_evaluations) == 3
+
+
+def test_fcfw_exact_metrics_are_added_when_phase_enabled(monkeypatch):
+    _disable_plotting(monkeypatch)
+
+    def fake_fcfw_stats(*args, **kwargs):
+        from src.run.final_evaluation import FcfwEvaluationResult
+
+        evaluation = args[5]
+        metrics = {"mmd": 0.123}
+        if evaluation.exact_metrics_enabled(kwargs.get("exact_phase", "fcfw")):
+            metrics.update(evaluation.evaluate_exact_probs(np.array([0.5, 0.5])))
+        return FcfwEvaluationResult(metrics=metrics, weights=np.array([1.0]))
+
+    monkeypatch.setattr("src.run.final_evaluation.compute_fcfw_stats", fake_fcfw_stats)
+    evaluation = FakeEvaluation(final_sampling_enabled=True, sampling_enabled=True)
+    evaluation.exact_phases = {"fcfw"}
+    context = _context(evaluation=evaluation, report_fcfw=True)
+
+    run_final_evaluation(context)
+
+    summary = context.output.saved["summary_rows"]
+    assert summary[-1]["label"] == "ensemble_fcfw"
+    assert summary[-1]["metrics"]["tvd_exact"] == 1.0
 
 
 def _context(

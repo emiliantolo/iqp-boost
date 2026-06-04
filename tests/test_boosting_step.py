@@ -8,16 +8,26 @@ from src.run import BoostingStepContext, run_boosting_step
 class FakeEvaluation:
     sampling_enabled = False
 
-    def __init__(self, training_mmd):
+    def __init__(self, training_mmd, exact_steps=False):
         self.training_mmd = training_mmd
         self.training_calls = 0
+        self.exact_steps = exact_steps
 
     def evaluate_ensemble_training_mmd(self, ensemble):
         self.training_calls += 1
         return self.training_mmd
 
-    def analytical_mmd_stats(self, value):
-        return {"mmd": value}
+    def analytical_mmd_stats(self, value, model_probs=None):
+        stats = {"mmd": value}
+        if model_probs is not None:
+            stats["tvd_exact"] = float(model_probs.sum())
+        return stats
+
+    def exact_metrics_enabled(self, phase):
+        return self.exact_steps and phase == "steps"
+
+    def exact_ensemble_probs(self, ensemble):
+        return np.array([0.5, 0.5])
 
 
 class FakeEnsemble:
@@ -62,6 +72,7 @@ def test_accepted_step_appends_history_and_advances_reference(monkeypatch):
         "step": [0, 1],
         "alpha": [1.0, 0.4],
         "training_loss": [0.8, 0.5],
+        "accepted_by_metric": [True, True],
     }
     assert ensemble.restored is False
 
@@ -119,6 +130,35 @@ def test_stop_on_reject_sets_should_stop(monkeypatch):
     assert result.should_stop is True
 
 
+def test_keep_models_for_diagnosis_keeps_worse_step_and_records_flag(monkeypatch):
+    monkeypatch.setattr(boosting_step, "train_candidate_model", _candidate(alpha=0.4))
+    ensemble = FakeEnsemble()
+    history = {"mmd": [0.8], "step": [0], "alpha": [1.0], "training_loss": [0.8]}
+
+    result = run_boosting_step(
+        _context(
+            ensemble=ensemble,
+            history=history,
+            training_mmd=0.9,
+            config={"keep_models_for_diagnosis": True},
+        )
+    )
+
+    assert result.accepted is True
+    assert result.should_stop is False
+    assert result.previous_stats == {"mmd": 0.9}
+    assert result.previous_training_mmd == 0.9
+    assert history == {
+        "mmd": [0.8, 0.9],
+        "step": [0, 1],
+        "alpha": [1.0, 0.4],
+        "training_loss": [0.8, 0.9],
+        "accepted_by_metric": [True, False],
+    }
+    assert ensemble.restored is False
+    assert len(ensemble.models) == 2
+
+
 def test_data_only_step_uses_same_module_without_changing_lambda(monkeypatch):
     monkeypatch.setattr(boosting_step, "train_candidate_model", _candidate(alpha=0.3))
     ensemble = FakeEnsemble()
@@ -138,6 +178,27 @@ def test_data_only_step_uses_same_module_without_changing_lambda(monkeypatch):
 
     assert result.accepted is True
     assert ensemble.lambda_dual == 0.0
+
+
+def test_step_exact_metrics_are_only_added_when_steps_phase_enabled(monkeypatch):
+    monkeypatch.setattr(boosting_step, "train_candidate_model", _candidate(alpha=0.4))
+    ensemble = FakeEnsemble()
+    history = {"mmd": [0.8], "step": [0], "alpha": [1.0], "training_loss": [0.8]}
+    evaluation = FakeEvaluation(training_mmd=0.5, exact_steps=True)
+
+    def analytical_with_exact(value, model_probs=None):
+        stats = {"mmd": value}
+        if model_probs is not None:
+            stats["tvd_exact"] = float(model_probs.sum())
+        return stats
+
+    evaluation.analytical_mmd_stats = analytical_with_exact
+    evaluation.exact_ensemble_probs = lambda ensemble: np.array([0.5, 0.5])
+
+    run_boosting_step(_context(ensemble=ensemble, evaluation=evaluation, history=history, training_mmd=0.5))
+
+    assert np.isnan(history["tvd_exact"][0])
+    assert history["tvd_exact"][1] == 1.0
 
 
 def _candidate(alpha):
