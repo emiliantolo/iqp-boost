@@ -1,17 +1,17 @@
 {
   "output": {
     "base_dir": "out_benchmark_suite_hamming_balls",
-    "suite_name": "benchmark_suite_hamming_balls_20q"
+    "suite_name": "benchmark_suite_hamming_balls_20q_K4_p012"
   },
   "runs": [
     {
-      "name": "hamming_balls_20q",
+      "name": "hamming_balls_20q_K4_p012",
       "dataset": {
         "name": "hamming_balls",
         "params": {
           "n_qubits": 20,
           "K": 4,
-          "p": 0.1,
+          "p": 0.12,
           "pattern_seed": 0
         }
       },

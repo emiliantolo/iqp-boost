@@ -50,6 +50,18 @@
         "acceptance_metric": "training_mmd",
         "skip_sampling": false,
         "final_eval_sampling": true,
+        "dataset_metrics": true,
+        "exact_metrics": {
+          "enabled": true,
+          "max_qubits": 20,
+          "phases": {
+            "baseline": true,
+            "steps": true,
+            "final": true,
+            "per_model": true,
+            "fcfw": true
+          }
+        },
         "report_fcfw": true,
         "keep_models_for_diagnosis": true,
         "stop_on_reject": false,
