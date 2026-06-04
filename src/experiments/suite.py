@@ -236,7 +236,6 @@ def run_suite(config_path: Path, only: set[str] | None = None,
 
         bundle = build_dataset_bundle(
             dataset_spec=dataset_spec, config=run_cfg, plot_spec=plot_spec,
-            output_base_dir=str(os.path.join(suite_dir, run_name)),
         )
 
         print(f"\n[{idx + 1}/{len(runs)}] {run_name}: {bundle.dataset_name}")
