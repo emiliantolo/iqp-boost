@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import optuna
 
-from src.experiment_factory import build_dataset_bundle
+from src.experiments.factory import build_dataset_bundle
 from src.hpo.objective import ObjectiveSpec, validate_objective_before_training
 from src.hpo.pruning import PruningSpec, make_trial_pruning_callback
 from src.hpo.trial_config import resolve_trial_config

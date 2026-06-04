@@ -13,4 +13,4 @@ def test_hpo_help_smoke():
 
 
 def test_experiment_factory_import_smoke():
-    import src.experiment_factory  # noqa: F401
+    import src.experiments.factory  # noqa: F401

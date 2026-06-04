@@ -10,7 +10,7 @@ from statistics import mean, pstdev
 
 import numpy as np
 
-from src.experiment_factory import build_dataset_bundle
+from src.experiments.factory import build_dataset_bundle
 from src.runner import run_boosting_experiment
 
 

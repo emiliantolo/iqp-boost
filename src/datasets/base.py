@@ -15,7 +15,7 @@ class BinaryDataset(ABC):
     2. Calling self._ensure_valid_patterns() to lazily populate (optional)
     """
 
-    def __init__(self, data: np.ndarray = None):
+    def __init__(self, data: np.ndarray = None, train_split_ratio: float | None = None):
         """
         Initialize the dataset.
 
@@ -23,17 +23,70 @@ class BinaryDataset(ABC):
             data (np.ndarray, optional): The binary data matrix. Should be of dtype np.int8
                 and contain only 0s and 1s.
         """
+        if train_split_ratio is not None and not 0 < train_split_ratio < 1:
+            raise ValueError("train_split_ratio must be in (0, 1)")
         self.data = np.asarray(data, dtype=np.int8) if data is not None else None
+        self.train_split_ratio = train_split_ratio
+        self.active_split = "train"
+        self._all_data: np.ndarray | None = None
+        self._train_data: np.ndarray | None = None
+        self._test_data: np.ndarray | None = None
         self._valid_patterns = None  # Subclasses can populate this
 
     @abstractmethod
-    def generate(self, *args, **kwargs) -> np.ndarray:
+    def _generate_samples(self, n_samples: int, seed: int = 0) -> np.ndarray:
         """
-        Generates the binary dataset.
-        Must be implemented by subclasses.
-        Should set self.data and return it.
+        Generate n_samples from the dataset-specific distribution.
         """
         pass
+
+    def generate(self, n_samples: int | None = None, seed: int = 0, split: str = "train") -> np.ndarray:
+        """
+        Generate binary data and optionally return a cached train/test split.
+
+        When train_split_ratio is not set, split must be "train" and the
+        generated samples are returned directly. When train_split_ratio is set,
+        the first call must provide the total number of samples to generate.
+        Later calls can switch between "train", "test", and "all".
+        """
+        self._validate_split(split)
+
+        if self.train_split_ratio is None:
+            if split != "train":
+                raise ValueError("split can only be 'train' when train_split_ratio is not set")
+            if n_samples is None:
+                raise ValueError("n_samples must be provided")
+            self.data = np.asarray(self._generate_samples(n_samples, seed=seed), dtype=np.int8)
+            return self.data
+
+        if self._all_data is None:
+            if n_samples is None:
+                raise ValueError("n_samples must be provided when train_split_ratio is set")
+            self._all_data = np.asarray(self._generate_samples(n_samples, seed=seed), dtype=np.int8)
+            split_idx = int(len(self._all_data) * self.train_split_ratio)
+            if split_idx == 0 or split_idx == len(self._all_data):
+                raise ValueError("train_split_ratio produced an empty train or test split")
+            self._train_data = self._all_data[:split_idx]
+            self._test_data = self._all_data[split_idx:]
+
+        if split == "train":
+            self.data = self._train_data
+        elif split == "test":
+            self.data = self._test_data
+        else:
+            self.data = self._all_data
+        self.active_split = split
+        return self.data
+
+    def set_split(self, split: str = "train") -> "BinaryDataset":
+        self._validate_split(split)
+        self.active_split = split
+        return self
+
+    @staticmethod
+    def _validate_split(split: str) -> None:
+        if split not in {"train", "test", "all"}:
+            raise ValueError(f"split must be 'train', 'test', or 'all', got {split!r}")
 
     @abstractmethod
     def visualize(self, sample: np.ndarray, ax=None):

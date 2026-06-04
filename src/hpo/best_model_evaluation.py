@@ -10,7 +10,7 @@ import numpy as np
 from src.benchmark_metrics import compute_hamming_balls_metrics
 from src.core import setup_iqp_circuit
 from src.datasets.hamming_balls import HammingBallsDataset
-from src.ensemble import BoostedEnsemble
+from src.core.ensemble import BoostedEnsemble
 
 
 def evaluate_best_model(

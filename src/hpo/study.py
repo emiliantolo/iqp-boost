@@ -9,7 +9,7 @@ from pathlib import Path
 
 import optuna
 
-from src.experiment_cli import DEFAULT_RUN_CONFIG
+from src.experiments.suite import DEFAULT_RUN_CONFIG
 from src.hpo.best_model_evaluation import evaluate_best_model
 from src.hpo.best_retrains import run_best_retrains
 from src.hpo.objective import resolve_objective_spec

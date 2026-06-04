@@ -1,14 +1,14 @@
 """Common runner for ensemble boosting experiments."""
 
 import iqpopt as iqp
-from src.sigma_heuristics import compute_sigma
+from src.core.sigma_heuristics import compute_sigma
 from iqpopt.gen_qml.iqp_methods import mmd_loss_iqp
-from src.ensemble import BoostedEnsemble
+from src.core.ensemble import BoostedEnsemble
 try:
     from src.circuit_artifacts import save_circuit_artifact
 except ModuleNotFoundError:
     save_circuit_artifact = None
-from src.reporting import (
+from src.io.reporting import (
     report_metrics_table, get_plot_config, OutputManager, plot_data_ensemble_loss,
     plot_metrics_progression, report_baseline, report_final, report_rejection,
     report_step, report_gradient_snr, report_config, report_circuit, report_kernel,
@@ -17,10 +17,10 @@ from src.reporting import (
 from src.core import (
     setup_iqp_circuit, get_params_init, compute_lambda_schedule
 )
-from src.utils import compute_mmd, compute_kl_divergence, compute_metrics, compute_precision_recall_f1, compute_jsd, compute_tvd
-from src.boltzmann_metrics import pairwise_correlation_frobenius_error
-from src.boltzmann_plots import plot_lorenz_curve
-from src.dual_mmd_loss import gradient_snr, dual_mmd_loss, EnsembleTerms
+from src.core.metrics import compute_mmd, compute_kl_divergence, compute_metrics, compute_precision_recall_f1, compute_jsd, compute_tvd
+from src.datasets.boltzmann_metrics import pairwise_correlation_frobenius_error
+from src.datasets.boltzmann_plots import plot_lorenz_curve
+from src.core.dual_mmd_loss import gradient_snr, dual_mmd_loss, EnsembleTerms
 import jax
 import numpy as np
 import gc
