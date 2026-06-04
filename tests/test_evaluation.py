@@ -8,6 +8,7 @@ from src.core import (
     compute_ensemble_training_mmd,
     evaluate_samples,
     marginalize_probs_to_wires,
+    reorder_probs_to_sample_indexing,
 )
 from src.core.metrics import compute_tvd
 
@@ -55,6 +56,40 @@ def test_visible_wire_marginalization_preserves_bit_order():
     visible = marginalize_probs_to_wires(full_probs, n_qubits=3, wires=[0, 2])
 
     assert np.array_equal(visible, np.array([0.25, 0.0, 0.0, 0.75]))
+
+
+def test_reorder_probs_to_sample_indexing_bit_reverses_circuit_order():
+    circuit_order = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
+
+    sample_order = reorder_probs_to_sample_indexing(circuit_order, n_qubits=3)
+
+    assert np.array_equal(sample_order, np.array([0.0, 0.4, 0.2, 0.6, 0.1, 0.5, 0.3, 0.7]))
+
+
+def test_evaluation_policy_reorders_exact_probs_before_metrics():
+    class Circuit:
+        n_qubits = 3
+        bitflip = False
+
+        def probs(self, params):
+            probs = np.zeros(8)
+            probs[0b100] = 1.0
+            return probs
+
+    policy = EvaluationPolicy(
+        x_train=np.array([[1, 0, 0]], dtype=np.int8),
+        sigma=1.0,
+        shots=2,
+        rng_seed=7,
+        exact_probs=np.eye(1, 8, 0b001, dtype=np.float64)[0],
+        exact_metrics={"enabled": True},
+    )
+
+    model_probs = policy.exact_model_probs(Circuit(), np.array([1.0]))
+    stats = policy.evaluate_exact_probs(model_probs)
+
+    assert np.array_equal(model_probs, policy.exact_probs)
+    assert np.isclose(stats["tvd_exact"], 0.0)
 
 
 def test_missing_validity_and_coverage_metrics_are_nan():
