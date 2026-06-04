@@ -66,7 +66,7 @@ uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampl
 Optuna HPO configs live under `configs/hpo/` and use the HPO entrypoint:
 
 ```bash
-python3 -m src.experiments.hpo --config configs/hpo/hopfield_20q_p1_b15.json
+python3 -m src.hpo --config configs/hpo/hopfield_20q_p1_b15.json
 ```
 
 ## Config Schema

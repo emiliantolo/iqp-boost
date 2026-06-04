@@ -8,7 +8,7 @@ Runnable experiment entrypoints now live under `src/experiments/`:
 
 - Suite runs: `uv run main.py --config <config>` or
   `python3 -m src.experiments.suite --config <config>`.
-- HPO runs: `python3 -m src.experiments.hpo --config <config>`.
+- HPO runs: `python3 -m src.hpo --config <config>`.
 
 ## Supported Datasets
 

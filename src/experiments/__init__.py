@@ -25,7 +25,7 @@ def __getattr__(name):
 
         return {"DEFAULT_RUN_CONFIG": DEFAULT_RUN_CONFIG, "run_suite": run_suite}[name]
     if name == "run_hpo":
-        from src.experiments.hpo import run_hpo
+        from src.hpo.study import run_hpo
 
         return run_hpo
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
