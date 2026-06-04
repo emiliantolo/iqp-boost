@@ -88,8 +88,13 @@ def initialize_boosting_ensemble(
         print(f"Model 0 final loss: {float(losses[-1]):.6f}")
 
     training_mmd = evaluation.evaluate_ensemble_training_mmd(ensemble)
+    step_model_probs = (
+        evaluation.exact_ensemble_probs(ensemble)
+        if hasattr(evaluation, "exact_metrics_enabled") and evaluation.exact_metrics_enabled("steps")
+        else None
+    )
     if not evaluation.sampling_enabled:
-        stats = evaluation.analytical_mmd_stats(training_mmd)
+        stats = evaluation.analytical_mmd_stats(training_mmd, model_probs=step_model_probs)
     else:
         _, stats = evaluation.sample_and_evaluate_ensemble(ensemble, step=0)
 
@@ -107,6 +112,7 @@ def initialize_boosting_ensemble(
     history['step'] = [0]
     history['alpha'] = [alpha]
     history['training_loss'] = [training_mmd]
+    history['accepted_by_metric'] = [True]
 
     return InitialBoostingResult(
         key=key,
@@ -144,8 +150,13 @@ def run_boosting_step(context: BoostingStepContext) -> BoostingStepResult:
         )
 
     training_mmd = context.evaluation.evaluate_ensemble_training_mmd(ensemble)
+    step_model_probs = (
+        context.evaluation.exact_ensemble_probs(ensemble)
+        if hasattr(context.evaluation, "exact_metrics_enabled") and context.evaluation.exact_metrics_enabled("steps")
+        else None
+    )
     if not context.evaluation.sampling_enabled:
-        stats = context.evaluation.analytical_mmd_stats(training_mmd)
+        stats = context.evaluation.analytical_mmd_stats(training_mmd, model_probs=step_model_probs)
     else:
         _, stats = context.evaluation.sample_and_evaluate_ensemble(ensemble, step=step)
 
@@ -159,7 +170,7 @@ def run_boosting_step(context: BoostingStepContext) -> BoostingStepResult:
         oracle_tvd=context.top_k_tvd_fn(step + 1) if context.top_k_tvd_fn else None,
     )
 
-    accepted, should_stop = _check_acceptance(
+    accepted, should_stop, accepted_by_metric = _check_acceptance(
         context=context,
         current_stats=stats,
         current_training_mmd=training_mmd,
@@ -190,7 +201,7 @@ def run_boosting_step(context: BoostingStepContext) -> BoostingStepResult:
             previous_training_mmd=context.previous_training_mmd,
         )
 
-    _append_history(context.metrics_history, step, alpha, training_mmd, stats)
+    _append_history(context.metrics_history, step, alpha, training_mmd, stats, accepted_by_metric)
     if context.compute_snr:
         key = _report_step_snr(context, key)
     if context.run_cleanup:
@@ -417,7 +428,7 @@ def _check_acceptance(
     current_stats: dict,
     current_training_mmd: float,
     snapshot: dict,
-) -> tuple[bool, bool]:
+) -> tuple[bool, bool, bool]:
     if context.acceptance_metric == 'training_mmd':
         current_metric = current_training_mmd
         previous_metric = context.previous_training_mmd
@@ -430,23 +441,33 @@ def _check_acceptance(
 
     if context.config.get('keep_models_for_diagnosis', False):
         report_acceptance(True, delta_mmd, diagnostic_mode=True)
-        return True, False
+        return True, False, accepted
 
     if not accepted:
         report_rejection(context.step)
         context.ensemble.restore_state(snapshot)
-        return False, context.config.get('stop_on_reject', False)
+        return False, context.config.get('stop_on_reject', False), False
 
-    return True, False
+    return True, False, True
 
 
-def _append_history(history: dict, step: int, alpha: float, training_mmd: float, stats: dict) -> None:
+def _append_history(
+    history: dict,
+    step: int,
+    alpha: float,
+    training_mmd: float,
+    stats: dict,
+    accepted_by_metric: bool,
+) -> None:
     for key, value in stats.items():
-        if key in history:
-            history[key].append(value)
+        if key not in history:
+            history[key] = [float('nan')] * len(history['step'])
+        history[key].append(value)
     history['step'].append(step)
     history['alpha'].append(alpha)
     history['training_loss'].append(training_mmd)
+    history.setdefault('accepted_by_metric', [True] * (len(history['step']) - 1))
+    history['accepted_by_metric'].append(bool(accepted_by_metric))
 
 
 def _compute_component_history(

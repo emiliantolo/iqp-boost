@@ -142,7 +142,13 @@ def _run_standalone_baseline(
             "  [skip_sampling=True] Skipping baseline state vector evaluation. "
             f"Using training loss: {final_loss:.6f}"
         )
-        stats = {"mmd": final_loss, "training_loss": final_loss}
+        model_probs = (
+            context.evaluation.exact_model_probs(context.circuit, params, context.wires)
+            if hasattr(context.evaluation, "exact_metrics_enabled") and context.evaluation.exact_metrics_enabled("baseline")
+            else None
+        )
+        stats = context.evaluation.analytical_mmd_stats(final_loss, model_probs=model_probs)
+        stats["training_loss"] = final_loss
         report_baseline(final_loss, stats)
         return key, None, stats, params, train_losses
 

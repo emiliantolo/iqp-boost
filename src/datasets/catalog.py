@@ -26,6 +26,7 @@ class DatasetBundle:
     exact_probs: np.ndarray | None = None
     generation_eval_fn: Callable | None = None
     x_test: np.ndarray | None = None
+    dataset_obj: Any | None = None
 
     @property
     def n_qubits(self) -> int:
@@ -38,6 +39,7 @@ class DatasetBundle:
         rng_seed: int,
         skip_sampling: bool = False,
         final_eval_sampling: bool = False,
+        exact_metrics: dict | None = None,
     ) -> EvaluationPolicy:
         return EvaluationPolicy(
             x_train=self.x_train,
@@ -50,6 +52,7 @@ class DatasetBundle:
             coverage_fn=self.coverage_fn,
             exact_probs=self.exact_probs,
             generation_eval_fn=self.generation_eval_fn,
+            exact_metrics=exact_metrics,
         )
 
     def run_custom_visualization(
@@ -151,6 +154,7 @@ def _build_hamming_balls_bundle(
         exact_probs=getattr(ds, "probs", None),
         generation_eval_fn=getattr(ds, "evaluate_generation", None),
         x_test=x_test,
+        dataset_obj=ds,
     )
 
 
@@ -193,6 +197,7 @@ def _build_hopfield_bundle(
         exact_probs=getattr(ds, "probs", None),
         generation_eval_fn=getattr(ds, "evaluate_generation", None),
         x_test=x_test,
+        dataset_obj=ds,
     )
 
 

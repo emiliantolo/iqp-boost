@@ -27,17 +27,37 @@ def compute_distributions(
     smoothing: float = 1e-10,
     max_qubits: int = 20,
     exact_probs: np.ndarray = None,
+    model_probs: np.ndarray = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Compute probability distributions from discrete samples.
+    """Compute probability distributions from discrete samples or exact probs.
 
     When ``exact_probs`` is provided (a 2^n probability vector), it is used
     directly as the ground-truth distribution instead of building a histogram
     from ``ground_truth`` samples. This gives exact, noise-free reference
     values for TVD / KL / JSD.
 
+    When ``model_probs`` is provided, it is used directly as the model
+    distribution instead of building a histogram from ``model_samples``.
+
     For <=max_qubits: uses full 2^n histogram.
     For >max_qubits: uses empirical support (only observed bitstrings are binned).
     """
+    if model_probs is not None:
+        p_model = np.asarray(model_probs, dtype=np.float64)
+        p_model = p_model / p_model.sum()
+        if exact_probs is not None:
+            p_data = np.asarray(exact_probs, dtype=np.float64)
+            p_data = p_data / p_data.sum()
+        else:
+            ground_truth = np.asarray(ground_truth, dtype=int)
+            gt_ints = np.sum(ground_truth * (2 ** np.arange(ground_truth.shape[1])), axis=1)
+            gt_counts = np.bincount(gt_ints, minlength=len(p_model)).astype(np.float64)
+            if smoothing > 0:
+                gt_counts += smoothing
+            total = gt_counts.sum()
+            p_data = gt_counts / total if total > 0 else gt_counts
+        return p_data, p_model
+
     model_samples = np.asarray(model_samples, dtype=int)
     n_features = model_samples.shape[1]
 
@@ -98,6 +118,7 @@ def compute_kl_divergence(
     n_bins: int = None,
     smoothing: float = 1e-10,
     exact_probs: np.ndarray = None,
+    model_probs: np.ndarray = None,
 ) -> float:
     """Compute KL divergence between discrete sample distributions using Scipy."""
     p_data, p_model = compute_distributions(
@@ -106,6 +127,7 @@ def compute_kl_divergence(
         n_bins,
         smoothing,
         exact_probs=exact_probs,
+        model_probs=model_probs,
     )
     return float(entropy(p_data, p_model))
 
@@ -116,6 +138,7 @@ def compute_jsd(
     n_bins: int = None,
     smoothing: float = 1e-10,
     exact_probs: np.ndarray = None,
+    model_probs: np.ndarray = None,
 ) -> float:
     """Compute Jensen-Shannon Distance (metric) using Scipy."""
     p_data, p_model = compute_distributions(
@@ -124,6 +147,7 @@ def compute_jsd(
         n_bins,
         smoothing,
         exact_probs=exact_probs,
+        model_probs=model_probs,
     )
     return float(jensenshannon(p_data, p_model))
 
@@ -133,6 +157,7 @@ def compute_tvd(
     model_samples: np.ndarray,
     n_bins: int = None,
     exact_probs: np.ndarray = None,
+    model_probs: np.ndarray = None,
 ) -> float:
     """Compute Total Variation Distance (TVD)."""
     p_data, p_model = compute_distributions(
@@ -141,6 +166,7 @@ def compute_tvd(
         n_bins,
         smoothing=0.0,
         exact_probs=exact_probs,
+        model_probs=model_probs,
     )
     return 0.5 * np.sum(np.abs(p_data - p_model))
 

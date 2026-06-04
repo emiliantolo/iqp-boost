@@ -34,6 +34,18 @@ DEFAULT_RUN_CONFIG = {
     'baseline': 'standalone',
     'shots': 1000,
     'final_eval_sampling': False,
+    'dataset_metrics': True,
+    'exact_metrics': {
+        'enabled': False,
+        'max_qubits': 20,
+        'phases': {
+            'baseline': True,
+            'steps': False,
+            'final': True,
+            'per_model': True,
+            'fcfw': True,
+        },
+    },
     'keep_models_for_diagnosis': False,
     'stop_on_reject': False,
     'save_circuit_artifacts': False,

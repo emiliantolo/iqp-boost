@@ -21,8 +21,20 @@ class FakeEvaluation:
         self.sampled_ensembles.append((ensemble, step))
         return np.ones((2, 2), dtype=np.int8), {"mmd": 0.33}
 
-    def analytical_mmd_stats(self, value):
-        return {"mmd": value}
+    def analytical_mmd_stats(self, value, model_probs=None):
+        stats = {"mmd": value}
+        if model_probs is not None:
+            stats.update(self.evaluate_exact_probs(model_probs))
+        return stats
+
+    def exact_metrics_enabled(self, phase):
+        return phase == "baseline"
+
+    def exact_model_probs(self, circuit, params, wires=None):
+        return np.array([0.5, 0.5])
+
+    def evaluate_exact_probs(self, model_probs):
+        return {"tvd_exact": float(np.asarray(model_probs).sum())}
 
 
 class FakeTrainer:
@@ -58,7 +70,7 @@ def test_standalone_analytical_path_returns_stats_losses_params_and_no_samples(m
     result = run_baselines(_context(config={"baseline": "standalone"}, final_sampling_enabled=False))
 
     assert result.selected_baselines == ["standalone"]
-    assert result.standalone_stats == {"mmd": 0.7, "training_loss": 0.7}
+    assert result.standalone_stats == {"mmd": 0.7, "tvd_exact": 1.0, "training_loss": 0.7}
     assert result.standalone_samples is None
     assert result.standalone_params == "params"
     assert result.standalone_train_losses == [0.9, 0.7]

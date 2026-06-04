@@ -41,7 +41,11 @@ def generate_boltzmann_visualizations(output_manager, x_train, baseline_samples,
         sigma_reference = spin_covariance_from_probs(exact_probs)
     else:
         sigma_reference = spin_covariance_from_samples(reference_samples)
-    sigma_baseline, sigma_ensemble = covariance_matrices(baseline_samples, final_ensemble_samples, exact_probs=exact_probs)
+    sigma_baseline, sigma_ensemble = covariance_matrices(
+        baseline_samples,
+        final_ensemble_samples,
+        exact_probs=None,
+    )
     fig = plot_covariance_heatmaps(sigma_reference, sigma_baseline, sigma_ensemble)
     path = output_manager.get_path('boltzmann_covariance_heatmaps.png')
     fig.savefig(path, dpi=160, bbox_inches='tight')
