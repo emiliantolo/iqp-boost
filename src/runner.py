@@ -173,6 +173,19 @@ def check_acceptance(current_metric: float, previous_metric: float, ensemble: Bo
     return True, False
 
 
+def _hpo_payload(step: int, training_mmd: float, stats: dict, n_models_accepted: int) -> dict:
+    payload = {
+        'step': int(step),
+        'training_mmd': float(training_mmd),
+        'n_models_accepted': int(n_models_accepted),
+    }
+    for key, value in stats.items():
+        if key == 'mmd':
+            payload['sample_mmd'] = value
+        payload[key] = value
+    return payload
+
+
 def train_standalone_model(circuit: iqp.IqpSimulator, x_train: np.ndarray, key: jax.Array,
                            sigma: float | list, n_ops: int, n_samples: int, config: dict,
                            epochs: int, monitor_interval: int | None, turbo_opt: int | None,
@@ -658,6 +671,7 @@ def run_boosting_experiment(
     log_filename: str = 'log.txt',
     append_log: bool = False,
     x_test: np.ndarray | None = None,
+    hpo_callback: callable = None,
 ):
     """Run a complete ensemble boosting experiment."""
     np.random.seed(config['rng_seed'])
@@ -705,19 +719,40 @@ def run_boosting_experiment(
         sampling_enabled = not skip_sampling
         min_alpha_accept = float(config.get('min_alpha_accept', 1e-10))
 
+        require_exact_sampling = bool(config.get('require_exact_sampling', False))
         exact_sampling = bool(config.get('exact_sampling', False))
+        if require_exact_sampling and not exact_sampling:
+            raise ValueError("require_exact_sampling=True requires exact_sampling=True")
         if exact_sampling and n_qubits > 20:
+            if require_exact_sampling:
+                raise ValueError("Exact sampling is required but n_qubits > 20")
             print("  [exact_sampling=True but n_qubits > 20, falling back to sampled metrics]")
             exact_sampling = False
         if exact_sampling and circuit.bitflip:
+            if require_exact_sampling:
+                raise ValueError("Exact sampling is required but circuit is bitflip mode")
             print("  [exact_sampling=True but circuit is bitflip mode, falling back to sampled metrics]")
             exact_sampling = False
+        def _marginalize_probs(full_probs, visible_wires):
+            if visible_wires is None or len(visible_wires) == circuit.n_qubits:
+                return full_probs
+            visible_wires = list(visible_wires)
+            out = np.zeros(2 ** len(visible_wires), dtype=np.float64)
+            for state_idx, prob in enumerate(np.asarray(full_probs, dtype=np.float64)):
+                visible_idx = 0
+                for out_bit, wire in enumerate(visible_wires):
+                    visible_idx |= ((state_idx >> int(wire)) & 1) << out_bit
+                out[visible_idx] += prob
+            return out
         def _model_probs(params):
             if wires is not None:
                 probs_wires = list(reversed(wires))
             else:
                 probs_wires = list(range(circuit.n_qubits))[::-1]
-            return np.asarray(circuit.probs(params, wires=probs_wires))
+            try:
+                return np.asarray(circuit.probs(params, wires=probs_wires))
+            except TypeError:
+                return _marginalize_probs(np.asarray(circuit.probs(params)), wires)
         def _ensemble_probs(ensemble_obj):
             weights = np.asarray(ensemble_obj.weights, dtype=np.float64)
             probs_sum = None
@@ -872,6 +907,8 @@ def run_boosting_experiment(
         ensemble_metrics_history['step'] = [0]
         ensemble_metrics_history['alpha'] = [alpha_0]
         ensemble_metrics_history['training_loss'] = [m0_training_mmd]
+        if hpo_callback is not None:
+            hpo_callback(_hpo_payload(0, m0_training_mmd, ens_stats, len(ensemble.models)))
 
         # 5. Boosting Loop (Model 1, 2, ...)
         for step in range(1, config['n_models']):
@@ -955,6 +992,8 @@ def run_boosting_experiment(
             ensemble_metrics_history['step'].append(step)
             ensemble_metrics_history['alpha'].append(alpha)
             ensemble_metrics_history['training_loss'].append(mixture_training_mmd)
+            if hpo_callback is not None:
+                hpo_callback(_hpo_payload(step, mixture_training_mmd, ens_stats, len(ensemble.models)))
 
             # SNR computation
             try:
