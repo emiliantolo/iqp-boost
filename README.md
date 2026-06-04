@@ -1,56 +1,72 @@
 # iqp-boost
 
-Config-driven experiments for IQP ensemble boosting on binary datasets (BAS, parity, Gaussian mixture, blobs, and shapes).
+Config-driven experiments for IQP ensemble boosting on Hopfield and Hamming Balls binary datasets.
 
 ## Run Experiments
 
 Use a single CLI entrypoint and pass a JSON/TOML experiment file containing a list of runs.
 
 ```bash
-uv run main.py --config configs/experiments.example.json
+uv run main.py --config configs/datasets/hopfield_16q_grid.json
+```
+
+`main.py` is a thin wrapper around `src.experiments.suite`. The equivalent
+direct module command is:
+
+```bash
+python3 -m src.experiments.suite --config configs/datasets/hopfield_16q_grid.json
 ```
 
 Optional controls:
 
 ```bash
 # list run names found in the config
-uv run main.py --config configs/experiments.example.json --list-runs
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --list-runs
 
 # validate config and selected runs without training
-uv run main.py --config configs/experiments.example.json --dry-run
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --dry-run
 
 # run only selected named runs from the config
-uv run main.py --config configs/experiments.example.json --only blobs_default parity_scan
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --only 0
 
 # run selection also accepts 0-based indices from --list-runs order
-uv run main.py --config configs/experiments.example.json --only 0 2
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --only 0
 
 # override output base directory
-uv run main.py --config configs/experiments.example.json --output-dir out_custom
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --output-dir out_custom
 
 # override config values for all selected runs
-uv run main.py --config configs/experiments.example.json --set n_models=16 --set learning_rate=0.03
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --set n_models=16 --set learning_rate=0.03
 
 # example: force analytical mode for speed
-uv run main.py --config configs/experiments.example.json --set skip_sampling=true
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampling=true
 ```
 
 ## Dataset Configs
 
 Dataset-specific config files are available in:
 
-- `configs/datasets/bas_4x4.json`
-- `configs/datasets/bas_3x3.json`
-- `configs/datasets/blobs.json`
-- `configs/datasets/gaussian.json`
-- `configs/datasets/parity.json`
-- `configs/datasets/shapes.json`
+- `configs/datasets/hopfield_16q_grid.json`
+- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_16q.json`
+- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_20q.json`
+- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_50q.json`
+- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_100q.json`
+
+Use `hamming_balls` as the dataset key for Hamming Balls configs.
 
 Examples:
 
 ```bash
-uv run main.py --config configs/datasets/blobs.json
-uv run main.py --config configs/datasets/shapes.json --set skip_sampling=true
+uv run main.py --config configs/datasets/hopfield_16q_grid.json
+uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampling=true
+```
+
+## Run HPO
+
+Optuna HPO configs live under `configs/hpo/` and use the HPO entrypoint:
+
+```bash
+python3 -m src.experiments.hpo --config configs/hpo/hopfield_20q_p1_b15.json
 ```
 
 ## Config Schema
@@ -62,13 +78,62 @@ uv run main.py --config configs/datasets/shapes.json --set skip_sampling=true
 Each run supports:
 
 - `name`: subfolder name for the run output
-- `dataset`: dataset selection (`name`: `bas|blobs|gaussian|parity|shapes`) and optional params
+- `dataset`: dataset selection (`name`: `hopfield|hamming_balls`) and optional params
 - `config`: per-run overrides merged on top of `defaults`
-- `plot`: standardized plotting mode and params (`none|histogram|sample_grid|gaussian_summary`)
+- `plot`: optional plotting mode and params (`none|boltzmann_summary|hamming_balls_mode_evolution`)
 - `metric_configs`: optional metric progression overrides
 - `baseline_epochs`: optional standalone baseline epochs override
 
-Example config: `configs/experiments.example.json`
+Example config: `configs/datasets/hopfield_16q_grid.json`
+
+The dataset catalog in `src/datasets/catalog.py` is the source of truth for
+supported dataset keys, construction defaults, and dataset-specific plot modes.
+See `docs/dataset_catalog.md` when adding or changing dataset integrations.
+
+All supported datasets accept optional split params under `dataset.params`:
+`test_samples` enables an `x_test` split, and `train_split_ratio` can override
+the inferred train/test ratio.
+
+## Experiment Architecture
+
+The source tree is organized into layer packages:
+
+- `src/run/`: experiment execution flow (`runner`, baselines, boosting steps,
+  and final evaluation).
+- `src/core/`: circuit setup, ensembles, losses, metrics, weighting, sigma
+  selection, and evaluation policy.
+- `src/datasets/`: dataset catalog, dataset classes, exact probability helpers,
+  and dataset-specific visualization/evaluation adapters.
+- `src/io/`: reporting, plotting, logging, output paths, and CSV/JSON writing.
+- `src/experiments/`: runnable suite and HPO entrypoints.
+
+The main public imports are curated at the package level:
+
+- `src.run` exports `run_boosting_experiment` and run phase context/result types.
+- `src.core` exports `BoostedEnsemble`, `EvaluationPolicy`, circuit setup, and
+  weight strategy interfaces.
+- `src.datasets` exports `DatasetBundle`, `SUPPORTED_DATASETS`, and
+  `build_dataset_bundle`.
+- `src.experiments` exports suite/HPO entrypoints and dataset factory helpers.
+
+Experiment runs are orchestrated by `src/run/runner.py`, with two focused
+modules owning the main config-driven seams:
+
+- `src/datasets/catalog.py` builds a typed dataset bundle from each run's
+  `dataset` spec.
+- `src/core/evaluation.py` owns sampling and metric evaluation through
+  `EvaluationPolicy`.
+
+`EvaluationPolicy` centralizes the run's training data, kernel sigma, shot
+count, RNG seed, optional dataset metric callbacks, exact probabilities, and
+the `skip_sampling` / `final_eval_sampling` flags. The runner uses it for
+baseline, ensemble, FCFW, final, and held-out test evaluation so sampling
+rules and metric shapes stay consistent across those paths.
+
+When `skip_sampling=true`, intermediate ensemble reporting uses analytical
+training MMD without drawing samples. When `final_eval_sampling=true`, final
+sample-based metrics are still computed even if intermediate sampling was
+skipped.
 
 ## Outputs
 
