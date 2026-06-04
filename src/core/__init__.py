@@ -7,6 +7,7 @@ from src.core.evaluation import (
     compute_ensemble_training_mmd,
     evaluate_samples,
     marginalize_probs_to_wires,
+    reorder_probs_to_sample_indexing,
     resolve_exact_metrics_config,
 )
 from src.core.weight_strategy import WeightStrategyContext, WeightStrategyResult, apply_weight_strategy

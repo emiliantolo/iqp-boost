@@ -152,6 +152,17 @@ def marginalize_probs_to_wires(probs: np.ndarray, n_qubits: int, wires: list[int
     return out
 
 
+def reorder_probs_to_sample_indexing(probs: np.ndarray, n_qubits: int) -> np.ndarray:
+    """Convert lexicographic circuit probabilities to little-endian sample indices."""
+    p = np.asarray(probs, dtype=np.float64)
+    indices = np.arange(len(p), dtype=np.int64)
+    bits = ((indices[:, None] >> np.arange(n_qubits, dtype=np.int64)) & 1).astype(np.int8)
+    reversed_indices = np.sum(bits[:, ::-1] * (2 ** np.arange(n_qubits, dtype=np.int64)), axis=1)
+    out = np.empty_like(p)
+    out[reversed_indices] = p
+    return out
+
+
 def compute_ensemble_training_mmd(ensemble, ground_truth: np.ndarray) -> float:
     """Compute analytical ensemble MMD^2 wrt data using cached trace estimates."""
     if not ensemble.models or not ensemble.weights:
@@ -326,6 +337,7 @@ def _safe_model_probs(circuit, params, wires: list | None, cfg: dict, prechecked
     if len(probs) != 2 ** n_qubits:
         _warn_exact("circuit probability vector length is not 2**n_qubits")
         return None
+    probs = reorder_probs_to_sample_indexing(probs, n_qubits)
     probs = marginalize_probs_to_wires(probs, n_qubits, wires)
     probs = probs / probs.sum()
     return probs
