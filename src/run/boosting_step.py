@@ -8,6 +8,7 @@ import gc
 
 import iqpopt as iqp
 import jax
+import jax.numpy as jnp
 import numpy as np
 
 from src.core import BoostedEnsemble, EvaluationPolicy, compute_lambda_schedule, get_params_init
@@ -20,6 +21,11 @@ from src.io.reporting import (
     report_step,
 )
 from src.core import WeightStrategyContext, WeightStrategyResult, apply_weight_strategy
+from src.core.importance_sampling import (
+    compute_dynamic_proposal,
+    make_ops_from_pmf,
+    populate_traces_for_is,
+)
 
 
 @dataclass
@@ -258,6 +264,54 @@ def compute_dual_components_from_traces(traces: dict, n_samples: int, n_data: in
     }
 
 
+def _resolve_is_ops(
+    ensemble: BoostedEnsemble,
+    x_train: np.ndarray,
+    step: int,
+    config: dict,
+    key: jax.Array,
+) -> tuple[list | None, list | None]:
+    """Resolve operator PMFs and per-op importance ratios for the current step.
+
+    Returns ``(op_weights_list, list_P_global)`` where:
+        op_weights_list: list of length-n_ops float arrays (one per bandwidth),
+            or None when dynamic IS is disabled.
+        list_P_global: list of target PMFs (one per bandwidth), or None.
+    """
+    if not config.get('dynamic_is', False):
+        return None, None
+
+    list_Q_t, list_P_global = compute_dynamic_proposal(
+        ensemble, x_train, step, config, key
+    )
+
+    within_shell = config.get('dynamic_is_within_shell', 'shell_uniform')
+    op_weights_list: list = []
+
+    wires = ensemble.wires if ensemble.wires is not None else list(range(ensemble.iqp_circuit.n_qubits))
+
+    for sigma_idx, P_global in enumerate(list_P_global):
+        Q_t = list_Q_t[sigma_idx] if list_Q_t[sigma_idx] is not None else P_global
+        key, ops_key, weights_key = jax.random.split(key, 3)
+        _all_ops, _visible_ops, op_weights_k = make_ops_from_pmf(
+            ops_key, Q_t, ensemble.n_ops, ensemble.iqp_circuit.n_qubits,
+            wires, within_shell=within_shell,
+        )
+        P_arr = jnp.asarray(P_global, dtype=jnp.float64)
+        Q_arr = jnp.asarray(Q_t, dtype=jnp.float64)
+        safe_Q = jnp.maximum(Q_arr, 1e-12)
+        safe_Q = safe_Q / safe_Q.sum()
+        lr_per_op = P_arr[op_weights_k] / safe_Q[op_weights_k]
+        op_weights_list.append(lr_per_op)
+        ensemble.terms.op_weights_k[sigma_idx] = op_weights_k
+        ensemble.terms.lr_per_op[sigma_idx] = lr_per_op
+        ensemble.terms.qt[sigma_idx] = Q_arr
+        ensemble.terms.p_global[sigma_idx] = P_arr
+        ensemble.terms.ops[sigma_idx] = (_all_ops, _visible_ops)
+
+    return op_weights_list, list_P_global
+
+
 def train_ensemble_model_0(
     ensemble: BoostedEnsemble,
     x_train: np.ndarray,
@@ -274,7 +328,15 @@ def train_ensemble_model_0(
     stochastic_ops = caching_level == 'none'
 
     key, ops_key = jax.random.split(key)
-    ensemble.terms.sample_ops(ensemble.iqp_circuit, ensemble.sigma, ensemble.n_ops, ops_key, wires=ensemble.wires)
+    if config.get('dynamic_is', False):
+        op_weights_list, list_P_global = _resolve_is_ops(
+            ensemble, x_train, step=0, config=config, key=ops_key,
+        )
+        qt_list = [ensemble.terms.qt.get(i) for i in range(len(list_P_global))]
+    else:
+        ensemble.terms.sample_ops(ensemble.iqp_circuit, ensemble.sigma, ensemble.n_ops, ops_key, wires=ensemble.wires)
+        op_weights_list = None
+        qt_list = None
 
     loss_kwargs = {
         "params": params_init,
@@ -291,6 +353,8 @@ def train_ensemble_model_0(
         "ensemble_models": [],
         "wires": ensemble.wires,
         "max_batch_ops": config.get('max_batch_ops', None),
+        "op_weights_list": op_weights_list,
+        "qt_list": qt_list,
     }
 
     trainer = iqp.Trainer("Adam", dual_mmd_loss, stepsize=config['learning_rate'])
@@ -311,6 +375,10 @@ def train_ensemble_model_0(
         'ensemble_final': None,
     })
 
+    if config.get('dynamic_is', False):
+        key, refresh_key = jax.random.split(key)
+        populate_traces_for_is(ensemble, refresh_key, config)
+
     return key, trainer, alpha
 
 
@@ -328,6 +396,15 @@ def train_candidate_model(context: BoostingStepContext) -> tuple[jax.Array, floa
         ensemble.refresh_terms(step_key)
     stochastic_ops = caching_level == 'none'
 
+    if config.get('dynamic_is', False):
+        op_weights_list, list_P_global = _resolve_is_ops(
+            ensemble, context.x_train, step=context.step, config=config, key=step_key,
+        )
+        qt_list = [ensemble.terms.qt.get(i) for i in range(len(list_P_global))]
+    else:
+        op_weights_list = None
+        qt_list = None
+
     loss_kwargs = {
         "params": params_init,
         "iqp_circuit": ensemble.iqp_circuit,
@@ -344,6 +421,8 @@ def train_candidate_model(context: BoostingStepContext) -> tuple[jax.Array, floa
         "wires": ensemble.wires,
         "max_batch_ops": config.get('max_batch_ops', None),
         "max_batch_samples": config.get('max_batch_samples', None),
+        "op_weights_list": op_weights_list,
+        "qt_list": qt_list,
     }
 
     monitor_interval = config.get('monitor_interval', context.turbo_opt)
@@ -360,6 +439,8 @@ def train_candidate_model(context: BoostingStepContext) -> tuple[jax.Array, floa
         trainer=trainer,
         step_key=step_key,
         stochastic_ops=stochastic_ops,
+        op_weights_list=op_weights_list,
+        qt_list=qt_list,
     )
     traces = dual_mmd_loss(
         trainer.final_params,
@@ -378,6 +459,8 @@ def train_candidate_model(context: BoostingStepContext) -> tuple[jax.Array, floa
         ensemble_models=ensemble.models,
         max_batch_ops=ensemble.max_batch_ops,
         max_batch_samples=ensemble.max_batch_samples,
+        op_weights_list=op_weights_list,
+        qt_list=qt_list,
     )
 
     final_comp = compute_dual_components_from_traces(
@@ -405,6 +488,10 @@ def train_candidate_model(context: BoostingStepContext) -> tuple[jax.Array, floa
 
     if config.get('verbose', False):
         report_loss_components(final_comp['data'], final_comp['ensemble'], trainer.losses[-1])
+
+    if config.get('dynamic_is', False):
+        key, refresh_key = jax.random.split(key)
+        populate_traces_for_is(ensemble, refresh_key, config)
 
     return key, alpha
 
@@ -476,6 +563,8 @@ def _compute_component_history(
     trainer,
     step_key: jax.Array,
     stochastic_ops: bool,
+    op_weights_list: list | None = None,
+    qt_list: list | None = None,
 ) -> tuple[list[float], list[float], list[int]]:
     data_hist = []
     ens_hist = []
@@ -513,6 +602,8 @@ def _compute_component_history(
             wires=ensemble.wires,
             max_batch_ops=ensemble.max_batch_ops,
             max_batch_samples=ensemble.max_batch_samples,
+            op_weights_list=op_weights_list,
+            qt_list=qt_list,
         )
         data_hist.append(float(comp['data']))
         ens_hist.append(float(comp['ensemble']))
@@ -575,6 +666,16 @@ def _report_step_snr(context: BoostingStepContext, key: jax.Array) -> jax.Array:
         snr_terms.trs = ensemble.terms.trs[:-1]
         snr_terms.corrs = ensemble.terms.corrs[:-1]
         snr_terms.ops = ensemble.terms.ops
+        snr_terms.op_weights_k = ensemble.terms.op_weights_k
+        snr_terms.lr_per_op = ensemble.terms.lr_per_op
+
+        if context.config.get('dynamic_is', False):
+            sigmas = ensemble.sigma if isinstance(ensemble.sigma, (list, tuple)) else [ensemble.sigma]
+            snr_op_weights_list = [snr_terms.lr_per_op.get(i) for i in range(len(sigmas))]
+            snr_qt_list = [ensemble.terms.qt.get(i) for i in range(len(sigmas))]
+        else:
+            snr_op_weights_list = None
+            snr_qt_list = None
 
         def dual_loss_for_snr(params, iqp_circuit, x_train, key, sigma, n_ops):
             return dual_mmd_loss(
@@ -592,6 +693,8 @@ def _report_step_snr(context: BoostingStepContext, key: jax.Array) -> jax.Array:
                 wires=ensemble.wires,
                 max_batch_ops=ensemble.max_batch_ops,
                 max_batch_samples=ensemble.max_batch_samples,
+                op_weights_list=snr_op_weights_list,
+                qt_list=snr_qt_list,
             )
 
         snr_info = gradient_snr(

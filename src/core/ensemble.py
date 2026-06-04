@@ -46,7 +46,33 @@ class BoostedEnsemble:
                 int(k): (np.array(v[0]), np.array(v[1]))
                 for k, v in self.terms.ops.items()
             },
+            "terms_op_weights_k": {
+                int(k): np.array(v) for k, v in self.terms.op_weights_k.items()
+            },
+            "terms_lr_per_op": {
+                int(k): np.array(v) for k, v in self.terms.lr_per_op.items()
+            },
+            "terms_qt": {int(k): np.array(v) for k, v in self.terms.qt.items()},
+            "terms_p_global": {int(k): np.array(v) for k, v in self.terms.p_global.items()},
         }
+
+    def restore_state(self, snapshot: dict) -> None:
+        self.weights = list(snapshot["weights"])
+        self.models = [np.array(m) for m in snapshot["models"]]
+        self.terms.trs = [[jnp.array(y) for y in x] for x in snapshot["terms_trs"]]
+        self.terms.corrs = [[jnp.array(y) for y in x] for x in snapshot["terms_corrs"]]
+        self.terms.ops = {
+            int(k): (jnp.array(v[0]), jnp.array(v[1]))
+            for k, v in snapshot.get("terms_ops", {}).items()
+        }
+        self.terms.op_weights_k = {
+            int(k): jnp.array(v) for k, v in snapshot.get("terms_op_weights_k", {}).items()
+        }
+        self.terms.lr_per_op = {
+            int(k): jnp.array(v) for k, v in snapshot.get("terms_lr_per_op", {}).items()
+        }
+        self.terms.qt = {int(k): jnp.array(v) for k, v in snapshot.get("terms_qt", {}).items()}
+        self.terms.p_global = {int(k): jnp.array(v) for k, v in snapshot.get("terms_p_global", {}).items()}
 
     def restore_state(self, snapshot: dict) -> None:
         self.weights = list(snapshot["weights"])
