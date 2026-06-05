@@ -41,7 +41,7 @@ def test_hamming_balls_hpo_configs_are_split_by_topology_and_not_duplicated_at_r
             assert config["study_name"] == f"{stem}_{topology}"
             assert "pruner" not in config
             assert "sigma_heuristic" not in fixed
-            assert config["objective_metric"] == "exact_tvd"
+            assert config["objective_metric"] == "tvd_exact"
             assert fixed["baseline"] == "none"
             assert fixed["exact_sampling"] is True
             assert fixed["skip_sampling"] is True

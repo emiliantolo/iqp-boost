@@ -22,18 +22,16 @@ class ObjectiveSpec:
 
 def resolve_objective_spec(hpo_spec: dict) -> ObjectiveSpec:
     metric = hpo_spec.get("objective_metric", "tvd")
-    if metric == "exact_tvd":
-        return ObjectiveSpec(requested_metric="exact_tvd", final_metric_key="tvd_exact")
     return ObjectiveSpec(requested_metric=metric, final_metric_key=metric)
 
 
 def validate_objective_before_training(objective: ObjectiveSpec, run_config: dict, bundle: dict) -> None:
-    if objective.requested_metric == "exact_tvd":
+    if objective.requested_metric == "tvd_exact":
         if not bool(run_config.get("exact_sampling", False)):
-            raise ValueError("objective_metric=exact_tvd requires fixed_config.exact_sampling=true")
+            raise ValueError("objective_metric=tvd_exact requires fixed_config.exact_sampling=true")
         if bool(run_config.get("skip_sampling", False)) and not bool(run_config.get("final_eval_sampling", False)):
             raise ValueError(
-                "objective_metric=exact_tvd requires final sampling via skip_sampling=false "
+                "objective_metric=tvd_exact requires final sampling via skip_sampling=false "
                 "or final_eval_sampling=true"
             )
         exact_metrics = dict(run_config.get("exact_metrics") or {})

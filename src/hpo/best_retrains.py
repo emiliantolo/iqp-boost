@@ -94,6 +94,7 @@ def run_best_retrains(
             log_dir=str(hpo_dir),
             log_filename="best_retrains.log",
             append_log=True,
+            skip_plots=False,
         )
         run_dir = Path(result["output_dir"])
         model_path = run_dir / "ensemble.json"

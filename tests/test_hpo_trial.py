@@ -95,7 +95,7 @@ def test_run_trial_records_attrs_saves_model_and_forwards_x_test(monkeypatch, tm
     assert trial.reports == []
 
 
-def test_run_trial_exact_tvd_sets_require_exact_sampling(monkeypatch, tmp_path):
+def test_run_trial_tvd_exact_sets_require_exact_sampling(monkeypatch, tmp_path):
     captured = {}
 
     def fake_bundle(dataset_spec, config, plot_spec):
@@ -122,7 +122,7 @@ def test_run_trial_exact_tvd_sets_require_exact_sampling(monkeypatch, tmp_path):
     monkeypatch.setattr("src.hpo.trial.build_dataset_bundle", fake_bundle)
     monkeypatch.setattr("src.hpo.trial.run_boosting_experiment", fake_run_boosting_experiment)
 
-    context = _context(tmp_path, objective_metric="exact_tvd")
+    context = _context(tmp_path, objective_metric="tvd_exact")
     context.base_config["exact_sampling"] = True
     context.base_config["skip_sampling"] = True
     context.base_config["final_eval_sampling"] = True

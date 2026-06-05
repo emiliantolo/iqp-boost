@@ -34,6 +34,7 @@ def run_boosting_experiment(
     log_dir: str | None = None,
     log_filename: str = 'log.txt',
     append_log: bool = False,
+    skip_plots: bool = True,
 ):
     """Run a complete ensemble boosting experiment."""
     np.random.seed(config['rng_seed'])
@@ -59,7 +60,8 @@ def run_boosting_experiment(
         circuit_kwargs.setdefault('data', x_train)
         circuit, gates, gate_desc, wires = setup_iqp_circuit(n_qubits, **circuit_kwargs)
         report_circuit(gate_desc)
-        save_circuit_plot(circuit, output)
+        if not skip_plots:
+            save_circuit_plot(circuit, output)
 
         # Sigma setup from config (supports median, percentile, medoids)
         sigma = compute_sigma(config, x_train, seed=config.get('data_seed', 42))
@@ -199,29 +201,32 @@ def run_boosting_experiment(
 
         reference_label, reference_stats = baseline_result.reference_or_synthetic(m0_training_mmd)
 
-        final_evaluation = run_final_evaluation(FinalEvaluationContext(
-            config=config,
-            dataset=dataset,
-            output=output,
-            ensemble=ensemble,
-            data_only_ensemble=baseline_result.data_only_ensemble,
-            data_only_stats=baseline_result.data_only_stats,
-            data_only_history=baseline_result.data_only_history,
-            standalone_stats=baseline_result.standalone_stats,
-            baseline_train_losses=baseline_result.standalone_train_losses,
-            ensemble_metrics_history=ensemble_metrics_history,
-            evaluation=evaluation,
-            sigma=sigma,
-            shots=shots,
-            rng_seed=rng_seed,
-            reference_stats=reference_stats,
-            reference_label=reference_label,
-            metric_configs=metric_configs,
-        ))
+        final_evaluation = run_final_evaluation(
+            FinalEvaluationContext(
+                config=config,
+                dataset=dataset,
+                output=output,
+                ensemble=ensemble,
+                data_only_ensemble=baseline_result.data_only_ensemble,
+                data_only_stats=baseline_result.data_only_stats,
+                data_only_history=baseline_result.data_only_history,
+                standalone_stats=baseline_result.standalone_stats,
+                baseline_train_losses=baseline_result.standalone_train_losses,
+                ensemble_metrics_history=ensemble_metrics_history,
+                evaluation=evaluation,
+                sigma=sigma,
+                shots=shots,
+                rng_seed=rng_seed,
+                reference_stats=reference_stats,
+                reference_label=reference_label,
+                metric_configs=metric_configs,
+            ),
+            skip_plots=skip_plots,
+        )
 
         # Custom Visualization -- always attempt if a viz callback is set.
         # The viz function handles None samples gracefully (e.g. Ising Lorenz).
-        if dataset.custom_viz_fn is not None:
+        if not skip_plots and dataset.custom_viz_fn is not None:
             try:
                 dataset.run_custom_visualization(
                     output,
@@ -234,7 +239,7 @@ def run_boosting_experiment(
                 print(f"Custom visualization failed: {e}")
 
         # Global Lorenz curve plot (controlled by plot config)
-        if evaluation.final_sampling_enabled and get_plot_config()['plot_lorenz_curve']:
+        if not skip_plots and evaluation.final_sampling_enabled and get_plot_config()['plot_lorenz_curve']:
             try:
                 _fig = plot_lorenz_curve(
                     dataset.exact_probs,

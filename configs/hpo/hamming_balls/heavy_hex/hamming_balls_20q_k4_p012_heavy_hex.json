@@ -3,7 +3,7 @@
   "n_trials": 60,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
-  "objective_metric": "exact_tvd",
+  "objective_metric": "tvd_exact",
   "dataset": {
     "name": "hamming_balls",
     "params": {

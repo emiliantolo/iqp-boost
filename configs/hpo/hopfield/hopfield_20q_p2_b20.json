@@ -3,6 +3,7 @@
   "n_trials": 60,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
+  "objective_metric": "tvd_exact",
   "dataset": {
     "name": "hopfield",
     "params": {
@@ -17,31 +18,69 @@
   "fixed_config": {
     "train_samples": 1000,
     "data_seed": 42,
-    "n_samples": 512,
-    "epochs_per_step": 512,
+    "n_samples": 400,
+    "n_models": 10,
+    "epochs_per_step": 400,
     "caching_level": "none",
     "init_baseline": "covariance",
     "init_later": "random",
     "lambda_dual": 1.0,
-    "lambda_schedule": {"type": "frank_wolfe", "gamma": 1.0, "tau": 1.0},
-    "sigma_heuristic": {"method": "fourier", "n_sigmas": 4},
+    "lambda_schedule": {"type": "frank_wolfe", "gamma": 0.5, "tau": 1.0},
     "weight_strategy": "frank_wolfe",
     "baseline": "none",
-    "shots": 10000,
+    "shots": 1000,
+    "dynamic_is_within_shell": "shell_uniform",
+    "exact_sampling": true,
     "acceptance_metric": "training_mmd",
     "skip_sampling": true,
     "final_eval_sampling": true,
     "report_fcfw": true,
-    "keep_models_for_diagnosis": false,
+    "keep_models_for_diagnosis": true,
     "stop_on_reject": false,
     "rng_seed": 42,
     "turbo": 10,
     "circuit_config": {"topology": "aachen_heavy_hex", "n_ancilla": 0}
   },
   "search_space": {
-    "sigma_heuristic.n_sigmas": {"type": "int", "low": 2, "high": 6},
-    "n_models": {"type": "int", "low": 4, "high": 10},
-    "learning_rate": {"type": "float", "low": 0.001, "high": 0.05, "log": true},
-    "n_ops": {"type": "categorical", "choices": [1000, 2000, 4000]}
+    "learning_rate": {
+      "type": "float",
+      "low": 0.001,
+      "high": 0.1,
+      "log": true
+    },
+    "dynamic_is": {
+      "type": "categorical",
+      "choices": [false, true]
+    },
+    "dynamic_is_beta": {
+      "type": "float",
+      "low": 0.01,
+      "high": 0.2,
+      "log": true
+    },
+    "lambda_schedule.gamma": {
+      "type": "categorical",
+      "choices": [0.25, 0.5, 0.75, 1.0]
+    },
+    "n_ops": {
+      "type": "categorical",
+      "choices": [512, 1024, 2048]
+    },
+    "sigma": {
+      "type": "bodyness_sigma",
+      "n_qubits": 20,
+      "n_sigmas_choices": [1, 2, 3],
+      "low": 0.5,
+      "high": 9.9,
+      "min_separation": 1.5
+    }
+  },
+  "best_retrains": {
+    "n_seeds": 5,
+    "seed_start": 0,
+    "baseline": "standalone",
+    "report_fcfw": true,
+    "skip_sampling": true,
+    "final_eval_sampling": true
   }
 }

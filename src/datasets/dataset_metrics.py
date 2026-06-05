@@ -25,6 +25,7 @@ def compute_and_save_dataset_metrics(
     final_samples: np.ndarray | None,
     per_model_samples: list[np.ndarray] | None = None,
     baseline_samples: np.ndarray | None = None,
+    skip_plots: bool = True,
 ) -> dict[str, Any] | None:
     """Compute dataset diagnostics from local final-evaluation samples."""
     if final_samples is None or len(final_samples) == 0:
@@ -48,7 +49,7 @@ def compute_and_save_dataset_metrics(
     }
     output.save_metrics(payload, filename="dataset_metrics.json")
 
-    if plt is not None:
+    if plt is not None and not skip_plots:
         methods = _methods(final_samples, per_model_samples, baseline_samples)
         _plot_dataset_metrics(
             dataset_key=dataset_key,

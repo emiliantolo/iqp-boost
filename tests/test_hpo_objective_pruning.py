@@ -36,7 +36,7 @@ def _config(tmp_path, **overrides):
     return config
 
 
-def test_exact_tvd_objective_maps_to_exact_tvd(monkeypatch, tmp_path):
+def test_tvd_exact_objective_uses_tvd_exact(monkeypatch, tmp_path):
     def fake_bundle(dataset_spec, config, plot_spec):
         return {
             "dataset_name": "Hamming Balls",
@@ -63,7 +63,7 @@ def test_exact_tvd_objective_maps_to_exact_tvd(monkeypatch, tmp_path):
     monkeypatch.setattr("src.hpo.trial.run_boosting_experiment", fake_run_boosting_experiment)
     monkeypatch.setattr("src.hpo.finalization.evaluate_best_model", lambda *a, **k: None)
 
-    config = _config(tmp_path, objective_metric="exact_tvd")
+    config = _config(tmp_path, objective_metric="tvd_exact")
     config["fixed_config"]["exact_sampling"] = True
     config["fixed_config"]["skip_sampling"] = True
     config["fixed_config"]["final_eval_sampling"] = True
@@ -75,12 +75,12 @@ def test_exact_tvd_objective_maps_to_exact_tvd(monkeypatch, tmp_path):
     hpo_dir = next((tmp_path / "hpo").glob("objective_hpo_*"))
     summary = json.loads((hpo_dir / "study_summary.json").read_text())
     assert study.best_value == 0.125
-    assert summary["objective_metric"] == "exact_tvd"
+    assert summary["objective_metric"] == "tvd_exact"
     assert summary["best_value"] == 0.125
 
 
-def test_exact_tvd_requires_exact_and_final_sampling_flags():
-    objective = resolve_objective_spec({"objective_metric": "exact_tvd"})
+def test_tvd_exact_requires_exact_and_final_sampling_flags():
+    objective = resolve_objective_spec({"objective_metric": "tvd_exact"})
     with pytest.raises(ValueError, match="exact_sampling=true"):
         validate_objective_before_training(objective, {"exact_sampling": False}, {})
 
