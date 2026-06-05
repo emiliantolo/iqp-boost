@@ -11,6 +11,7 @@ from src.io.reporting import (
     report_circuit, report_kernel, save_circuit_plot
 )
 from src.datasets import DatasetBundle
+from src.datasets.boltzmann_plots import plot_lorenz_curve
 from src.run.baseline import BaselineContext, run_baselines
 from src.run.boosting_step import (
     BoostingStepContext,
@@ -83,6 +84,22 @@ def run_boosting_experiment(
             final_eval_sampling=bool(config.get('final_eval_sampling', False)),
             exact_metrics=config,
         )
+
+        require_exact_sampling = bool(config.get('require_exact_sampling', False))
+        exact_sampling = bool(config.get('exact_sampling', False))
+        if require_exact_sampling and not exact_sampling:
+            raise ValueError("require_exact_sampling=True requires exact_sampling=True")
+        if exact_sampling and n_qubits > 20:
+            if require_exact_sampling:
+                raise ValueError("Exact sampling is required but n_qubits > 20")
+            print("  [exact_sampling=True but n_qubits > 20, falling back to sampled metrics]")
+            exact_sampling = False
+        if exact_sampling and circuit.bitflip:
+            if require_exact_sampling:
+                raise ValueError("Exact sampling is required but circuit is bitflip mode")
+            print("  [exact_sampling=True but circuit is bitflip mode, falling back to sampled metrics]")
+            exact_sampling = False
+
         min_alpha_accept = float(config.get('min_alpha_accept', 1e-10))
         acceptance_metric = config.get(
             'acceptance_metric',
@@ -215,6 +232,23 @@ def run_boosting_experiment(
                 )
             except Exception as e:
                 print(f"Custom visualization failed: {e}")
+
+        # Global Lorenz curve plot (controlled by plot config)
+        if evaluation.final_sampling_enabled and get_plot_config()['plot_lorenz_curve']:
+            try:
+                _fig = plot_lorenz_curve(
+                    dataset.exact_probs,
+                    baseline_result.standalone_samples if evaluation.final_sampling_enabled else None,
+                    final_evaluation.final_ensemble_samples,
+                    reference_samples=dataset.x_train,
+                )
+                _path = output.get_path('lorenz_curve.png')
+                _fig.savefig(_path, dpi=160, bbox_inches='tight')
+                _fig.savefig(str(_path).replace('.png', '.pdf'), bbox_inches='tight')
+                print(f"  [lorenz_curve] Saved to {_path}")
+                _fig.clf()
+            except Exception as e:
+                print(f"  [lorenz_curve] Failed: {e}")
 
         # Save circuit artifact for backend execution if requested
         if config.get('save_circuit_artifacts', False):

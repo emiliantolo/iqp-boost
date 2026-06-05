@@ -1,5 +1,5 @@
 {
-  "study_name": "hamming_balls_20q_k6_p008",
+  "study_name": "hamming_balls_20q_k4_p008",
   "n_trials": 60,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
@@ -8,7 +8,7 @@
     "name": "hamming_balls",
     "params": {
       "n_qubits": 20,
-      "K": 6,
+      "K": 4,
       "p": 0.08,
       "pattern_seed": 0,
       "radius_fraction": 0.15
@@ -29,6 +29,7 @@
     "weight_strategy": "frank_wolfe",
     "baseline": "none",
     "shots": 1000,
+    "dynamic_is_within_shell": "shell_uniform",
     "exact_sampling": true,
     "acceptance_metric": "training_mmd",
     "skip_sampling": true,
@@ -42,6 +43,8 @@
   },
   "search_space": {
     "learning_rate": {"type": "float", "low": 0.001, "high": 0.1, "log": true},
+    "dynamic_is": {"type": "categorical", "choices": [false, true]},
+    "dynamic_is_beta": {"type": "float", "low": 0.01, "high": 0.2, "log": true},
     "lambda_schedule.gamma": {"type": "categorical", "choices": [0.25, 0.5, 0.75, 1.0]},
     "n_ops": {"type": "categorical", "choices": [512, 1024, 2048]},
     "sigma": {

@@ -7,58 +7,58 @@ Config-driven experiments for IQP ensemble boosting on Hopfield and Hamming Ball
 Use a single CLI entrypoint and pass a JSON/TOML experiment file containing a list of runs.
 
 ```bash
-uv run main.py --config configs/datasets/hopfield_16q_grid.json
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json
 ```
 
 `main.py` is a thin wrapper around `src.experiments.suite`. The equivalent
 direct module command is:
 
 ```bash
-python3 -m src.experiments.suite --config configs/datasets/hopfield_16q_grid.json
+python3 -m src.experiments.suite --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json
 ```
 
 Optional controls:
 
 ```bash
 # list run names found in the config
-uv run main.py --config configs/datasets/hopfield_16q_grid.json --list-runs
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json --list-runs
 
 # validate config and selected runs without training
-uv run main.py --config configs/datasets/hopfield_16q_grid.json --dry-run
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json --dry-run
 
 # run only selected named runs from the config
-uv run main.py --config configs/datasets/hopfield_16q_grid.json --only 0
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json --only 0
 
 # run selection also accepts 0-based indices from --list-runs order
-uv run main.py --config configs/datasets/hopfield_16q_grid.json --only 0
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json --only 0
 
 # override output base directory
-uv run main.py --config configs/datasets/hopfield_16q_grid.json --output-dir out_custom
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json --output-dir out_custom
 
 # override config values for all selected runs
-uv run main.py --config configs/datasets/hopfield_16q_grid.json --set n_models=16 --set learning_rate=0.03
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json --set n_models=16 --set learning_rate=0.03
 
 # example: force analytical mode for speed
-uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampling=true
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json --set skip_sampling=true
 ```
 
 ## Dataset Configs
 
 Dataset-specific config files are available in:
 
-- `configs/datasets/hopfield_16q_grid.json`
-- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_16q.json`
-- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_20q.json`
-- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_50q.json`
-- `configs/datasets/benchmark_suite_hamming_balls/hamming_balls_100q.json`
+- `configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json`
+- `configs/datasets/hamming_balls/hamming_balls_20q_K4_p008_is.json`
+- `configs/datasets/hamming_balls/hamming_balls_20q_K4_p012.json`
+- `configs/datasets/hamming_balls/hamming_balls_20q_K6_p008.json`
+- `configs/datasets/hamming_balls/hamming_balls_20q_K6_p012.json`
 
 Use `hamming_balls` as the dataset key for Hamming Balls configs.
 
 Examples:
 
 ```bash
-uv run main.py --config configs/datasets/hopfield_16q_grid.json
-uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampling=true
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json
+uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json --set skip_sampling=true
 ```
 
 ## Run HPO
@@ -66,7 +66,7 @@ uv run main.py --config configs/datasets/hopfield_16q_grid.json --set skip_sampl
 Optuna HPO configs live under `configs/hpo/` and use the HPO entrypoint:
 
 ```bash
-python3 -m src.hpo --config configs/hpo/hopfield_20q_p1_b15.json
+python3 -m src.hpo --config configs/hpo/hopfield/hopfield_20q_p1_b15.json
 ```
 
 ## Config Schema
@@ -84,7 +84,7 @@ Each run supports:
 - `metric_configs`: optional metric progression overrides
 - `baseline_epochs`: optional standalone baseline epochs override
 
-Example config: `configs/datasets/hopfield_16q_grid.json`
+Example config: `configs/datasets/hamming_balls/hamming_balls_20q_K4_p008.json`
 
 The dataset catalog in `src/datasets/catalog.py` is the source of truth for
 supported dataset keys, construction defaults, and dataset-specific plot modes.
@@ -202,4 +202,3 @@ Creates `metrics/backend_metrics.json` and `metrics/common_metrics_*.png` plots 
 - **KL**: Kullback-Leibler divergence vs. training distribution (lower is better)
 - **Coverage**: % of training set states observed in samples (higher is better)
 - **Validity**: % of samples that are valid bitstrings (always 100% for binary data)
-

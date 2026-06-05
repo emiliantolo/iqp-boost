@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.hpo.best_retrains import run_best_retrains
+from src.hpo.best_retrains import resolve_best_retrain_spec, run_best_retrains
 
 
 class FakeEnsemble:
@@ -70,7 +70,8 @@ def test_run_best_retrains_writes_seed_artifacts_and_aggregates(monkeypatch, tmp
         "best_retrains": {"n_seeds": 5, "baseline": "standalone", "report_fcfw": True},
     }
 
-    summary = run_best_retrains(hpo_spec, best_config_path, tmp_path)
+    spec = resolve_best_retrain_spec(hpo_spec)
+    summary = run_best_retrains(spec, best_config_path, tmp_path)
 
     assert len(captured_configs) == 5
     assert all(config["baseline"] == "standalone" for config in captured_configs)
@@ -83,3 +84,37 @@ def test_run_best_retrains_writes_seed_artifacts_and_aggregates(monkeypatch, tmp
     assert summary["aggregates"]["final_stats"]["tvd"]["mean"] == pytest.approx(2.1)
     assert summary["aggregates"]["baseline_stats"]["tvd"]["mean"] == pytest.approx(2.3)
     assert summary["aggregates"]["ensemble_fcfw_stats"]["tvd"]["mean"] == pytest.approx(2.05)
+
+
+def test_resolve_best_retrain_spec_returns_none_without_config():
+    assert resolve_best_retrain_spec({"dataset": {"name": "hamming_balls"}}) is None
+
+
+def test_resolve_best_retrain_spec_applies_defaults():
+    spec = resolve_best_retrain_spec(
+        {
+            "dataset": {"name": "hamming_balls", "params": {"n_qubits": 4}},
+            "best_retrains": {},
+        }
+    )
+
+    assert spec.dataset_spec == {"name": "hamming_balls", "params": {"n_qubits": 4}}
+    assert spec.plot_spec == {"kind": "none"}
+    assert spec.n_seeds == 5
+    assert spec.seed_start == 0
+    assert spec.baseline == "standalone"
+    assert spec.report_fcfw is True
+    assert spec.skip_sampling is True
+    assert spec.final_eval_sampling is True
+    assert spec.output_subdir == "best_retrains"
+
+
+def test_run_best_retrains_skips_missing_best_config(tmp_path):
+    spec = resolve_best_retrain_spec(
+        {
+            "dataset": {"name": "hamming_balls", "params": {"n_qubits": 4}},
+            "best_retrains": {"n_seeds": 1},
+        }
+    )
+
+    assert run_best_retrains(spec, tmp_path / "missing.json", tmp_path) is None

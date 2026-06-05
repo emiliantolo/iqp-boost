@@ -42,3 +42,30 @@ including weight selection, acceptance, metrics history, and diagnostics.
 
 The Experiment run policy that selects or corrects ensemble mixture weights
 from traces, samples, and dataset metric callbacks.
+
+### HPO study
+
+An Optuna-backed search over Experiment run configs. An HPO study owns trial
+sampling, objective comparison, best-trial selection, and study-level artifacts.
+
+### HPO trial
+
+One sampled Experiment run inside an HPO study. A trial resolves the Search
+space into a runnable config, runs the experiment, persists the model artifacts,
+and returns the Objective metric.
+
+### Objective metric
+
+The final metric selected from Final evaluation stats for Optuna optimization.
+Objective metrics are returned at trial completion rather than reported as
+intermediate pruning signals.
+
+### Search space
+
+A config-path keyed sampling spec that resolves HPO trial parameters into a
+runnable Experiment run config.
+
+### Best retrain
+
+A repeated Experiment run of the winning HPO config across seeds, used to
+estimate stability after best-trial selection.

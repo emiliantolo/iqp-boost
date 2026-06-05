@@ -5,13 +5,13 @@ from pathlib import Path
 CONFIGS = [
     ("hamming_balls_20q_k4_p008.json", 4, 0.08),
     ("hamming_balls_20q_k4_p012.json", 4, 0.12),
-    ("hamming_balls_20q_k6_p008.json", 6, 0.08),
-    ("hamming_balls_20q_k6_p012.json", 6, 0.12),
+    ("hamming_balls_20q_k8_p008.json", 8, 0.08),
+    ("hamming_balls_20q_k8_p012.json", 8, 0.12),
 ]
 
 
 def test_hamming_balls_20q_hpo_configs_are_objective_only_and_direct_sigma():
-    root = Path("configs/hpo")
+    root = Path("configs/hpo/hamming_balls")
     for filename, expected_k, expected_p in CONFIGS:
         config = json.loads((root / filename).read_text())
         fixed = config["fixed_config"]
@@ -26,6 +26,7 @@ def test_hamming_balls_20q_hpo_configs_are_objective_only_and_direct_sigma():
         assert fixed["skip_sampling"] is True
         assert fixed["final_eval_sampling"] is True
         assert fixed["report_fcfw"] is False
+        assert fixed["dynamic_is_within_shell"] == "shell_uniform"
         assert fixed["train_samples"] == 1000
         assert fixed["shots"] == 1000
         assert fixed["circuit_config"]["topology"] == "aachen_heavy_hex"
@@ -36,5 +37,12 @@ def test_hamming_balls_20q_hpo_configs_are_objective_only_and_direct_sigma():
         assert search["sigma"]["n_sigmas_choices"] == [1, 2, 3]
         assert search["learning_rate"]["log"] is True
         assert search["n_ops"]["choices"] == [512, 1024, 2048]
+        assert search["dynamic_is"] == {"type": "categorical", "choices": [False, True]}
+        assert search["dynamic_is_beta"] == {
+            "type": "float",
+            "low": 0.01,
+            "high": 0.2,
+            "log": True,
+        }
         assert config["best_retrains"]["n_seeds"] == 5
         assert config["best_retrains"]["baseline"] == "standalone"

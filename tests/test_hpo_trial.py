@@ -3,8 +3,8 @@ from pathlib import Path
 
 import numpy as np
 
+from src.datasets import DatasetBundle
 from src.hpo.objective import resolve_objective_spec
-from src.hpo.pruning import build_pruning_spec
 from src.hpo.trial import HpoTrialContext, run_trial
 
 
@@ -30,7 +30,7 @@ class FakeTrial:
         return False
 
 
-def _context(tmp_path, objective_metric="mmd", pruner=None):
+def _context(tmp_path, objective_metric="mmd"):
     base_config = {
         "n_models": 4,
         "rng_seed": 7,
@@ -40,7 +40,6 @@ def _context(tmp_path, objective_metric="mmd", pruner=None):
     }
     hpo_spec = {
         "objective_metric": objective_metric,
-        "pruner": pruner,
     }
     return HpoTrialContext(
         base_config=base_config,
@@ -48,7 +47,6 @@ def _context(tmp_path, objective_metric="mmd", pruner=None):
         dataset_spec={"name": "hamming_balls", "params": {"n_qubits": 4}},
         plot_spec={"kind": "none"},
         objective=resolve_objective_spec(hpo_spec),
-        pruning=build_pruning_spec(hpo_spec, base_config),
         trials_dir=tmp_path / "trials",
         hpo_dir=tmp_path / "hpo",
         metric_configs=[("mmd", "MMD", 1, "blue", "o")],
@@ -60,17 +58,11 @@ def test_run_trial_records_attrs_saves_model_and_forwards_x_test(monkeypatch, tm
     captured = {}
 
     def fake_bundle(dataset_spec, config, plot_spec):
-        return {
-            "dataset_name": "Hamming Balls",
-            "x_train": np.zeros((4, 4), dtype=np.int8),
-            "x_test": np.ones((4, 4), dtype=np.int8),
-            "validity_fn": None,
-            "coverage_fn": None,
-            "custom_viz_fn": None,
-            "top_k_tvd_fn": None,
-            "exact_probs": None,
-            "generation_eval_fn": None,
-        }
+        return DatasetBundle(
+            dataset_name="Hamming Balls",
+            x_train=np.zeros((4, 4), dtype=np.int8),
+            x_test=np.ones((4, 4), dtype=np.int8),
+        )
 
     def fake_run_boosting_experiment(**kwargs):
         captured.update(kwargs)
@@ -92,51 +84,15 @@ def test_run_trial_records_attrs_saves_model_and_forwards_x_test(monkeypatch, tm
     value = run_trial(trial, _context(tmp_path, objective_metric="test_mmd"))
 
     assert value == 0.42
-    assert captured["x_test"].shape == (4, 4)
+    assert captured["dataset"].x_test.shape == (4, 4)
     assert captured["baseline_epochs"] == 12
     assert captured["metric_configs"][0][0] == "mmd"
-    assert captured["hpo_callback"] is None
     assert Path(trial.user_attrs["model_path"]).exists()
     assert trial.user_attrs["final_stats"] == {"test_mmd": 0.42}
     assert trial.user_attrs["n_models_accepted"] == 2
     assert trial.user_attrs["weights"] == [0.25, 0.75]
     assert trial.user_attrs["ensemble_fcfw_weights"] == [0.5, 0.5]
-    assert trial.reports == [(0.42, 4)]
-
-
-def test_run_trial_wires_pruning_callback(monkeypatch, tmp_path):
-    def fake_bundle(dataset_spec, config, plot_spec):
-        return {
-            "dataset_name": "Hamming Balls",
-            "x_train": np.zeros((4, 4), dtype=np.int8),
-            "validity_fn": None,
-            "coverage_fn": None,
-            "custom_viz_fn": None,
-        }
-
-    def fake_run_boosting_experiment(**kwargs):
-        kwargs["hpo_callback"]({"step": 1, "training_mmd": 0.8})
-        output_dir = Path(kwargs["output_base_dir"]) / kwargs["run_name"]
-        output_dir.mkdir(parents=True, exist_ok=True)
-        return {
-            "final_stats": {"mmd": 0.7},
-            "ensemble": FakeEnsemble(),
-            "n_models_accepted": 1,
-            "weights": np.array([1.0]),
-            "output_dir": str(output_dir),
-        }
-
-    monkeypatch.setattr("src.hpo.trial.build_dataset_bundle", fake_bundle)
-    monkeypatch.setattr("src.hpo.trial.run_boosting_experiment", fake_run_boosting_experiment)
-
-    trial = FakeTrial()
-    value = run_trial(
-        trial,
-        _context(tmp_path, pruner={"type": "median", "metric": "training_mmd"}),
-    )
-
-    assert value == 0.7
-    assert trial.reports == [(0.8, 1), (0.7, 4)]
+    assert trial.reports == []
 
 
 def test_run_trial_exact_tvd_sets_require_exact_sampling(monkeypatch, tmp_path):

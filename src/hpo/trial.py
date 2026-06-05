@@ -10,9 +10,8 @@ import optuna
 
 from src.experiments.factory import build_dataset_bundle
 from src.hpo.objective import ObjectiveSpec, validate_objective_before_training
-from src.hpo.pruning import PruningSpec, make_trial_pruning_callback
 from src.hpo.trial_config import resolve_trial_config
-from src.runner import run_boosting_experiment
+from src.run import run_boosting_experiment
 
 
 @dataclass(frozen=True)
@@ -22,7 +21,6 @@ class HpoTrialContext:
     dataset_spec: dict
     plot_spec: dict
     objective: ObjectiveSpec
-    pruning: PruningSpec
     trials_dir: Path
     hpo_dir: Path
     metric_configs: list | None = None
@@ -40,30 +38,18 @@ def run_trial(trial: optuna.Trial, context: HpoTrialContext) -> float:
     validate_objective_before_training(context.objective, run_config, bundle)
     run_name = f"trial_{trial.number:04d}"
 
-    run_kwargs = {
-        "config": run_config,
-        "dataset_name": bundle["dataset_name"],
-        "dataset_spec": context.dataset_spec,
-        "x_train": bundle["x_train"],
-        "validity_fn": bundle["validity_fn"],
-        "coverage_fn": bundle["coverage_fn"],
-        "custom_viz_fn": bundle["custom_viz_fn"],
-        "top_k_tvd_fn": bundle.get("top_k_tvd_fn"),
-        "exact_probs": bundle.get("exact_probs"),
-        "generation_eval_fn": bundle.get("generation_eval_fn"),
-        "metric_configs": context.metric_configs,
-        "baseline_epochs": context.baseline_epochs,
-        "output_base_dir": str(context.trials_dir),
-        "run_name": run_name,
-        "log_dir": str(context.hpo_dir),
-        "log_filename": "hpo.log",
-        "append_log": True,
-        "hpo_callback": make_trial_pruning_callback(trial, context.pruning, context.objective),
-    }
-    if "x_test" in bundle:
-        run_kwargs["x_test"] = bundle["x_test"]
-
-    result = run_boosting_experiment(**run_kwargs)
+    result = run_boosting_experiment(
+        config=run_config,
+        dataset=bundle,
+        dataset_spec=context.dataset_spec,
+        metric_configs=context.metric_configs,
+        baseline_epochs=context.baseline_epochs,
+        output_base_dir=str(context.trials_dir),
+        run_name=run_name,
+        log_dir=str(context.hpo_dir),
+        log_filename="hpo.log",
+        append_log=True,
+    )
     final_stats = result["final_stats"]
     metric_value = context.objective.final_value(final_stats, trial.number)
 
@@ -79,5 +65,4 @@ def run_trial(trial: optuna.Trial, context: HpoTrialContext) -> float:
     fcfw_weights = result.get("ensemble_fcfw_weights")
     if fcfw_weights is not None:
         trial.set_user_attr("ensemble_fcfw_weights", np.asarray(fcfw_weights, dtype=np.float64).tolist())
-    trial.report(metric_value, step=int(run_config.get("n_models", 1)))
     return metric_value

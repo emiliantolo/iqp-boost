@@ -36,11 +36,15 @@ When `test_samples` is omitted or zero, bundles include only `x_train` and
 
 Single-instance experiment suites live under `configs/datasets/`.
 
-- `configs/datasets/hopfield_16q_grid.json`
-- `configs/datasets/benchmark_suite_hamming_balls/`
+- `configs/datasets/hamming_balls/`
 
-HPO experiment configs live under `configs/hpo/`. HPO and single-instance
-experiments both resolve datasets through the same catalog Module.
+HPO experiment configs live under per-dataset folders in `configs/hpo/`.
+
+- `configs/hpo/hamming_balls/`
+- `configs/hpo/hopfield/`
+
+HPO and single-instance experiments both resolve datasets through the same
+catalog Module.
 
 ## Plot Kinds
 

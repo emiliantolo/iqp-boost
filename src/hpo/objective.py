@@ -11,10 +11,6 @@ class ObjectiveSpec:
     requested_metric: str
     final_metric_key: str
 
-    @property
-    def is_intermediate_available(self) -> bool:
-        return self.requested_metric not in {"exact_tvd", "test_mmd"}
-
     def final_value(self, final_stats: dict, trial_number: int) -> float:
         metric_value = float(final_stats.get(self.final_metric_key, float("nan")))
         if not math.isfinite(metric_value):
@@ -42,5 +38,5 @@ def validate_objective_before_training(objective: ObjectiveSpec, run_config: dic
             )
         run_config["require_exact_sampling"] = True
 
-    if objective.requested_metric == "test_mmd" and "x_test" not in bundle:
+    if objective.requested_metric == "test_mmd" and getattr(bundle, "x_test", None) is None:
         raise ValueError("objective_metric=test_mmd requires the dataset bundle to provide x_test")
