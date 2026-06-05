@@ -67,6 +67,134 @@ Optuna HPO configs live under `configs/hpo/` and use the HPO entrypoint:
 
 ```bash
 python3 -m src.hpo --config configs/hpo/hopfield/hopfield_20q_p1_b15.json
+
+# or via uv
+uv run python3 -m src.hpo --config configs/hpo/hopfield/hopfield_20q_p1_b15.json
+```
+
+Available HPO configs by dataset:
+
+**Hopfield:**
+- `configs/hpo/hopfield/hopfield_20q_p1_b15.json`
+- `configs/hpo/hopfield/hopfield_20q_p1_b20.json`
+- `configs/hpo/hopfield/hopfield_20q_p2_b15.json`
+- `configs/hpo/hopfield/hopfield_20q_p2_b20.json`
+- `configs/hpo/hopfield/hopfield_45q_p2_b15.json`
+- `configs/hpo/hopfield/hopfield_45q_p2_b20.json`
+- `configs/hpo/hopfield/hopfield_45q_p4_b15.json`
+- `configs/hpo/hopfield/hopfield_45q_p4_b20.json`
+
+**Hamming Balls (local topology):**
+- `configs/hpo/hamming_balls/local/hamming_balls_20q_k4_p008_local.json`
+- `configs/hpo/hamming_balls/local/hamming_balls_20q_k4_p012_local.json`
+- `configs/hpo/hamming_balls/local/hamming_balls_20q_k8_p008_local.json`
+- `configs/hpo/hamming_balls/local/hamming_balls_20q_k8_p012_local.json`
+
+**Hamming Balls (grid 2D topology):**
+- `configs/hpo/hamming_balls/grid_2d/hamming_balls_20q_k4_p008_grid_2d.json`
+- `configs/hpo/hamming_balls/grid_2d/hamming_balls_20q_k4_p012_grid_2d.json`
+- `configs/hpo/hamming_balls/grid_2d/hamming_balls_20q_k8_p008_grid_2d.json`
+- `configs/hpo/hamming_balls/grid_2d/hamming_balls_20q_k8_p012_grid_2d.json`
+
+**Hamming Balls (heavy hex topology):**
+- `configs/hpo/hamming_balls/heavy_hex/hamming_balls_20q_k4_p008_heavy_hex.json`
+- `configs/hpo/hamming_balls/heavy_hex/hamming_balls_20q_k4_p012_heavy_hex.json`
+- `configs/hpo/hamming_balls/heavy_hex/hamming_balls_20q_k8_p008_heavy_hex.json`
+- `configs/hpo/hamming_balls/heavy_hex/hamming_balls_20q_k8_p012_heavy_hex.json`
+
+### HPO Config Schema
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `study_name` | string | file stem | Optuna study name |
+| `n_trials` | int | 60 | Number of Optuna trials |
+| `sampler_seed` | int | 42 | RNG seed for TPESampler |
+| `objective_metric` | string | `"tvd"` | Metric to optimize (`tvd`, `tvd_exact`, `test_mmd`) |
+| `direction` | string | `"minimize"` | Optuna direction (`minimize` or `maximize`) |
+| `storage` | string or null | `sqlite:///<hpo_dir>/study.db` | Optuna storage URL |
+| `output_dir` | string | `"out/hpo"` | Base output directory |
+| `dataset` | dict | **required** | Dataset spec with `name` and `params` |
+| `plot` | dict | `{}` | Plot config (e.g. `{"kind": "none"}`) |
+| `fixed_config` | dict | `{}` | Fixed experiment config merged into every trial |
+| `search_space` | dict | `{}` | Parameter search space definitions |
+| `metric_configs` | list or null | null | Metric progression overrides |
+| `baseline_epochs` | int or null | null | Baseline epochs override |
+| `best_retrains` | dict | null | Optional best-config retraining spec |
+
+### Search Space Parameter Types
+
+Parameters use dotted keys (e.g. `lambda_schedule.gamma`) to resolve to nested config paths:
+
+```json
+{
+  "learning_rate": {
+    "type": "float",
+    "low": 0.001,
+    "high": 0.1,
+    "log": true
+  },
+  "n_models": {
+    "type": "int",
+    "low": 4,
+    "high": 16,
+    "step": 2
+  },
+  "dynamic_is": {
+    "type": "categorical",
+    "choices": [false, true]
+  },
+  "sigma": {
+    "type": "bodyness_sigma",
+    "n_qubits": 20,
+    "n_sigmas_choices": [1, 2, 3],
+    "low": 0.5,
+    "high": 9.9,
+    "min_separation": 1.5
+  }
+}
+```
+
+- `float` — log-uniform or linear range sampling
+- `int` — integer range with optional step
+- `categorical` — discrete choices
+- `bodyness_sigma` — samples ordered sigma vector from expected Pauli bodyness
+
+### `best_retrains` Spec
+
+After the best trial is found, the winning config can be re-run across multiple seeds:
+
+```json
+{
+  "best_retrains": {
+    "n_seeds": 5,
+    "seed_start": 0,
+    "baseline": "standalone",
+    "report_fcfw": true,
+    "skip_sampling": true,
+    "final_eval_sampling": true
+  }
+}
+```
+
+### HPO Output Structure
+
+```
+out/hpo/<study_name>_<timestamp>/
+    hpo_config.json           # copy of input config
+    study.db                  # Optuna SQLite database
+    study_summary.json        # best trial summary
+    best_model.json           # best ensemble model
+    best_config.json          # best trial's full config
+    best_hamming_balls_metrics.json  # (hamming_balls only)
+    trials/                   # per-trial output directories
+        trial_0000/
+        trial_0001/
+        ...
+    best_retrains/            # (if best_retrains configured)
+        summary.json
+        seed_000/
+        seed_001/
+        ...
 ```
 
 ## Config Schema
