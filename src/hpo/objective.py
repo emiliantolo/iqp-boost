@@ -36,6 +36,9 @@ def validate_objective_before_training(objective: ObjectiveSpec, run_config: dic
                 "objective_metric=exact_tvd requires final sampling via skip_sampling=false "
                 "or final_eval_sampling=true"
             )
+        exact_metrics = dict(run_config.get("exact_metrics") or {})
+        exact_metrics["enabled"] = True
+        run_config["exact_metrics"] = exact_metrics
         run_config["require_exact_sampling"] = True
 
     if objective.requested_metric == "test_mmd" and getattr(bundle, "x_test", None) is None:

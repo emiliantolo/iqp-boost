@@ -67,6 +67,7 @@ def test_exact_tvd_objective_maps_to_exact_tvd(monkeypatch, tmp_path):
     config["fixed_config"]["exact_sampling"] = True
     config["fixed_config"]["skip_sampling"] = True
     config["fixed_config"]["final_eval_sampling"] = True
+    config["fixed_config"]["exact_metrics"] = {"enabled": False}
     config_path = tmp_path / "hpo.json"
     config_path.write_text(json.dumps(config))
 
@@ -89,6 +90,16 @@ def test_exact_tvd_requires_exact_and_final_sampling_flags():
             {"exact_sampling": True, "skip_sampling": True, "final_eval_sampling": False},
             {},
         )
+
+    run_config = {
+        "exact_sampling": True,
+        "skip_sampling": True,
+        "final_eval_sampling": True,
+        "exact_metrics": {"enabled": False},
+    }
+    validate_objective_before_training(objective, run_config, {})
+    assert run_config["exact_metrics"]["enabled"] is True
+    assert run_config["require_exact_sampling"] is True
 
 
 def test_test_mmd_requires_x_test_before_training():
