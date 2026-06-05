@@ -23,7 +23,7 @@ class ObjectiveSpec:
 def resolve_objective_spec(hpo_spec: dict) -> ObjectiveSpec:
     metric = hpo_spec.get("objective_metric", "tvd")
     if metric == "exact_tvd":
-        return ObjectiveSpec(requested_metric="exact_tvd", final_metric_key="tvd")
+        return ObjectiveSpec(requested_metric="exact_tvd", final_metric_key="tvd_exact")
     return ObjectiveSpec(requested_metric=metric, final_metric_key=metric)
 
 

@@ -57,8 +57,7 @@
         "turbo": 10,
         "circuit_config": {
           "topology": "aachen_heavy_hex",
-          "n_ancilla": 0,
-          "num_layers": 1
+          "n_ancilla": 0
         },
         "dataset_metrics": true,
         "exact_metrics": {

@@ -13,7 +13,6 @@ from iqpopt.utils import (
     expand_gate_list,
     gates_from_covariance,
 )
-from src.hardware import create_circuit as hardware_create_circuit
 
 def _initialize_with_ancillas(gates, data, n_visible):
     """
@@ -314,8 +313,7 @@ def aachen_connectivity() -> dict[int, list[int]]:
     return connectivity
 
 
-def connectivity_gates(connectivity_graph: dict[int, list[int]], num_positions: int,
-                       num_layers: int = 1) -> list:
+def connectivity_gates(connectivity_graph: dict[int, list[int]], num_positions: int) -> list:
     """Create one-qubit gates plus two-qubit gates for connected pairs."""
     single_qubit_gates = [[[np.int64(i)]] for i in range(num_positions)]
     two_qubit_gates = []
@@ -335,12 +333,7 @@ def connectivity_gates(connectivity_graph: dict[int, list[int]], num_positions: 
                 edges_added.add(edge)
 
     two_qubit_gates.sort(key=lambda gate: (gate[0][0], gate[0][1]))
-    layer_gates = single_qubit_gates + two_qubit_gates
-
-    final_gates = []
-    for _ in range(int(num_layers)):
-        final_gates.extend(layer_gates)
-    return final_gates
+    return single_qubit_gates + two_qubit_gates
 
 
 def setup_iqp_circuit(n_qubits: int, topology: str = 'neighbour', n_ancilla: int = 0, **kwargs) -> tuple:
@@ -348,7 +341,7 @@ def setup_iqp_circuit(n_qubits: int, topology: str = 'neighbour', n_ancilla: int
     
     Args:
         n_qubits: Number of visible qubits (data qubits)
-        topology: Gate structure ('neighbour', 'random', 'local', 'grid2d', 'aachen_heavy_hex', 'aachen', 'physical_qpu', 'covariance')
+        topology: Gate structure ('neighbour', 'random', 'local', 'grid2d', 'aachen_heavy_hex', 'physical_qpu', 'covariance')
                 n_ancilla: Number of ancilla (hidden) qubits to add.
             kwargs.data: Optional training data used by data-driven topologies.
                 kwargs.ancilla_topology_mode: How to wire ancilla qubits when n_ancilla > 0:
@@ -422,22 +415,16 @@ def setup_iqp_circuit(n_qubits: int, topology: str = 'neighbour', n_ancilla: int
     elif topology == 'aachen_heavy_hex':
         if n_ancilla > 0:
             raise ValueError("aachen_heavy_hex currently supports n_ancilla=0 only")
-        num_layers = int(kwargs.get('num_layers', 1))
         if n_qubits > 156:
             raise ValueError("aachen_heavy_hex supports at most 156 qubits")
-        gates = connectivity_gates(aachen_connectivity(), n_qubits, num_layers=num_layers)
-        n_one = n_qubits * num_layers
+        gates = connectivity_gates(aachen_connectivity(), n_qubits)
+        n_one = n_qubits
         n_two = len(gates) - n_one
         desc = (
             f"Qubits: {n_qubits}\n"
             f"Aachen heavy-hex topology: {len(gates)} parameters\n"
-            f"layers={num_layers}, one_qubit={n_one}, two_qubit={n_two}"
+            f"one_qubit={n_one}, two_qubit={n_two}"
         )
-    elif topology == 'aachen':
-        num_layers = kwargs.get('num_layers', 1)
-        qpu_circuit = hardware_create_circuit(build_n_qubits, num_layers)
-        gates = qpu_circuit.gates
-        desc = f"Qubits: {build_n_qubits}\nAachen (hardware.py): {len(gates)} parameters\n(num_layers={num_layers})"
     elif topology == 'physical_qpu':
         distance = kwargs.get('distance', 1)
         max_weight = kwargs.get('max_weight', 2)

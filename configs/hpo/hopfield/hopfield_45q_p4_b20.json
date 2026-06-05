@@ -38,7 +38,7 @@
     "rng_seed": 42,
     "turbo": 10,
     "n_ops": 4000,
-    "circuit_config": {"topology": "aachen_heavy_hex", "n_ancilla": 0, "num_layers": 1}
+    "circuit_config": {"topology": "aachen_heavy_hex", "n_ancilla": 0}
   },
   "search_space": {
     "n_models": {"type": "int", "low": 4, "high": 10},

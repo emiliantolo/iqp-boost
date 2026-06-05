@@ -112,7 +112,7 @@ def test_run_trial_exact_tvd_sets_require_exact_sampling(monkeypatch, tmp_path):
         output_dir = Path(kwargs["output_base_dir"]) / kwargs["run_name"]
         output_dir.mkdir(parents=True, exist_ok=True)
         return {
-            "final_stats": {"tvd": 0.2},
+            "final_stats": {"tvd": 0.9, "tvd_exact": 0.2},
             "ensemble": FakeEnsemble(),
             "n_models_accepted": 1,
             "weights": np.array([1.0]),

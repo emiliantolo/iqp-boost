@@ -36,7 +36,7 @@
     "stop_on_reject": false,
     "rng_seed": 42,
     "turbo": 10,
-    "circuit_config": {"topology": "aachen_heavy_hex", "n_ancilla": 0, "num_layers": 1}
+    "circuit_config": {"topology": "aachen_heavy_hex", "n_ancilla": 0}
   },
   "search_space": {
     "sigma_heuristic.n_sigmas": {"type": "int", "low": 2, "high": 6},

@@ -36,7 +36,7 @@ def _config(tmp_path, **overrides):
     return config
 
 
-def test_exact_tvd_objective_maps_to_final_tvd(monkeypatch, tmp_path):
+def test_exact_tvd_objective_maps_to_exact_tvd(monkeypatch, tmp_path):
     def fake_bundle(dataset_spec, config, plot_spec):
         return {
             "dataset_name": "Hamming Balls",
@@ -52,7 +52,7 @@ def test_exact_tvd_objective_maps_to_final_tvd(monkeypatch, tmp_path):
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "config.json").write_text(json.dumps(kwargs["config"]))
         return {
-            "final_stats": {"tvd": 0.125},
+            "final_stats": {"tvd": 0.9, "tvd_exact": 0.125},
             "ensemble": FakeEnsemble(),
             "n_models_accepted": 1,
             "weights": np.array([1.0]),
