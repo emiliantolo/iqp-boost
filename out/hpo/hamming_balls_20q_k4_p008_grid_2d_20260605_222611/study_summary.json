@@ -1,0 +1,229 @@
+{
+  "study_name": "hamming_balls_20q_k4_p008_grid_2d",
+  "best_trial": 18,
+  "objective_metric": "tvd_exact",
+  "best_value": 0.24179235276253166,
+  "best_params": {
+    "learning_rate": 0.016516444441349268,
+    "dynamic_is": true,
+    "dynamic_is_beta": 0.01751547368684791,
+    "lambda_schedule.gamma": 0.75,
+    "n_ops": 2048,
+    "sigma.n_sigmas": 2,
+    "sigma.bodyness_raw_0": 0.573689467505592,
+    "sigma.bodyness_raw_1": 0.9947905343605197
+  },
+  "best_user_attrs": {
+    "ensemble_fcfw_weights": [
+      0.08872840191665286,
+      0.0034471629599699656,
+      0.08670781703252461,
+      0.03177759479231031,
+      0.07398350105865069,
+      0.0,
+      0.15863537110014816,
+      0.19543192130511908,
+      0.12758442938927966,
+      0.23370380044534478
+    ],
+    "final_stats": {
+      "mmd": -0.00016561336815357208,
+      "kl": 8.69219362501802,
+      "jsd": 0.5387887684856668,
+      "tvd": 0.5408964332015979,
+      "validity": NaN,
+      "coverage": NaN,
+      "precision": NaN,
+      "recall": NaN,
+      "support_match": NaN,
+      "f_score": NaN,
+      "corr_fro": 1.2884251867701626,
+      "kl_exact": 0.23979642760124154,
+      "jsd_exact": 0.25821909137502563,
+      "tvd_exact": 0.24179235276253166
+    },
+    "model_path": "out/hpo/hamming_balls_20q_k4_p008_grid_2d_20260605_222611/trials/trial_0018/ensemble.json",
+    "n_models_accepted": 10,
+    "output_dir": "out/hpo/hamming_balls_20q_k4_p008_grid_2d_20260605_222611/trials/trial_0018",
+    "sampled_config": {
+      "learning_rate": 0.016516444441349268,
+      "dynamic_is": true,
+      "dynamic_is_beta": 0.01751547368684791,
+      "lambda_schedule.gamma": 0.75,
+      "n_ops": 2048,
+      "sigma.n_sigmas": 2,
+      "sigma.bodyness_targets": [
+        5.032146793294177,
+        9.858845221448107
+      ],
+      "sigma.values": [
+        0.8453974643295437,
+        0.342574920231809
+      ]
+    },
+    "weights": [
+      0.19434563815593722,
+      0.11660738289356234,
+      0.10365100701649985,
+      0.09567785263061522,
+      0.09004974365234376,
+      0.08576166062127975,
+      0.08233119419642856,
+      0.0794921875,
+      0.07708333333333335,
+      0.075
+    ]
+  },
+  "best_model_path": "out/hpo/hamming_balls_20q_k4_p008_grid_2d_20260605_222611/best_model.json",
+  "best_config_path": "out/hpo/hamming_balls_20q_k4_p008_grid_2d_20260605_222611/best_config.json",
+  "config_path": "configs/hpo/hamming_balls/grid_2d/hamming_balls_20q_k4_p008_grid_2d.json",
+  "hamming_balls_metrics": {
+    "ensemble": {
+      "recall_distance": 2.255,
+      "coverage": 1.0,
+      "per_center_coverage": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "per_center_hit_counts": [
+        151,
+        220,
+        233,
+        180
+      ],
+      "mean_distance_to_nearest_center": 2.255,
+      "median_distance_to_nearest_center": 2.0
+    },
+    "ensemble_fcfw": {
+      "recall_distance": 1.785,
+      "coverage": 1.0,
+      "per_center_coverage": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "per_center_hit_counts": [
+        227,
+        231,
+        209,
+        219
+      ],
+      "mean_distance_to_nearest_center": 1.785,
+      "median_distance_to_nearest_center": 2.0
+    }
+  },
+  "best_retrains": {
+    "summary_path": "out/hpo/hamming_balls_20q_k4_p008_grid_2d_20260605_222611/best_retrains/summary.json",
+    "aggregates": {
+      "final_stats": {
+        "corr_fro": {
+          "mean": 1.2597341189864315,
+          "std": 0.07304692159188192
+        },
+        "jsd": {
+          "mean": 0.559528621408742,
+          "std": 0.006582698366385532
+        },
+        "jsd_exact": {
+          "mean": 0.2957164744361519,
+          "std": 0.007212036691379509
+        },
+        "kl": {
+          "mean": 9.422073396202855,
+          "std": 0.19116958554319813
+        },
+        "kl_exact": {
+          "mean": 0.34850460332740035,
+          "std": 0.021289661273041136
+        },
+        "mmd": {
+          "mean": 0.0004040537402033806,
+          "std": 0.00022754211561972504
+        },
+        "tvd": {
+          "mean": 0.5567906751620514,
+          "std": 0.011508977688376925
+        },
+        "tvd_exact": {
+          "mean": 0.2770290576066787,
+          "std": 0.01017703819597676
+        }
+      },
+      "baseline_stats": {
+        "corr_fro": {
+          "mean": 7.001640726217684,
+          "std": 0.04226616138273897
+        },
+        "jsd": {
+          "mean": 0.7736638900057161,
+          "std": 0.0012691245491174656
+        },
+        "jsd_exact": {
+          "mean": 0.7037969139283482,
+          "std": 0.004063564072037923
+        },
+        "kl": {
+          "mean": 19.179762734731415,
+          "std": 0.4389299719614269
+        },
+        "kl_exact": {
+          "mean": 6.66805357224355,
+          "std": 0.20072688254044413
+        },
+        "mmd": {
+          "mean": 0.02518262732774019,
+          "std": 0.0005072152173628576
+        },
+        "training_loss": {
+          "mean": 0.02424851122750203,
+          "std": 0.00039939399420086834
+        },
+        "tvd": {
+          "mean": 0.9114799759920902,
+          "std": 0.0022709824445658515
+        },
+        "tvd_exact": {
+          "mean": 0.8202424158020141,
+          "std": 0.00714530118949016
+        }
+      },
+      "ensemble_fcfw_stats": {
+        "corr_fro": {
+          "mean": 0.8494128180393755,
+          "std": 0.0748954181338466
+        },
+        "jsd": {
+          "mean": 0.5306738267931114,
+          "std": 0.009014805111877116
+        },
+        "jsd_exact": {
+          "mean": 0.2560219074890843,
+          "std": 0.02309188497633063
+        },
+        "kl": {
+          "mean": 8.949852976173247,
+          "std": 0.2675897541497789
+        },
+        "kl_exact": {
+          "mean": 0.2795370945422921,
+          "std": 0.04433733904298482
+        },
+        "mmd": {
+          "mean": -0.0003809129819273949,
+          "std": 0.00014132667584721957
+        },
+        "tvd": {
+          "mean": 0.5248964658979884,
+          "std": 0.012807286015648274
+        },
+        "tvd_exact": {
+          "mean": 0.24332736793555482,
+          "std": 0.020374997723670865
+        }
+      }
+    }
+  }
+}

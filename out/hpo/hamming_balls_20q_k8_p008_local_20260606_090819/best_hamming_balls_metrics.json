@@ -1,0 +1,54 @@
+{
+  "ensemble": {
+    "recall_distance": 5.11,
+    "coverage": 0.875,
+    "per_center_coverage": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "per_center_hit_counts": [
+      0,
+      42,
+      51,
+      6,
+      43,
+      55,
+      56,
+      4
+    ],
+    "mean_distance_to_nearest_center": 5.11,
+    "median_distance_to_nearest_center": 5.0
+  },
+  "ensemble_fcfw": {
+    "recall_distance": 4.011,
+    "coverage": 0.75,
+    "per_center_coverage": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true
+    ],
+    "per_center_hit_counts": [
+      0,
+      66,
+      88,
+      0,
+      69,
+      105,
+      98,
+      3
+    ],
+    "mean_distance_to_nearest_center": 4.011,
+    "median_distance_to_nearest_center": 4.0
+  }
+}

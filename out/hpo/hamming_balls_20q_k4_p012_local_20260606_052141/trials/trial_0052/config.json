@@ -1,0 +1,60 @@
+{
+    "train_samples": 1000,
+    "data_seed": 42,
+    "n_samples": 400,
+    "n_models": 10,
+    "learning_rate": 0.022242327502003528,
+    "epochs_per_step": 400,
+    "caching_level": "none",
+    "ensemble_samples_coeff": 1.0,
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_dual": 1,
+    "lambda_schedule": {
+        "type": "frank_wolfe",
+        "gamma": 0.25,
+        "tau": 1
+    },
+    "n_ops": 512,
+    "weight_strategy": "frank_wolfe",
+    "alpha_n_grid": 11,
+    "alpha_objective_weight": 0.5,
+    "baseline": "none",
+    "shots": 1000,
+    "final_eval_sampling": true,
+    "dataset_metrics": true,
+    "exact_metrics": {
+        "enabled": true,
+        "max_qubits": 20,
+        "phases": {
+            "baseline": true,
+            "steps": false,
+            "final": true,
+            "per_model": true,
+            "fcfw": true
+        }
+    },
+    "keep_models_for_diagnosis": true,
+    "stop_on_reject": false,
+    "save_circuit_artifacts": false,
+    "rng_seed": 42,
+    "circuit_config": {
+        "topology": "local",
+        "distance": 2,
+        "max_weight": 2,
+        "n_ancilla": 0
+    },
+    "turbo": 10,
+    "dynamic_is_within_shell": "shell_uniform",
+    "exact_sampling": true,
+    "acceptance_metric": "training_mmd",
+    "skip_sampling": true,
+    "report_fcfw": true,
+    "dynamic_is": true,
+    "dynamic_is_beta": 0.07043112317904092,
+    "sigma": [
+        0.8181741227089722,
+        0.6614563728349302
+    ],
+    "require_exact_sampling": true
+}
