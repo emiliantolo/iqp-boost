@@ -1,0 +1,835 @@
+Experiment: Boosting on Hopfield (20q, 1p)
+Configuration:
+  train_samples: 1000
+  data_seed: 0
+  n_samples: 400
+  n_models: 10
+  learning_rate: 0.01077031521235495
+  epochs_per_step: 400
+  caching_level: none
+  ensemble_samples_coeff: 1.0
+  init_baseline: covariance
+  init_later: random
+  lambda_dual: 1.0
+  lambda_schedule: {'type': 'frank_wolfe', 'gamma': 0.75, 'tau': 1.0}
+  n_ops: 1024
+  weight_strategy: frank_wolfe
+  alpha_n_grid: 11
+  alpha_objective_weight: 0.5
+  baseline: standalone
+  shots: 1000
+  final_eval_sampling: True
+  dataset_metrics: True
+  exact_metrics: {'enabled': True, 'max_qubits': 20, 'phases': {'baseline': True, 'steps': False, 'final': True, 'per_model': True, 'fcfw': True}}
+  keep_models_for_diagnosis: True
+  stop_on_reject: False
+  save_circuit_artifacts: False
+  rng_seed: 0
+  circuit_config: {'topology': 'aachen_heavy_hex', 'distance': 2, 'max_weight': 2, 'n_ancilla': 0}
+  turbo: 10
+  dynamic_is_within_shell: shell_uniform
+  exact_sampling: True
+  acceptance_metric: training_mmd
+  skip_sampling: True
+  report_fcfw: True
+  dynamic_is: True
+  dynamic_is_beta: 0.034699705890421005
+  sigma: [0.9210364596770635, 0.7311040928534892, 0.5383318808062226]
+  require_exact_sampling: True
+================================================================================
+Saving config to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_000/config.json...
+Gate structure: Qubits: 20
+Aachen heavy-hex topology: 39 parameters
+one_qubit=20, two_qubit=19
+Saved circuit structure plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_000/circuit_structure.pdf
+Using Gaussian Kernel (n_ops=1024, n_qubits=20):
+  - sigma=0.92103646
+  - sigma=0.73110409
+  - sigma=0.53833188
+Expected sampled operator size:
+  - p=4.453447, std=1.860588
+  - p=6.075831, std=2.056707
+  - p=8.218841, std=2.200312
+  mean: 6.249373
+  std: 2.560435
+Baselines enabled: standalone
+
+Training standalone baseline model (4000 epochs)...
+Training has not converged after 4000 steps
+
+Baseline: MMD=0.0362 F1=nan
+  (Analytical baseline MMD from training: 0.035356)
+Baseline used as reference: Standalone
+
+Training ensemble Model 0 (400 epochs)...
+Training has not converged after 400 steps
+Model 0 final loss: 0.038142
+  [Step 0/9] train_MMD=0.0364 alpha_opt=1.0000 oracle_top1_TVD=0.8881
+
+[Step 1] Training Model 1...
+  lambda_dual: 0.6250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.3750
+  [Step 1/9] train_MMD=0.0060 alpha_opt=0.3750 oracle_top2_TVD=0.7762
+  [OK] MMD improved (delta=+0.030391)
+  SNR (proxy): 5.32 (mean_norm=0.0230, std_norm=0.0043)
+
+[Step 2] Training Model 2...
+  lambda_dual: 0.7500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.2500
+  [Step 2/9] train_MMD=0.0019 alpha_opt=0.2500 oracle_top3_TVD=0.7697
+  [OK] MMD improved (delta=+0.004102)
+  SNR (proxy): 6.09 (mean_norm=0.0371, std_norm=0.0061)
+
+[Step 3] Training Model 3...
+  lambda_dual: 0.8125
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1875
+  [Step 3/9] train_MMD=0.0020 alpha_opt=0.1875 oracle_top4_TVD=0.7632
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.000124)
+  SNR (proxy): 3.26 (mean_norm=0.0127, std_norm=0.0039)
+
+[Step 4] Training Model 4...
+  lambda_dual: 0.8500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1500
+  [Step 4/9] train_MMD=0.0045 alpha_opt=0.1500 oracle_top5_TVD=0.7568
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.002529)
+  SNR (proxy): 14.01 (mean_norm=0.0038, std_norm=0.0003)
+
+[Step 5] Training Model 5...
+  lambda_dual: 0.8750
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1250
+  [Step 5/9] train_MMD=0.0015 alpha_opt=0.1250 oracle_top6_TVD=0.7503
+  [OK] MMD improved (delta=+0.003081)
+  SNR (proxy): 4.88 (mean_norm=0.0076, std_norm=0.0016)
+
+[Step 6] Training Model 6...
+  lambda_dual: 0.8929
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1071
+  [Step 6/9] train_MMD=-0.0001 alpha_opt=0.1071 oracle_top7_TVD=0.7438
+  [OK] MMD improved (delta=+0.001600)
+  SNR (proxy): 8.12 (mean_norm=0.0174, std_norm=0.0021)
+
+[Step 7] Training Model 7...
+  lambda_dual: 0.9062
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0937
+  [Step 7/9] train_MMD=0.0003 alpha_opt=0.0937 oracle_top8_TVD=0.7373
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.000385)
+  SNR (proxy): 13.26 (mean_norm=0.0124, std_norm=0.0009)
+
+[Step 8] Training Model 8...
+  lambda_dual: 0.9167
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0833
+  [Step 8/9] train_MMD=0.0000 alpha_opt=0.0833 oracle_top9_TVD=0.7309
+  [OK] MMD improved (delta=+0.000239)
+  SNR (proxy): 9.71 (mean_norm=0.0145, std_norm=0.0015)
+
+[Step 9] Training Model 9...
+  lambda_dual: 0.9250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0750
+  [Step 9/9] train_MMD=-0.0001 alpha_opt=0.0750 oracle_top10_TVD=0.7244
+  [OK] MMD improved (delta=+0.000099)
+  SNR (proxy): 22.17 (mean_norm=0.0141, std_norm=0.0006)
+
+Final: 10 models, MMD=-0.0000 (delta=+0.0363) F1=nan
+
+[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...
+  Weighting: fully corrective QP weights = [0.0497, 0.1683, 0.0000, 0.0622, 0.1208, 0.1002, 0.0747, 0.1892, 0.0866, 0.1482]
+  FCFW Sampled MMD^2: -0.000107
+  FCFW Sampled TVD:   0.5165
+
+FINAL MODEL COMPARISON (inc. FCFW)
+Model      | MMD        | TVD        | TVD*       | Valid      | Cover      | F1        
+----------------------------------------------------------------------------------------
+Baseline   | 0.0362     | 0.749      | 0.558      | n/a        | n/a        | n/a       
+Ensemble   | -0.0000    | 0.513      | 0.199      | n/a        | n/a        | n/a       
+Model 0    | 0.0351     | 0.790      | 0.553      | n/a        | n/a        | n/a       
+Model 1    | 0.1217     | 0.782      | 0.598      | n/a        | n/a        | n/a       
+Model 2    | 0.0567     | 0.753      | 0.568      | n/a        | n/a        | n/a       
+Model 3    | 0.0895     | 0.790      | 0.546      | n/a        | n/a        | n/a       
+Model 4    | 0.0714     | 1.000      | 0.885      | n/a        | n/a        | n/a       
+Model 5    | 0.3517     | 0.801      | 0.713      | n/a        | n/a        | n/a       
+Model 6    | 0.0898     | 0.790      | 0.624      | n/a        | n/a        | n/a       
+Model 7    | 0.0467     | 0.819      | 0.533      | n/a        | n/a        | n/a       
+Model 8    | 0.0662     | 0.802      | 0.542      | n/a        | n/a        | n/a       
+Model 9    | 0.0691     | 0.801      | 0.573      | n/a        | n/a        | n/a       
+Ensemble (FCFW) | -0.0001    | 0.516      | 0.178      | n/a        | n/a        | n/a       
+Saving results to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_000/results.csv...
+Saved data/ensemble loss plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_000/data_ensemble_loss.pdf
+Saving metrics to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_000/dataset_metrics.json...
+  [lorenz_curve] Saved to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_000/lorenz_curve.png
+Experiment: Boosting on Hopfield (20q, 1p)
+Configuration:
+  train_samples: 1000
+  data_seed: 1
+  n_samples: 400
+  n_models: 10
+  learning_rate: 0.01077031521235495
+  epochs_per_step: 400
+  caching_level: none
+  ensemble_samples_coeff: 1.0
+  init_baseline: covariance
+  init_later: random
+  lambda_dual: 1.0
+  lambda_schedule: {'type': 'frank_wolfe', 'gamma': 0.75, 'tau': 1.0}
+  n_ops: 1024
+  weight_strategy: frank_wolfe
+  alpha_n_grid: 11
+  alpha_objective_weight: 0.5
+  baseline: standalone
+  shots: 1000
+  final_eval_sampling: True
+  dataset_metrics: True
+  exact_metrics: {'enabled': True, 'max_qubits': 20, 'phases': {'baseline': True, 'steps': False, 'final': True, 'per_model': True, 'fcfw': True}}
+  keep_models_for_diagnosis: True
+  stop_on_reject: False
+  save_circuit_artifacts: False
+  rng_seed: 1
+  circuit_config: {'topology': 'aachen_heavy_hex', 'distance': 2, 'max_weight': 2, 'n_ancilla': 0}
+  turbo: 10
+  dynamic_is_within_shell: shell_uniform
+  exact_sampling: True
+  acceptance_metric: training_mmd
+  skip_sampling: True
+  report_fcfw: True
+  dynamic_is: True
+  dynamic_is_beta: 0.034699705890421005
+  sigma: [0.9210364596770635, 0.7311040928534892, 0.5383318808062226]
+  require_exact_sampling: True
+================================================================================
+Saving config to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_001/config.json...
+Gate structure: Qubits: 20
+Aachen heavy-hex topology: 39 parameters
+one_qubit=20, two_qubit=19
+Saved circuit structure plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_001/circuit_structure.pdf
+Using Gaussian Kernel (n_ops=1024, n_qubits=20):
+  - sigma=0.92103646
+  - sigma=0.73110409
+  - sigma=0.53833188
+Expected sampled operator size:
+  - p=4.453447, std=1.860588
+  - p=6.075831, std=2.056707
+  - p=8.218841, std=2.200312
+  mean: 6.249373
+  std: 2.560435
+Baselines enabled: standalone
+
+Training standalone baseline model (4000 epochs)...
+Training has not converged after 4000 steps
+
+Baseline: MMD=0.0378 F1=nan
+  (Analytical baseline MMD from training: 0.038241)
+Baseline used as reference: Standalone
+
+Training ensemble Model 0 (400 epochs)...
+Training has not converged after 400 steps
+Model 0 final loss: 0.039234
+  [Step 0/9] train_MMD=0.0382 alpha_opt=1.0000 oracle_top1_TVD=0.8881
+
+[Step 1] Training Model 1...
+  lambda_dual: 0.6250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.3750
+  [Step 1/9] train_MMD=0.0080 alpha_opt=0.3750 oracle_top2_TVD=0.7762
+  [OK] MMD improved (delta=+0.030150)
+  SNR (proxy): 2.68 (mean_norm=0.0229, std_norm=0.0086)
+
+[Step 2] Training Model 2...
+  lambda_dual: 0.7500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.2500
+  [Step 2/9] train_MMD=0.0026 alpha_opt=0.2500 oracle_top3_TVD=0.7697
+  [OK] MMD improved (delta=+0.005437)
+  SNR (proxy): 9.13 (mean_norm=0.0333, std_norm=0.0036)
+
+[Step 3] Training Model 3...
+  lambda_dual: 0.8125
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1875
+  [Step 3/9] train_MMD=0.0015 alpha_opt=0.1875 oracle_top4_TVD=0.7632
+  [OK] MMD improved (delta=+0.001152)
+  SNR (proxy): 8.47 (mean_norm=0.0244, std_norm=0.0029)
+
+[Step 4] Training Model 4...
+  lambda_dual: 0.8500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1500
+  [Step 4/9] train_MMD=0.0037 alpha_opt=0.1500 oracle_top5_TVD=0.7568
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.002220)
+  SNR (proxy): 16.24 (mean_norm=0.0112, std_norm=0.0007)
+
+[Step 5] Training Model 5...
+  lambda_dual: 0.8750
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1250
+  [Step 5/9] train_MMD=0.0004 alpha_opt=0.1250 oracle_top6_TVD=0.7503
+  [OK] MMD improved (delta=+0.003297)
+  SNR (proxy): 7.65 (mean_norm=0.0224, std_norm=0.0029)
+
+[Step 6] Training Model 6...
+  lambda_dual: 0.8929
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1071
+  [Step 6/9] train_MMD=0.0003 alpha_opt=0.1071 oracle_top7_TVD=0.7438
+  [OK] MMD improved (delta=+0.000074)
+  SNR (proxy): 5.90 (mean_norm=0.0128, std_norm=0.0022)
+
+[Step 7] Training Model 7...
+  lambda_dual: 0.9062
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0937
+  [Step 7/9] train_MMD=-0.0001 alpha_opt=0.0937 oracle_top8_TVD=0.7373
+  [OK] MMD improved (delta=+0.000432)
+  SNR (proxy): 11.78 (mean_norm=0.0198, std_norm=0.0017)
+
+[Step 8] Training Model 8...
+  lambda_dual: 0.9167
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0833
+  [Step 8/9] train_MMD=-0.0000 alpha_opt=0.0833 oracle_top9_TVD=0.7309
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.000117)
+  SNR (proxy): 6.06 (mean_norm=0.0118, std_norm=0.0019)
+
+[Step 9] Training Model 9...
+  lambda_dual: 0.9250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0750
+  [Step 9/9] train_MMD=-0.0001 alpha_opt=0.0750 oracle_top10_TVD=0.7244
+  [OK] MMD improved (delta=+0.000137)
+  SNR (proxy): 7.71 (mean_norm=0.0132, std_norm=0.0017)
+
+Final: 10 models, MMD=0.0000 (delta=+0.0378) F1=nan
+
+[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...
+  Weighting: fully corrective QP weights = [0.1623, 0.2349, 0.0000, 0.0949, 0.1501, 0.1055, 0.0049, 0.1999, 0.0000, 0.0474]
+  FCFW Sampled MMD^2: -0.000142
+  FCFW Sampled TVD:   0.4967
+
+FINAL MODEL COMPARISON (inc. FCFW)
+Model      | MMD        | TVD        | TVD*       | Valid      | Cover      | F1        
+----------------------------------------------------------------------------------------
+Baseline   | 0.0378     | 0.744      | 0.562      | n/a        | n/a        | n/a       
+Ensemble   | 0.0000     | 0.510      | 0.194      | n/a        | n/a        | n/a       
+Model 0    | 0.0384     | 0.805      | 0.565      | n/a        | n/a        | n/a       
+Model 1    | 0.1378     | 0.784      | 0.602      | n/a        | n/a        | n/a       
+Model 2    | 0.0957     | 0.774      | 0.572      | n/a        | n/a        | n/a       
+Model 3    | 0.0686     | 0.783      | 0.540      | n/a        | n/a        | n/a       
+Model 4    | 0.0504     | 0.890      | 0.595      | n/a        | n/a        | n/a       
+Model 5    | 0.1400     | 0.770      | 0.641      | n/a        | n/a        | n/a       
+Model 6    | 0.0935     | 0.770      | 0.566      | n/a        | n/a        | n/a       
+Model 7    | 0.0851     | 0.787      | 0.560      | n/a        | n/a        | n/a       
+Model 8    | 0.0735     | 0.809      | 0.556      | n/a        | n/a        | n/a       
+Model 9    | 0.1165     | 0.781      | 0.571      | n/a        | n/a        | n/a       
+Ensemble (FCFW) | -0.0001    | 0.497      | 0.176      | n/a        | n/a        | n/a       
+Saving results to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_001/results.csv...
+Saved data/ensemble loss plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_001/data_ensemble_loss.pdf
+Saving metrics to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_001/dataset_metrics.json...
+  [lorenz_curve] Saved to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_001/lorenz_curve.png
+Experiment: Boosting on Hopfield (20q, 1p)
+Configuration:
+  train_samples: 1000
+  data_seed: 2
+  n_samples: 400
+  n_models: 10
+  learning_rate: 0.01077031521235495
+  epochs_per_step: 400
+  caching_level: none
+  ensemble_samples_coeff: 1.0
+  init_baseline: covariance
+  init_later: random
+  lambda_dual: 1.0
+  lambda_schedule: {'type': 'frank_wolfe', 'gamma': 0.75, 'tau': 1.0}
+  n_ops: 1024
+  weight_strategy: frank_wolfe
+  alpha_n_grid: 11
+  alpha_objective_weight: 0.5
+  baseline: standalone
+  shots: 1000
+  final_eval_sampling: True
+  dataset_metrics: True
+  exact_metrics: {'enabled': True, 'max_qubits': 20, 'phases': {'baseline': True, 'steps': False, 'final': True, 'per_model': True, 'fcfw': True}}
+  keep_models_for_diagnosis: True
+  stop_on_reject: False
+  save_circuit_artifacts: False
+  rng_seed: 2
+  circuit_config: {'topology': 'aachen_heavy_hex', 'distance': 2, 'max_weight': 2, 'n_ancilla': 0}
+  turbo: 10
+  dynamic_is_within_shell: shell_uniform
+  exact_sampling: True
+  acceptance_metric: training_mmd
+  skip_sampling: True
+  report_fcfw: True
+  dynamic_is: True
+  dynamic_is_beta: 0.034699705890421005
+  sigma: [0.9210364596770635, 0.7311040928534892, 0.5383318808062226]
+  require_exact_sampling: True
+================================================================================
+Saving config to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_002/config.json...
+Gate structure: Qubits: 20
+Aachen heavy-hex topology: 39 parameters
+one_qubit=20, two_qubit=19
+Saved circuit structure plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_002/circuit_structure.pdf
+Using Gaussian Kernel (n_ops=1024, n_qubits=20):
+  - sigma=0.92103646
+  - sigma=0.73110409
+  - sigma=0.53833188
+Expected sampled operator size:
+  - p=4.453447, std=1.860588
+  - p=6.075831, std=2.056707
+  - p=8.218841, std=2.200312
+  mean: 6.249373
+  std: 2.560435
+Baselines enabled: standalone
+
+Training standalone baseline model (4000 epochs)...
+Training has not converged after 4000 steps
+
+Baseline: MMD=0.0432 F1=nan
+  (Analytical baseline MMD from training: 0.042959)
+Baseline used as reference: Standalone
+
+Training ensemble Model 0 (400 epochs)...
+Training has not converged after 400 steps
+Model 0 final loss: 0.042129
+  [Step 0/9] train_MMD=0.0436 alpha_opt=1.0000 oracle_top1_TVD=0.8881
+
+[Step 1] Training Model 1...
+  lambda_dual: 0.6250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.3750
+  [Step 1/9] train_MMD=0.0062 alpha_opt=0.3750 oracle_top2_TVD=0.7762
+  [OK] MMD improved (delta=+0.037388)
+  SNR (proxy): 3.34 (mean_norm=0.0250, std_norm=0.0075)
+
+[Step 2] Training Model 2...
+  lambda_dual: 0.7500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.2500
+  [Step 2/9] train_MMD=0.0024 alpha_opt=0.2500 oracle_top3_TVD=0.7697
+  [OK] MMD improved (delta=+0.003855)
+  SNR (proxy): 13.70 (mean_norm=0.0337, std_norm=0.0025)
+
+[Step 3] Training Model 3...
+  lambda_dual: 0.8125
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1875
+  [Step 3/9] train_MMD=0.0014 alpha_opt=0.1875 oracle_top4_TVD=0.7632
+  [OK] MMD improved (delta=+0.000971)
+  SNR (proxy): 3.17 (mean_norm=0.0139, std_norm=0.0044)
+
+[Step 4] Training Model 4...
+  lambda_dual: 0.8500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1500
+  [Step 4/9] train_MMD=0.0034 alpha_opt=0.1500 oracle_top5_TVD=0.7568
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.002063)
+  SNR (proxy): 11.05 (mean_norm=0.0077, std_norm=0.0007)
+
+[Step 5] Training Model 5...
+  lambda_dual: 0.8750
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1250
+  [Step 5/9] train_MMD=0.0060 alpha_opt=0.1250 oracle_top6_TVD=0.7503
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.002542)
+  SNR (proxy): 5.98 (mean_norm=0.0105, std_norm=0.0018)
+
+[Step 6] Training Model 6...
+  lambda_dual: 0.8929
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1071
+  [Step 6/9] train_MMD=0.0000 alpha_opt=0.1071 oracle_top7_TVD=0.7438
+  [OK] MMD improved (delta=+0.005982)
+  SNR (proxy): 8.12 (mean_norm=0.0041, std_norm=0.0005)
+
+[Step 7] Training Model 7...
+  lambda_dual: 0.9062
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0937
+  [Step 7/9] train_MMD=-0.0000 alpha_opt=0.0937 oracle_top8_TVD=0.7373
+  [OK] MMD improved (delta=+0.000042)
+  SNR (proxy): 17.49 (mean_norm=0.0096, std_norm=0.0006)
+
+[Step 8] Training Model 8...
+  lambda_dual: 0.9167
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0833
+  [Step 8/9] train_MMD=0.0000 alpha_opt=0.0833 oracle_top9_TVD=0.7309
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.000075)
+  SNR (proxy): 6.66 (mean_norm=0.0128, std_norm=0.0019)
+
+[Step 9] Training Model 9...
+  lambda_dual: 0.9250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0750
+  [Step 9/9] train_MMD=-0.0001 alpha_opt=0.0750 oracle_top10_TVD=0.7244
+  [OK] MMD improved (delta=+0.000129)
+  SNR (proxy): 9.91 (mean_norm=0.0114, std_norm=0.0012)
+
+Final: 10 models, MMD=-0.0003 (delta=+0.0435) F1=nan
+
+[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...
+  Weighting: fully corrective QP weights = [0.0072, 0.1819, 0.0000, 0.0168, 0.1334, 0.0946, 0.0722, 0.1312, 0.0825, 0.2802]
+  FCFW Sampled MMD^2: -0.000475
+  FCFW Sampled TVD:   0.5056
+
+FINAL MODEL COMPARISON (inc. FCFW)
+Model      | MMD        | TVD        | TVD*       | Valid      | Cover      | F1        
+----------------------------------------------------------------------------------------
+Baseline   | 0.0432     | 0.774      | 0.580      | n/a        | n/a        | n/a       
+Ensemble   | -0.0003    | 0.505      | 0.161      | n/a        | n/a        | n/a       
+Model 0    | 0.0420     | 0.802      | 0.587      | n/a        | n/a        | n/a       
+Model 1    | 0.1549     | 0.783      | 0.610      | n/a        | n/a        | n/a       
+Model 2    | 0.0821     | 0.770      | 0.547      | n/a        | n/a        | n/a       
+Model 3    | 0.0852     | 0.769      | 0.549      | n/a        | n/a        | n/a       
+Model 4    | 0.0616     | 0.986      | 0.781      | n/a        | n/a        | n/a       
+Model 5    | 0.1810     | 0.785      | 0.604      | n/a        | n/a        | n/a       
+Model 6    | 0.4194     | 0.809      | 0.749      | n/a        | n/a        | n/a       
+Model 7    | 0.0475     | 0.925      | 0.601      | n/a        | n/a        | n/a       
+Model 8    | 0.0706     | 0.800      | 0.554      | n/a        | n/a        | n/a       
+Model 9    | 0.0748     | 0.821      | 0.547      | n/a        | n/a        | n/a       
+Ensemble (FCFW) | -0.0005    | 0.506      | 0.162      | n/a        | n/a        | n/a       
+Saving results to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_002/results.csv...
+Saved data/ensemble loss plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_002/data_ensemble_loss.pdf
+Saving metrics to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_002/dataset_metrics.json...
+  [lorenz_curve] Saved to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_002/lorenz_curve.png
+Experiment: Boosting on Hopfield (20q, 1p)
+Configuration:
+  train_samples: 1000
+  data_seed: 3
+  n_samples: 400
+  n_models: 10
+  learning_rate: 0.01077031521235495
+  epochs_per_step: 400
+  caching_level: none
+  ensemble_samples_coeff: 1.0
+  init_baseline: covariance
+  init_later: random
+  lambda_dual: 1.0
+  lambda_schedule: {'type': 'frank_wolfe', 'gamma': 0.75, 'tau': 1.0}
+  n_ops: 1024
+  weight_strategy: frank_wolfe
+  alpha_n_grid: 11
+  alpha_objective_weight: 0.5
+  baseline: standalone
+  shots: 1000
+  final_eval_sampling: True
+  dataset_metrics: True
+  exact_metrics: {'enabled': True, 'max_qubits': 20, 'phases': {'baseline': True, 'steps': False, 'final': True, 'per_model': True, 'fcfw': True}}
+  keep_models_for_diagnosis: True
+  stop_on_reject: False
+  save_circuit_artifacts: False
+  rng_seed: 3
+  circuit_config: {'topology': 'aachen_heavy_hex', 'distance': 2, 'max_weight': 2, 'n_ancilla': 0}
+  turbo: 10
+  dynamic_is_within_shell: shell_uniform
+  exact_sampling: True
+  acceptance_metric: training_mmd
+  skip_sampling: True
+  report_fcfw: True
+  dynamic_is: True
+  dynamic_is_beta: 0.034699705890421005
+  sigma: [0.9210364596770635, 0.7311040928534892, 0.5383318808062226]
+  require_exact_sampling: True
+================================================================================
+Saving config to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_003/config.json...
+Gate structure: Qubits: 20
+Aachen heavy-hex topology: 39 parameters
+one_qubit=20, two_qubit=19
+Saved circuit structure plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_003/circuit_structure.pdf
+Using Gaussian Kernel (n_ops=1024, n_qubits=20):
+  - sigma=0.92103646
+  - sigma=0.73110409
+  - sigma=0.53833188
+Expected sampled operator size:
+  - p=4.453447, std=1.860588
+  - p=6.075831, std=2.056707
+  - p=8.218841, std=2.200312
+  mean: 6.249373
+  std: 2.560435
+Baselines enabled: standalone
+
+Training standalone baseline model (4000 epochs)...
+Training has not converged after 4000 steps
+
+Baseline: MMD=0.0429 F1=nan
+  (Analytical baseline MMD from training: 0.042635)
+Baseline used as reference: Standalone
+
+Training ensemble Model 0 (400 epochs)...
+Training has not converged after 400 steps
+Model 0 final loss: 0.043233
+  [Step 0/9] train_MMD=0.0430 alpha_opt=1.0000 oracle_top1_TVD=0.8881
+
+[Step 1] Training Model 1...
+  lambda_dual: 0.6250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.3750
+  [Step 1/9] train_MMD=0.0068 alpha_opt=0.3750 oracle_top2_TVD=0.7762
+  [OK] MMD improved (delta=+0.036134)
+  SNR (proxy): 6.22 (mean_norm=0.0275, std_norm=0.0044)
+
+[Step 2] Training Model 2...
+  lambda_dual: 0.7500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.2500
+  [Step 2/9] train_MMD=0.0109 alpha_opt=0.2500 oracle_top3_TVD=0.7697
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.004113)
+  SNR (proxy): 25.47 (mean_norm=0.0205, std_norm=0.0008)
+
+[Step 3] Training Model 3...
+  lambda_dual: 0.8125
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1875
+  [Step 3/9] train_MMD=0.0169 alpha_opt=0.1875 oracle_top4_TVD=0.7632
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.006007)
+  SNR (proxy): 14.93 (mean_norm=0.0277, std_norm=0.0019)
+
+[Step 4] Training Model 4...
+  lambda_dual: 0.8500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1500
+  [Step 4/9] train_MMD=0.0002 alpha_opt=0.1500 oracle_top5_TVD=0.7568
+  [OK] MMD improved (delta=+0.016714)
+  SNR (proxy): 11.44 (mean_norm=0.0043, std_norm=0.0004)
+
+[Step 5] Training Model 5...
+  lambda_dual: 0.8750
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1250
+  [Step 5/9] train_MMD=0.0002 alpha_opt=0.1250 oracle_top6_TVD=0.7503
+  [OK] MMD improved (delta=+0.000032)
+  SNR (proxy): 14.28 (mean_norm=0.0183, std_norm=0.0013)
+
+[Step 6] Training Model 6...
+  lambda_dual: 0.8929
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1071
+  [Step 6/9] train_MMD=0.0004 alpha_opt=0.1071 oracle_top7_TVD=0.7438
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.000228)
+  SNR (proxy): 11.02 (mean_norm=0.0121, std_norm=0.0011)
+
+[Step 7] Training Model 7...
+  lambda_dual: 0.9062
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0937
+  [Step 7/9] train_MMD=-0.0000 alpha_opt=0.0937 oracle_top8_TVD=0.7373
+  [OK] MMD improved (delta=+0.000442)
+  SNR (proxy): 11.40 (mean_norm=0.0203, std_norm=0.0018)
+
+[Step 8] Training Model 8...
+  lambda_dual: 0.9167
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0833
+  [Step 8/9] train_MMD=0.0002 alpha_opt=0.0833 oracle_top9_TVD=0.7309
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.000231)
+  SNR (proxy): 6.67 (mean_norm=0.0092, std_norm=0.0014)
+
+[Step 9] Training Model 9...
+  lambda_dual: 0.9250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0750
+  [Step 9/9] train_MMD=-0.0002 alpha_opt=0.0750 oracle_top10_TVD=0.7244
+  [OK] MMD improved (delta=+0.000449)
+  SNR (proxy): 12.40 (mean_norm=0.0168, std_norm=0.0014)
+
+Final: 10 models, MMD=-0.0004 (delta=+0.0433) F1=nan
+
+[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...
+  Weighting: fully corrective QP weights = [0.0813, 0.1841, 0.1412, 0.0628, 0.0714, 0.0665, 0.0631, 0.1556, 0.0591, 0.1149]
+  FCFW Sampled MMD^2: 0.000523
+  FCFW Sampled TVD:   0.5051
+
+FINAL MODEL COMPARISON (inc. FCFW)
+Model      | MMD        | TVD        | TVD*       | Valid      | Cover      | F1        
+----------------------------------------------------------------------------------------
+Baseline   | 0.0429     | 0.741      | 0.559      | n/a        | n/a        | n/a       
+Ensemble   | -0.0004    | 0.523      | 0.150      | n/a        | n/a        | n/a       
+Model 0    | 0.0436     | 0.839      | 0.561      | n/a        | n/a        | n/a       
+Model 1    | 0.1680     | 0.772      | 0.620      | n/a        | n/a        | n/a       
+Model 2    | 0.0617     | 0.967      | 0.720      | n/a        | n/a        | n/a       
+Model 3    | 0.1457     | 0.776      | 0.587      | n/a        | n/a        | n/a       
+Model 4    | 0.5064     | 0.829      | 0.801      | n/a        | n/a        | n/a       
+Model 5    | 0.0464     | 0.810      | 0.582      | n/a        | n/a        | n/a       
+Model 6    | 0.0935     | 0.782      | 0.555      | n/a        | n/a        | n/a       
+Model 7    | 0.0751     | 0.799      | 0.554      | n/a        | n/a        | n/a       
+Model 8    | 0.1049     | 0.802      | 0.552      | n/a        | n/a        | n/a       
+Model 9    | 0.0890     | 0.795      | 0.556      | n/a        | n/a        | n/a       
+Ensemble (FCFW) | 0.0005     | 0.505      | 0.143      | n/a        | n/a        | n/a       
+Saving results to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_003/results.csv...
+Saved data/ensemble loss plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_003/data_ensemble_loss.pdf
+Saving metrics to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_003/dataset_metrics.json...
+  [lorenz_curve] Saved to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_003/lorenz_curve.png
+Experiment: Boosting on Hopfield (20q, 1p)
+Configuration:
+  train_samples: 1000
+  data_seed: 4
+  n_samples: 400
+  n_models: 10
+  learning_rate: 0.01077031521235495
+  epochs_per_step: 400
+  caching_level: none
+  ensemble_samples_coeff: 1.0
+  init_baseline: covariance
+  init_later: random
+  lambda_dual: 1.0
+  lambda_schedule: {'type': 'frank_wolfe', 'gamma': 0.75, 'tau': 1.0}
+  n_ops: 1024
+  weight_strategy: frank_wolfe
+  alpha_n_grid: 11
+  alpha_objective_weight: 0.5
+  baseline: standalone
+  shots: 1000
+  final_eval_sampling: True
+  dataset_metrics: True
+  exact_metrics: {'enabled': True, 'max_qubits': 20, 'phases': {'baseline': True, 'steps': False, 'final': True, 'per_model': True, 'fcfw': True}}
+  keep_models_for_diagnosis: True
+  stop_on_reject: False
+  save_circuit_artifacts: False
+  rng_seed: 4
+  circuit_config: {'topology': 'aachen_heavy_hex', 'distance': 2, 'max_weight': 2, 'n_ancilla': 0}
+  turbo: 10
+  dynamic_is_within_shell: shell_uniform
+  exact_sampling: True
+  acceptance_metric: training_mmd
+  skip_sampling: True
+  report_fcfw: True
+  dynamic_is: True
+  dynamic_is_beta: 0.034699705890421005
+  sigma: [0.9210364596770635, 0.7311040928534892, 0.5383318808062226]
+  require_exact_sampling: True
+================================================================================
+Saving config to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_004/config.json...
+Gate structure: Qubits: 20
+Aachen heavy-hex topology: 39 parameters
+one_qubit=20, two_qubit=19
+Saved circuit structure plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_004/circuit_structure.pdf
+Using Gaussian Kernel (n_ops=1024, n_qubits=20):
+  - sigma=0.92103646
+  - sigma=0.73110409
+  - sigma=0.53833188
+Expected sampled operator size:
+  - p=4.453447, std=1.860588
+  - p=6.075831, std=2.056707
+  - p=8.218841, std=2.200312
+  mean: 6.249373
+  std: 2.560435
+Baselines enabled: standalone
+
+Training standalone baseline model (4000 epochs)...
+Training has not converged after 4000 steps
+
+Baseline: MMD=0.0379 F1=nan
+  (Analytical baseline MMD from training: 0.037865)
+Baseline used as reference: Standalone
+
+Training ensemble Model 0 (400 epochs)...
+Training has not converged after 400 steps
+Model 0 final loss: 0.037033
+  [Step 0/9] train_MMD=0.0378 alpha_opt=1.0000 oracle_top1_TVD=0.8881
+
+[Step 1] Training Model 1...
+  lambda_dual: 0.6250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.3750
+  [Step 1/9] train_MMD=0.0070 alpha_opt=0.3750 oracle_top2_TVD=0.7762
+  [OK] MMD improved (delta=+0.030797)
+  SNR (proxy): 4.46 (mean_norm=0.0327, std_norm=0.0073)
+
+[Step 2] Training Model 2...
+  lambda_dual: 0.7500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.2500
+  [Step 2/9] train_MMD=0.0021 alpha_opt=0.2500 oracle_top3_TVD=0.7697
+  [OK] MMD improved (delta=+0.004929)
+  SNR (proxy): 7.21 (mean_norm=0.0373, std_norm=0.0052)
+
+[Step 3] Training Model 3...
+  lambda_dual: 0.8125
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1875
+  [Step 3/9] train_MMD=0.0019 alpha_opt=0.1875 oracle_top4_TVD=0.7632
+  [OK] MMD improved (delta=+0.000176)
+  SNR (proxy): 6.06 (mean_norm=0.0113, std_norm=0.0019)
+
+[Step 4] Training Model 4...
+  lambda_dual: 0.8500
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1500
+  [Step 4/9] train_MMD=0.0038 alpha_opt=0.1500 oracle_top5_TVD=0.7568
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.001868)
+  SNR (proxy): 11.96 (mean_norm=0.0053, std_norm=0.0004)
+
+[Step 5] Training Model 5...
+  lambda_dual: 0.8750
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1250
+  [Step 5/9] train_MMD=0.0073 alpha_opt=0.1250 oracle_top6_TVD=0.7503
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.003497)
+  SNR (proxy): 9.87 (mean_norm=0.0185, std_norm=0.0019)
+
+[Step 6] Training Model 6...
+  lambda_dual: 0.8929
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.1071
+  [Step 6/9] train_MMD=0.0002 alpha_opt=0.1071 oracle_top7_TVD=0.7438
+  [OK] MMD improved (delta=+0.007125)
+  SNR (proxy): 9.79 (mean_norm=0.0028, std_norm=0.0003)
+
+[Step 7] Training Model 7...
+  lambda_dual: 0.9062
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0937
+  [Step 7/9] train_MMD=-0.0001 alpha_opt=0.0937 oracle_top8_TVD=0.7373
+  [OK] MMD improved (delta=+0.000225)
+  SNR (proxy): 18.29 (mean_norm=0.0125, std_norm=0.0007)
+
+[Step 8] Training Model 8...
+  lambda_dual: 0.9167
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0833
+  [Step 8/9] train_MMD=0.0001 alpha_opt=0.0833 oracle_top9_TVD=0.7309
+  [WARNING] MMD worsened but kept (diagnostic, delta=-0.000187)
+  SNR (proxy): 10.63 (mean_norm=0.0105, std_norm=0.0010)
+
+[Step 9] Training Model 9...
+  lambda_dual: 0.9250
+Training has not converged after 400 steps
+  Weighting: frank_wolfe alpha = 0.0750
+  [Step 9/9] train_MMD=0.0000 alpha_opt=0.0750 oracle_top10_TVD=0.7244
+  [OK] MMD improved (delta=+0.000089)
+  SNR (proxy): 9.73 (mean_norm=0.0170, std_norm=0.0017)
+
+Final: 10 models, MMD=-0.0005 (delta=+0.0384) F1=nan
+
+[FCFW] Computing Fully Corrective Frank-Wolfe weights for final ensemble...
+  Weighting: fully corrective QP weights = [0.0000, 0.1154, 0.1075, 0.0547, 0.1419, 0.1391, 0.0661, 0.1124, 0.0648, 0.1981]
+  FCFW Sampled MMD^2: -0.000574
+  FCFW Sampled TVD:   0.5052
+
+FINAL MODEL COMPARISON (inc. FCFW)
+Model      | MMD        | TVD        | TVD*       | Valid      | Cover      | F1        
+----------------------------------------------------------------------------------------
+Baseline   | 0.0379     | 0.749      | 0.564      | n/a        | n/a        | n/a       
+Ensemble   | -0.0005    | 0.517      | 0.191      | n/a        | n/a        | n/a       
+Model 0    | 0.0374     | 0.800      | 0.572      | n/a        | n/a        | n/a       
+Model 1    | 0.1960     | 0.784      | 0.617      | n/a        | n/a        | n/a       
+Model 2    | 0.0829     | 0.774      | 0.570      | n/a        | n/a        | n/a       
+Model 3    | 0.0737     | 0.781      | 0.549      | n/a        | n/a        | n/a       
+Model 4    | 0.0688     | 0.999      | 0.825      | n/a        | n/a        | n/a       
+Model 5    | 0.1691     | 0.789      | 0.610      | n/a        | n/a        | n/a       
+Model 6    | 0.5008     | 0.848      | 0.808      | n/a        | n/a        | n/a       
+Model 7    | 0.0406     | 0.871      | 0.587      | n/a        | n/a        | n/a       
+Model 8    | 0.0555     | 0.849      | 0.536      | n/a        | n/a        | n/a       
+Model 9    | 0.0627     | 0.771      | 0.552      | n/a        | n/a        | n/a       
+Ensemble (FCFW) | -0.0006    | 0.505      | 0.170      | n/a        | n/a        | n/a       
+Saving results to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_004/results.csv...
+Saved data/ensemble loss plot to: out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_004/data_ensemble_loss.pdf
+Saving metrics to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_004/dataset_metrics.json...
+  [lorenz_curve] Saved to out/hpo/hopfield_20q_p1_b15_20260605_111726/best_retrains/seed_004/lorenz_curve.png
