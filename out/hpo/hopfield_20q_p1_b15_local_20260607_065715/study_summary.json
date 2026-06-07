@@ -1,0 +1,191 @@
+{
+  "study_name": "hopfield_20q_p1_b15_local",
+  "best_trial": 55,
+  "objective_metric": "tvd_exact",
+  "best_value": 0.44586423557052113,
+  "best_params": {
+    "learning_rate": 0.018635776913407006,
+    "dynamic_is": false,
+    "dynamic_is_beta": 0.06907612684762948,
+    "lambda_schedule.gamma": 0.25,
+    "n_ops": 2048,
+    "sigma.n_sigmas": 2,
+    "sigma.bodyness_raw_0": 0.11118916552164931,
+    "sigma.bodyness_raw_1": 0.4442770761828979
+  },
+  "best_user_attrs": {
+    "ensemble_fcfw_weights": [
+      0.9999999999999999,
+      0.0,
+      0.0,
+      1.5959455978986625e-16,
+      1.7699687836922043e-17,
+      0.0,
+      6.438465671712332e-18,
+      0.0,
+      0.0,
+      3.670107587160781e-19
+    ],
+    "final_stats": {
+      "mmd": 0.01504945382475853,
+      "kl": 11.469657422648439,
+      "jsd": 0.6648092986536648,
+      "tvd": 0.7014057520305377,
+      "validity": NaN,
+      "coverage": NaN,
+      "precision": NaN,
+      "recall": NaN,
+      "support_match": NaN,
+      "f_score": NaN,
+      "corr_fro": 5.336856617928845,
+      "kl_exact": 0.6805073071151079,
+      "jsd_exact": 0.408473117889733,
+      "tvd_exact": 0.44586423557052113
+    },
+    "model_path": "out/hpo/hopfield_20q_p1_b15_local_20260607_065715/trials/trial_0055/ensemble.json",
+    "n_models_accepted": 10,
+    "output_dir": "out/hpo/hopfield_20q_p1_b15_local_20260607_065715/trials/trial_0055",
+    "sampled_config": {
+      "learning_rate": 0.018635776913407006,
+      "dynamic_is": false,
+      "dynamic_is_beta": 0.06907612684762948,
+      "lambda_schedule.gamma": 0.25,
+      "n_ops": 2048,
+      "sigma.n_sigmas": 2,
+      "sigma.bodyness_targets": [
+        1.3783944076210295,
+        5.509788901844894
+      ],
+      "sigma.values": [
+        1.8360913161836692,
+        0.7902309835920585
+      ]
+    },
+    "weights": [
+      0.6062036901712418,
+      0.08660052716732027,
+      0.06298220157623292,
+      0.050385761260986324,
+      0.04243011474609374,
+      0.036895751953125,
+      0.03279622395833333,
+      0.029622395833333332,
+      0.02708333333333333,
+      0.025
+    ]
+  },
+  "best_model_path": "out/hpo/hopfield_20q_p1_b15_local_20260607_065715/best_model.json",
+  "best_config_path": "out/hpo/hopfield_20q_p1_b15_local_20260607_065715/best_config.json",
+  "config_path": "configs/hpo/hopfield/local/hopfield_20q_p1_b15_local.json",
+  "best_retrains": {
+    "summary_path": "out/hpo/hopfield_20q_p1_b15_local_20260607_065715/best_retrains/summary.json",
+    "aggregates": {
+      "final_stats": {
+        "corr_fro": {
+          "mean": 6.2074362494789135,
+          "std": 0.2376214290143296
+        },
+        "jsd": {
+          "mean": 0.668736279090826,
+          "std": 0.008117581629454862
+        },
+        "jsd_exact": {
+          "mean": 0.43701547615168496,
+          "std": 0.016160722229405695
+        },
+        "kl": {
+          "mean": 10.762104430100479,
+          "std": 0.5662760779615692
+        },
+        "kl_exact": {
+          "mean": 0.8216632281735596,
+          "std": 0.08873236914654493
+        },
+        "mmd": {
+          "mean": 0.020492441952228546,
+          "std": 0.0024920538905363067
+        },
+        "tvd": {
+          "mean": 0.7150424398436904,
+          "std": 0.012916838149036804
+        },
+        "tvd_exact": {
+          "mean": 0.4929044745328588,
+          "std": 0.01721229873796608
+        }
+      },
+      "baseline_stats": {
+        "corr_fro": {
+          "mean": 2.9892242138972374,
+          "std": 0.16894164496009628
+        },
+        "jsd": {
+          "mean": 0.6031918357954152,
+          "std": 0.0027661464504857504
+        },
+        "jsd_exact": {
+          "mean": 0.33755831166905176,
+          "std": 0.013823355240802297
+        },
+        "kl": {
+          "mean": 9.739656079859161,
+          "std": 0.21646982224521394
+        },
+        "kl_exact": {
+          "mean": 0.547367783352506,
+          "std": 0.04687900980077352
+        },
+        "mmd": {
+          "mean": 0.0039213582873344425,
+          "std": 0.0009176322769591698
+        },
+        "training_loss": {
+          "mean": 0.003720831686119654,
+          "std": 0.0005378827762076384
+        },
+        "tvd": {
+          "mean": 0.6075430505306469,
+          "std": 0.009426690969413568
+        },
+        "tvd_exact": {
+          "mean": 0.37583967233479976,
+          "std": 0.020418997759196443
+        }
+      },
+      "ensemble_fcfw_stats": {
+        "corr_fro": {
+          "mean": 3.1024592652525333,
+          "std": 0.10034170564857127
+        },
+        "jsd": {
+          "mean": 0.614403647026937,
+          "std": 0.012107049359909972
+        },
+        "jsd_exact": {
+          "mean": 0.34740164523925526,
+          "std": 0.021739060211096124
+        },
+        "kl": {
+          "mean": 10.198373960619708,
+          "std": 0.6397614464356195
+        },
+        "kl_exact": {
+          "mean": 0.5620767265668728,
+          "std": 0.07561853113654504
+        },
+        "mmd": {
+          "mean": 0.004174360632896423,
+          "std": 0.000541930950013365
+        },
+        "tvd": {
+          "mean": 0.6301248594513372,
+          "std": 0.029883847210651304
+        },
+        "tvd_exact": {
+          "mean": 0.38859087977280404,
+          "std": 0.030534300767819083
+        }
+      }
+    }
+  }
+}
