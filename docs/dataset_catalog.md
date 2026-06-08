@@ -14,6 +14,8 @@ arguments.
 
 - `hopfield`: Hopfield patterns with exact probabilities when feasible.
 - `hamming_balls`: Hamming Balls patterns with exact probabilities when feasible.
+- `mnist`: MNIST digit images resized to `10x10`, binarized with a default
+  threshold of `0.4`, and flattened to 100-bit samples.
 
 The singular key `hamming_ball` is intentionally unsupported; use
 `hamming_balls` in configs.
@@ -37,11 +39,13 @@ When `test_samples` is omitted or zero, bundles include only `x_train` and
 Single-instance experiment suites live under `configs/datasets/`.
 
 - `configs/datasets/hamming_balls/`
+- `configs/datasets/mnist/`
 
 HPO experiment configs live under per-dataset folders in `configs/hpo/`.
 
 - `configs/hpo/hamming_balls/`
 - `configs/hpo/hopfield/`
+- `configs/hpo/mnist/`
 
 HPO and single-instance experiments both resolve datasets through the same
 catalog Module.
@@ -55,7 +59,7 @@ catalog Module.
 
 If a run omits `plot.kind`, the catalog chooses the dataset default:
 `boltzmann_summary` for Hopfield and `hamming_balls_mode_evolution` for Hamming
-Balls.
+Balls. MNIST defaults to `none`.
 
 ## Adding A Dataset
 

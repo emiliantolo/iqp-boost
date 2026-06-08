@@ -1,0 +1,73 @@
+{
+  "output": {
+    "base_dir": "out",
+    "suite_name": "mnist_100q_6class"
+  },
+  "runs": [
+    {
+      "name": "mnist_100q_6class",
+      "dataset": {
+        "name": "mnist",
+        "params": {
+          "rows": 10,
+          "cols": 10,
+          "threshold": 0.4,
+          "classes": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "test_samples": 2000,
+          "data_dir": "./data"
+        }
+      },
+      "plot": {
+        "kind": "none"
+      },
+      "config": {
+        "train_samples": 8000,
+        "data_seed": 42,
+        "n_samples": 2048,
+        "n_models": 10,
+        "learning_rate": 0.01,
+        "epochs_per_step": 512,
+        "caching_level": "none",
+        "init_baseline": "covariance",
+        "init_later": "random",
+        "lambda_dual": 1.0,
+        "lambda_schedule": {
+          "type": "frank_wolfe",
+          "gamma": 1.0,
+          "tau": 1.0
+        },
+        "sigma": [
+          5.0,
+          2.5,
+          1.5,
+          1.0
+        ],
+        "n_ops": 4096,
+        "weight_strategy": "frank_wolfe",
+        "baseline": "standalone",
+        "shots": 10000,
+        "acceptance_metric": "training_mmd",
+        "skip_sampling": true,
+        "final_eval_sampling": false,
+        "report_fcfw": true,
+        "keep_models_for_diagnosis": true,
+        "stop_on_reject": false,
+        "rng_seed": 42,
+        "turbo": 10,
+        "circuit_config": {
+          "topology": "aachen_heavy_hex",
+          "n_ancilla": 0,
+          "num_layers": 1
+        },
+        "dataset_metrics": true
+      }
+    }
+  ]
+}

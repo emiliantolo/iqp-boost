@@ -10,6 +10,7 @@ import numpy as np
 from src.datasets.boltzmann_visualization import generate_boltzmann_visualizations
 from src.datasets.hamming_balls import HammingBallsDataset
 from src.datasets.hopfield import HopfieldDataset
+from src.datasets.mnist import MNISTDataset
 from src.core import EvaluationPolicy
 
 
@@ -201,6 +202,59 @@ def _build_hopfield_bundle(
     )
 
 
+def _format_mnist_class_scope(classes: list[int] | None) -> str:
+    if classes is None:
+        return "10 classes"
+    if len(classes) == 1:
+        return "1 class"
+    return f"{len(classes)} classes"
+
+
+def _build_mnist_bundle(
+    params: dict[str, Any],
+    config: dict[str, Any],
+    plot_spec: dict[str, Any] | None,
+) -> DatasetBundle:
+    kind = _resolve_plot_kind(_CATALOG["mnist"], plot_spec)
+    if kind != "none":
+        raise ValueError(f"Unknown plot kind '{kind}'.")
+
+    train_samples = int(config.get("train_samples", 1000))
+    test_samples = int(params.get("test_samples", 0))
+    data_seed = int(config.get("data_seed", 0))
+    rows = int(params.get("rows", 10))
+    cols = int(params.get("cols", 10))
+    threshold = float(params.get("threshold", 0.4))
+    raw_classes = params.get("classes")
+    classes = None if raw_classes is None else [int(label) for label in raw_classes]
+    data_dir = params.get("data_dir", "./data")
+
+    ds = MNISTDataset(
+        rows=rows,
+        cols=cols,
+        threshold=threshold,
+        classes=classes,
+        data_dir=data_dir,
+    )
+    x_train = ds.generate(n_samples=train_samples, seed=data_seed, split="train")
+    x_test = None
+    if test_samples > 0:
+        x_test = ds.generate(n_samples=test_samples, seed=data_seed, split="test")
+        ds.data = x_train
+        ds.active_split = "train"
+
+    return DatasetBundle(
+        dataset_name=(
+            f"MNIST ({rows}x{cols}, {_format_mnist_class_scope(classes)}, "
+            f"threshold={threshold})"
+        ),
+        x_train=x_train,
+        custom_viz_fn=None,
+        x_test=x_test,
+        dataset_obj=ds,
+    )
+
+
 _CATALOG = {
     "hopfield": DatasetCatalogEntry(
         key="hopfield",
@@ -211,6 +265,11 @@ _CATALOG = {
         key="hamming_balls",
         default_plot_kind="hamming_balls_mode_evolution",
         builder=_build_hamming_balls_bundle,
+    ),
+    "mnist": DatasetCatalogEntry(
+        key="mnist",
+        default_plot_kind="none",
+        builder=_build_mnist_bundle,
     ),
 }
 

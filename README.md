@@ -1,6 +1,7 @@
 # iqp-boost
 
-Config-driven experiments for IQP ensemble boosting on Hopfield and Hamming Balls binary datasets.
+Config-driven experiments for IQP ensemble boosting on Hopfield, Hamming Balls,
+and binarized MNIST datasets.
 
 ## Run Experiments
 
@@ -51,8 +52,15 @@ Dataset-specific config files are available in:
 - `configs/datasets/hamming_balls/hamming_balls_20q_K4_p012.json`
 - `configs/datasets/hamming_balls/hamming_balls_20q_K6_p008.json`
 - `configs/datasets/hamming_balls/hamming_balls_20q_K6_p012.json`
+- `configs/datasets/mnist/mnist_100q_1class.json`
+- `configs/datasets/mnist/mnist_100q_2class.json`
+- `configs/datasets/mnist/mnist_100q_4class.json`
+- `configs/datasets/mnist/mnist_100q_6class.json`
+- `configs/datasets/mnist/mnist_100q_10class.json`
 
-Use `hamming_balls` as the dataset key for Hamming Balls configs.
+Use `hamming_balls` as the dataset key for Hamming Balls configs and `mnist`
+for MNIST configs. MNIST configs resize images to `10x10`, binarize with
+`threshold=0.4`, and flatten each image to a 100-bit sample.
 
 Examples:
 
@@ -101,6 +109,16 @@ Available HPO configs by dataset:
 - `configs/hpo/hamming_balls/heavy_hex/hamming_balls_20q_k4_p012_heavy_hex.json`
 - `configs/hpo/hamming_balls/heavy_hex/hamming_balls_20q_k8_p008_heavy_hex.json`
 - `configs/hpo/hamming_balls/heavy_hex/hamming_balls_20q_k8_p012_heavy_hex.json`
+
+**MNIST:**
+- `configs/hpo/mnist/mnist_100q_1class.json`
+- `configs/hpo/mnist/mnist_100q_2class.json`
+- `configs/hpo/mnist/mnist_100q_4class.json`
+- `configs/hpo/mnist/mnist_100q_6class.json`
+- `configs/hpo/mnist/mnist_100q_10class.json`
+
+MNIST HPO configs optimize `test_mmd`, request held-out test samples, and keep
+`sigma` fixed as an explicit array.
 
 ### HPO Config Schema
 
@@ -206,7 +224,7 @@ out/hpo/<study_name>_<timestamp>/
 Each run supports:
 
 - `name`: subfolder name for the run output
-- `dataset`: dataset selection (`name`: `hopfield|hamming_balls`) and optional params
+- `dataset`: dataset selection (`name`: `hopfield|hamming_balls|mnist`) and optional params
 - `config`: per-run overrides merged on top of `defaults`
 - `plot`: optional plotting mode and params (`none|boltzmann_summary|hamming_balls_mode_evolution`)
 - `metric_configs`: optional metric progression overrides

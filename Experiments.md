@@ -1,6 +1,7 @@
 # Experiments
 
-This branch keeps Hopfield and Hamming Balls as the runnable dataset families.
+This branch keeps Hopfield, Hamming Balls, and MNIST as the runnable dataset
+families.
 `src/datasets/catalog.py` is the source of truth for supported config keys and
 dataset-specific defaults.
 
@@ -14,6 +15,9 @@ Runnable experiment entrypoints now live under `src/experiments/`:
 
 - `hopfield`: available now through `configs/datasets/hopfield_16q_grid.json` and the Hopfield HPO configs in `configs/hpo/`.
 - `hamming_balls`: available now through `configs/datasets/benchmark_suite_hamming_balls/`.
+- `mnist`: available through `configs/datasets/mnist/` and
+  `configs/hpo/mnist/` as 10x10 binary digit benchmarks with 1, 2, 4, 6, and
+  10 class variants.
 
 Historical benchmark and grid configs for other removed datasets were deleted so stale experiments are not advertised as runnable.
 

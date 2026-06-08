@@ -1,0 +1,104 @@
+{
+  "study_name": "mnist_100q_6class",
+  "n_trials": 15,
+  "sampler_seed": 42,
+  "output_dir": "out/hpo",
+  "objective_metric": "test_mmd",
+  "dataset": {
+    "name": "mnist",
+    "params": {
+      "rows": 10,
+      "cols": 10,
+      "threshold": 0.4,
+      "classes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "test_samples": 2000,
+      "data_dir": "./data"
+    }
+  },
+  "plot": {
+    "kind": "none"
+  },
+  "fixed_config": {
+    "train_samples": 8000,
+    "data_seed": 42,
+    "n_samples": 2048,
+    "epochs_per_step": 512,
+    "caching_level": "none",
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_dual": 1.0,
+    "lambda_schedule": {
+      "type": "frank_wolfe",
+      "gamma": 1.0,
+      "tau": 1.0
+    },
+    "sigma": [
+      5.0,
+      2.5,
+      1.5,
+      1.0
+    ],
+    "weight_strategy": "frank_wolfe",
+    "baseline": "none",
+    "shots": 10000,
+    "acceptance_metric": "training_mmd",
+    "skip_sampling": true,
+    "final_eval_sampling": false,
+    "report_fcfw": true,
+    "keep_models_for_diagnosis": true,
+    "stop_on_reject": false,
+    "rng_seed": 42,
+    "turbo": 10,
+    "circuit_config": {
+      "topology": "aachen_heavy_hex",
+      "n_ancilla": 0,
+      "num_layers": 1
+    },
+    "n_models": 10
+  },
+  "search_space": {
+    "learning_rate": {
+      "type": "float",
+      "low": 0.001,
+      "high": 0.1,
+      "log": true
+    },
+    "dynamic_is": {
+      "type": "categorical",
+      "choices": [
+        false,
+        true
+      ]
+    },
+    "dynamic_is_beta": {
+      "type": "float",
+      "low": 0.01,
+      "high": 0.2,
+      "log": true
+    },
+    "lambda_schedule.gamma": {
+      "type": "categorical",
+      "choices": [
+        0.25,
+        0.5,
+        0.75,
+        1.0
+      ]
+    },
+    "n_ops": {
+      "type": "categorical",
+      "choices": [
+        2048,
+        4096,
+        8192
+      ]
+    }
+  }
+}

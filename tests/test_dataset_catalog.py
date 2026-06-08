@@ -1,6 +1,9 @@
+import json
+from pathlib import Path
 import numpy as np
 import pytest
 import inspect
+import torch
 
 from src.experiments import factory as experiment_factory
 from src.datasets import DatasetBundle, SUPPORTED_DATASETS, build_dataset_bundle
@@ -8,7 +11,7 @@ from src.run import run_boosting_experiment
 
 
 def test_supported_datasets_are_catalog_owned():
-    assert SUPPORTED_DATASETS == ("hopfield", "hamming_balls")
+    assert SUPPORTED_DATASETS == ("hopfield", "hamming_balls", "mnist")
 
 
 def test_hopfield_bundle_builds_binary_training_data_and_exact_probs():
@@ -176,6 +179,124 @@ def test_hamming_balls_default_plot_kind_is_supported_noop():
     assert bundle.custom_viz_fn is None
 
 
+def _patch_fake_mnist(monkeypatch):
+    import torchvision.datasets
+
+    class FakeMNIST:
+        def __init__(self, root, train=True, download=True):
+            n_samples = 30 if train else 18
+            base = torch.linspace(0, 255, steps=n_samples * 28 * 28, dtype=torch.float32)
+            self.data = base.reshape(n_samples, 28, 28).to(torch.uint8)
+            self.targets = torch.tensor([label % 10 for label in range(n_samples)])
+
+    monkeypatch.setattr(torchvision.datasets, "MNIST", FakeMNIST)
+
+
+def test_mnist_bundle_builds_10x10_binary_training_data(monkeypatch):
+    _patch_fake_mnist(monkeypatch)
+
+    bundle = build_dataset_bundle(
+        dataset_spec={
+            "name": "mnist",
+            "params": {
+                "rows": 10,
+                "cols": 10,
+                "threshold": 0.4,
+                "classes": [0, 1, 2, 3],
+                "data_dir": "./data",
+            },
+        },
+        config={"train_samples": 12, "data_seed": 5},
+        plot_spec={"kind": "none"},
+    )
+
+    assert bundle.dataset_name == "MNIST (10x10, 4 classes, threshold=0.4)"
+    assert bundle.n_qubits == 100
+    assert bundle.x_train.shape == (12, 100)
+    assert bundle.x_train.dtype == np.int8
+    assert set(np.unique(bundle.x_train)).issubset({0, 1})
+    assert bundle.exact_probs is None
+    assert bundle.custom_viz_fn is None
+    assert bundle.dataset_obj.threshold == 0.4
+    assert bundle.dataset_obj.classes == [0, 1, 2, 3]
+
+
+def test_mnist_bundle_uses_test_split_when_requested(monkeypatch):
+    _patch_fake_mnist(monkeypatch)
+
+    bundle = build_dataset_bundle(
+        dataset_spec={
+            "name": "mnist",
+            "params": {
+                "rows": 10,
+                "cols": 10,
+                "threshold": 0.4,
+                "classes": None,
+                "test_samples": 9,
+            },
+        },
+        config={"train_samples": 11, "data_seed": 7},
+        plot_spec={"kind": "none"},
+    )
+
+    assert bundle.x_train.shape == (11, 100)
+    assert bundle.x_test is not None
+    assert bundle.x_test.shape == (9, 100)
+    assert bundle.x_test.dtype == np.int8
+    assert set(np.unique(bundle.x_test)).issubset({0, 1})
+
+
+def test_mnist_hpo_configs_optimize_test_mmd_and_request_test_samples():
+    config_paths = sorted(Path("configs/hpo/mnist").glob("mnist_100q_*class.json"))
+    assert {path.stem for path in config_paths} == {
+        "mnist_100q_1class",
+        "mnist_100q_2class",
+        "mnist_100q_4class",
+        "mnist_100q_6class",
+        "mnist_100q_10class",
+    }
+
+    for path in config_paths:
+        spec = json.loads(path.read_text())
+        params = spec["dataset"]["params"]
+        assert spec["objective_metric"] == "test_mmd"
+        assert spec["dataset"]["name"] == "mnist"
+        assert params["rows"] == 10
+        assert params["cols"] == 10
+        assert params["threshold"] == 0.4
+        assert params["test_samples"] > 0
+        assert spec["fixed_config"]["sigma"] == [5.0, 2.5, 1.5, 1.0]
+        assert spec["fixed_config"]["n_models"] == 10
+        assert spec["fixed_config"]["n_samples"] == 2048
+        assert "n_ops" not in spec["fixed_config"]
+        assert "sigma_heuristic" not in spec["fixed_config"]
+        assert "n_models" not in spec["search_space"]
+        assert spec["search_space"]["learning_rate"] == {
+            "type": "float",
+            "low": 0.001,
+            "high": 0.1,
+            "log": True,
+        }
+        assert spec["search_space"]["dynamic_is"] == {
+            "type": "categorical",
+            "choices": [False, True],
+        }
+        assert spec["search_space"]["dynamic_is_beta"] == {
+            "type": "float",
+            "low": 0.01,
+            "high": 0.2,
+            "log": True,
+        }
+        assert spec["search_space"]["lambda_schedule.gamma"] == {
+            "type": "categorical",
+            "choices": [0.25, 0.5, 0.75, 1.0],
+        }
+        assert spec["search_space"]["n_ops"] == {
+            "type": "categorical",
+            "choices": [2048, 4096, 8192],
+        }
+
+
 @pytest.mark.parametrize("dataset_name", ["bas", "parity", "fashion_mnist"])
 def test_removed_and_reserved_dataset_keys_raise_clear_error(dataset_name):
     with pytest.raises(ValueError) as exc_info:
@@ -187,7 +308,7 @@ def test_removed_and_reserved_dataset_keys_raise_clear_error(dataset_name):
 
     message = str(exc_info.value)
     assert f"Unsupported dataset '{dataset_name}'" in message
-    assert "Supported datasets: hopfield, hamming_balls" in message
+    assert "Supported datasets: hopfield, hamming_balls, mnist" in message
 
 
 def test_singular_hamming_ball_key_points_to_supported_name():
