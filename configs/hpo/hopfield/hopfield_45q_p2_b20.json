@@ -14,7 +14,9 @@
       "test_samples": 2000
     }
   },
-  "plot": {"kind": "none"},
+  "plot": {
+    "kind": "none"
+  },
   "fixed_config": {
     "train_samples": 8000,
     "data_seed": 42,
@@ -24,8 +26,15 @@
     "init_baseline": "covariance",
     "init_later": "random",
     "lambda_dual": 1.0,
-    "lambda_schedule": {"type": "frank_wolfe", "gamma": 1.0, "tau": 1.0},
-    "sigma_heuristic": {"method": "fourier", "n_sigmas": 3},
+    "lambda_schedule": {
+      "type": "frank_wolfe",
+      "gamma": 1.0,
+      "tau": 1.0
+    },
+    "sigma_heuristic": {
+      "method": "fourier",
+      "n_sigmas": 3
+    },
     "weight_strategy": "frank_wolfe",
     "baseline": "none",
     "shots": 10000,
@@ -38,11 +47,35 @@
     "rng_seed": 42,
     "turbo": 10,
     "n_ops": 4000,
-    "circuit_config": {"topology": "aachen_heavy_hex", "n_ancilla": 0}
+    "circuit_config": {
+      "topology": "aachen_heavy_hex",
+      "n_ancilla": 0
+    }
   },
   "search_space": {
-    "n_models": {"type": "int", "low": 4, "high": 10},
-    "learning_rate": {"type": "float", "low": 0.001, "high": 0.05, "log": true}
+    "n_models": {
+      "type": "int",
+      "low": 4,
+      "high": 10
+    },
+    "learning_rate": {
+      "type": "float",
+      "low": 0.001,
+      "high": 0.05,
+      "log": true
+    },
+    "lambda_schedule.gamma": {
+      "type": "float",
+      "low": 0.01,
+      "high": 1.0,
+      "log": true
+    },
+    "lambda_schedule.tau": {
+      "type": "float",
+      "low": 0.01,
+      "high": 10.0,
+      "log": true
+    }
   },
   "objective_metric": "test_mmd"
 }

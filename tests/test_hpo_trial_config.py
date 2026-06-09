@@ -59,6 +59,32 @@ def test_resolve_trial_config_samples_supported_types():
     }
 
 
+def test_resolve_trial_config_samples_continuous_frank_wolfe_schedule():
+    trial = FakeTrial()
+    config = resolve_trial_config(
+        {"lambda_schedule": {"type": "frank_wolfe", "gamma": 0.5, "tau": 1.0}},
+        {
+            "lambda_schedule.gamma": {"type": "float", "low": 0.01, "high": 1.0, "log": True},
+            "lambda_schedule.tau": {"type": "float", "low": 0.01, "high": 10.0, "log": True},
+        },
+        trial,
+    )
+
+    assert config["lambda_schedule"] == {
+        "type": "frank_wolfe",
+        "gamma": 1.0,
+        "tau": 10.0,
+    }
+    assert trial.calls == [
+        ("float", "lambda_schedule.gamma", 0.01, 1.0, True),
+        ("float", "lambda_schedule.tau", 0.01, 10.0, True),
+    ]
+    assert trial.user_attrs["sampled_config"] == {
+        "lambda_schedule.gamma": 1.0,
+        "lambda_schedule.tau": 10.0,
+    }
+
+
 def test_resolve_trial_config_rejects_unsupported_type():
     with pytest.raises(ValueError, match="Unsupported search-space type"):
         resolve_trial_config({}, {"x": {"type": "choice"}}, FakeTrial())

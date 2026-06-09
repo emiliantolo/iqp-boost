@@ -151,6 +151,18 @@ Parameters use dotted keys (e.g. `lambda_schedule.gamma`) to resolve to nested c
     "high": 0.1,
     "log": true
   },
+  "lambda_schedule.gamma": {
+    "type": "float",
+    "low": 0.01,
+    "high": 1.0,
+    "log": true
+  },
+  "lambda_schedule.tau": {
+    "type": "float",
+    "low": 0.01,
+    "high": 10.0,
+    "log": true
+  },
   "n_models": {
     "type": "int",
     "low": 4,
@@ -242,7 +254,8 @@ See `docs/dataset_catalog.md` when adding or changing dataset integrations.
 
 All supported datasets accept optional split params under `dataset.params`:
 `test_samples` enables an `x_test` split, and `train_split_ratio` can override
-the inferred train/test ratio.
+the inferred train/test ratio. MNIST also accepts `balanced_per_class: true`
+to sample equal counts per selected digit class in both train and test splits.
 
 ## Experiment Architecture
 

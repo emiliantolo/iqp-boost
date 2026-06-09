@@ -12,6 +12,7 @@
       "threshold": 0.4,
       "classes": null,
       "test_samples": 2000,
+      "balanced_per_class": true,
       "data_dir": "./data"
     }
   },
@@ -77,13 +78,16 @@
       "log": true
     },
     "lambda_schedule.gamma": {
-      "type": "categorical",
-      "choices": [
-        0.25,
-        0.5,
-        0.75,
-        1.0
-      ]
+      "type": "float",
+      "low": 0.01,
+      "high": 1.0,
+      "log": true
+    },
+    "lambda_schedule.tau": {
+      "type": "float",
+      "low": 0.01,
+      "high": 10.0,
+      "log": true
     },
     "n_ops": {
       "type": "categorical",

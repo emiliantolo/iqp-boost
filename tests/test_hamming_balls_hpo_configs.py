@@ -66,5 +66,17 @@ def test_hamming_balls_hpo_configs_are_split_by_topology_and_not_duplicated_at_r
                 "high": 0.2,
                 "log": True,
             }
+            assert search["lambda_schedule.gamma"] == {
+                "type": "float",
+                "low": 0.01,
+                "high": 1.0,
+                "log": True,
+            }
+            assert search["lambda_schedule.tau"] == {
+                "type": "float",
+                "low": 0.01,
+                "high": 10.0,
+                "log": True,
+            }
             assert config["best_retrains"]["n_seeds"] == 5
             assert config["best_retrains"]["baseline"] == "standalone"

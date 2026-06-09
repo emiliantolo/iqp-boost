@@ -43,6 +43,7 @@ class MNISTDataset(BinaryDataset):
         self.data_dir = Path(data_dir)
         self.n_qubits = self.rows * self.cols
         self._split_cache: dict[str, np.ndarray] = {}
+        self._split_label_cache: dict[str, np.ndarray] = {}
 
     def _generate_samples(self, n_samples: int, seed: int = 0) -> np.ndarray:
         return self._sample_split("train", n_samples=n_samples, seed=seed)
@@ -57,6 +58,30 @@ class MNISTDataset(BinaryDataset):
         self.active_split = split
         return self.data
 
+    def generate_balanced(self, n_per_class: int, seed: int = 0, split: str = "train") -> np.ndarray:
+        self._validate_split(split)
+        if split == "all":
+            raise ValueError("MNISTDataset supports split='train' or split='test'")
+        if n_per_class <= 0:
+            raise ValueError("n_per_class must be positive")
+
+        data, labels = self._load_split_with_labels(split)
+        classes = self.classes if self.classes is not None else list(range(10))
+        rng = np.random.default_rng(seed)
+        selected_indices = []
+        for label in classes:
+            class_indices = np.flatnonzero(labels == label)
+            if len(class_indices) == 0:
+                raise ValueError(f"No MNIST samples found for class {label}")
+            replace = n_per_class > len(class_indices)
+            selected_indices.extend(rng.choice(class_indices, size=n_per_class, replace=replace).tolist())
+
+        selected_indices = np.asarray(selected_indices, dtype=np.int64)
+        selected_indices = selected_indices[rng.permutation(len(selected_indices))]
+        self.data = np.asarray(data[selected_indices], dtype=np.int8)
+        self.active_split = split
+        return self.data
+
     def _sample_split(self, split: str, n_samples: int, seed: int) -> np.ndarray:
         if n_samples <= 0:
             raise ValueError("n_samples must be positive")
@@ -67,9 +92,14 @@ class MNISTDataset(BinaryDataset):
         return np.asarray(data[indices], dtype=np.int8)
 
     def _load_split(self, split: str) -> np.ndarray:
+        data, _ = self._load_split_with_labels(split)
+        return data
+
+    def _load_split_with_labels(self, split: str) -> tuple[np.ndarray, np.ndarray]:
         cached = self._split_cache.get(split)
-        if cached is not None:
-            return cached
+        cached_labels = self._split_label_cache.get(split)
+        if cached is not None and cached_labels is not None:
+            return cached, cached_labels
 
         from torchvision.datasets import MNIST
 
@@ -95,7 +125,8 @@ class MNISTDataset(BinaryDataset):
         binary = (resized.squeeze(1) > self.threshold).to(torch.int8)
         flattened = binary.reshape(binary.shape[0], self.n_qubits).cpu().numpy()
         self._split_cache[split] = np.asarray(flattened, dtype=np.int8)
-        return self._split_cache[split]
+        self._split_label_cache[split] = np.asarray(targets.cpu().numpy(), dtype=np.int64)
+        return self._split_cache[split], self._split_label_cache[split]
 
     def visualize(self, sample: np.ndarray, ax=None):
         if ax is None:

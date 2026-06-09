@@ -192,6 +192,30 @@ def _patch_fake_mnist(monkeypatch):
     monkeypatch.setattr(torchvision.datasets, "MNIST", FakeMNIST)
 
 
+def _mnist_label_image(label: int) -> torch.Tensor:
+    bits = torch.tensor([(label >> bit) & 1 for bit in range(10)], dtype=torch.uint8)
+    columns = bits.repeat_interleave(3)[:28]
+    return (columns.unsqueeze(0).repeat(28, 1) * 255).to(torch.uint8)
+
+
+def _patch_labeled_fake_mnist(monkeypatch, train_labels, test_labels):
+    import torchvision.datasets
+
+    class FakeMNIST:
+        def __init__(self, root, train=True, download=True):
+            labels = train_labels if train else test_labels
+            self.targets = torch.tensor(labels, dtype=torch.int64)
+            self.data = torch.stack([_mnist_label_image(int(label)) for label in labels])
+
+    monkeypatch.setattr(torchvision.datasets, "MNIST", FakeMNIST)
+
+
+def _mnist_decoded_counts(samples: np.ndarray) -> dict[int, int]:
+    labels = samples.astype(int) @ (2 ** np.arange(10))
+    unique, counts = np.unique(labels, return_counts=True)
+    return dict(zip(unique.tolist(), counts.tolist()))
+
+
 def test_mnist_bundle_builds_10x10_binary_training_data(monkeypatch):
     _patch_fake_mnist(monkeypatch)
 
@@ -246,6 +270,36 @@ def test_mnist_bundle_uses_test_split_when_requested(monkeypatch):
     assert set(np.unique(bundle.x_test)).issubset({0, 1})
 
 
+def test_mnist_bundle_balances_train_and_test_per_class(monkeypatch):
+    _patch_labeled_fake_mnist(
+        monkeypatch,
+        train_labels=[0, 1] * 4,
+        test_labels=[0, 1] * 3,
+    )
+
+    bundle = build_dataset_bundle(
+        dataset_spec={
+            "name": "mnist",
+            "params": {
+                "rows": 1,
+                "cols": 10,
+                "threshold": 0.5,
+                "classes": [0, 1],
+                "test_samples": 2,
+                "balanced_per_class": True,
+            },
+        },
+        config={"train_samples": 4, "data_seed": 7},
+        plot_spec={"kind": "none"},
+    )
+
+    assert bundle.x_train.shape == (4, 10)
+    assert bundle.x_test is not None
+    assert bundle.x_test.shape == (2, 10)
+    assert _mnist_decoded_counts(bundle.x_train) == {0: 2, 1: 2}
+    assert _mnist_decoded_counts(bundle.x_test) == {0: 1, 1: 1}
+
+
 def test_mnist_hpo_configs_optimize_test_mmd_and_request_test_samples():
     config_paths = sorted(Path("configs/hpo/mnist").glob("mnist_100q_*class.json"))
     assert {path.stem for path in config_paths} == {
@@ -256,15 +310,26 @@ def test_mnist_hpo_configs_optimize_test_mmd_and_request_test_samples():
         "mnist_100q_10class",
     }
 
+    expected_counts = {
+        "mnist_100q_1class": (1, 800, 200),
+        "mnist_100q_2class": (2, 1600, 400),
+        "mnist_100q_4class": (4, 3200, 800),
+        "mnist_100q_6class": (6, 4800, 1200),
+        "mnist_100q_10class": (10, 8000, 2000),
+    }
+
     for path in config_paths:
         spec = json.loads(path.read_text())
         params = spec["dataset"]["params"]
+        _, expected_train, expected_test = expected_counts[path.stem]
         assert spec["objective_metric"] == "test_mmd"
         assert spec["dataset"]["name"] == "mnist"
         assert params["rows"] == 10
         assert params["cols"] == 10
         assert params["threshold"] == 0.4
-        assert params["test_samples"] > 0
+        assert params["balanced_per_class"] is True
+        assert params["test_samples"] == expected_test
+        assert spec["fixed_config"]["train_samples"] == expected_train
         assert spec["fixed_config"]["sigma"] == [5.0, 2.5, 1.5, 1.0]
         assert spec["fixed_config"]["n_models"] == 10
         assert spec["fixed_config"]["n_samples"] == 2048
@@ -288,8 +353,16 @@ def test_mnist_hpo_configs_optimize_test_mmd_and_request_test_samples():
             "log": True,
         }
         assert spec["search_space"]["lambda_schedule.gamma"] == {
-            "type": "categorical",
-            "choices": [0.25, 0.5, 0.75, 1.0],
+            "type": "float",
+            "low": 0.01,
+            "high": 1.0,
+            "log": True,
+        }
+        assert spec["search_space"]["lambda_schedule.tau"] == {
+            "type": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": True,
         }
         assert spec["search_space"]["n_ops"] == {
             "type": "categorical",

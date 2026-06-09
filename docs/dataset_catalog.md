@@ -30,6 +30,9 @@ All catalog datasets support optional train/test split params inside
 - `train_split_ratio`: optional explicit split ratio. When omitted, the catalog
   uses `train_samples / (train_samples + test_samples)` so the returned train
   and test arrays match the requested counts.
+- `balanced_per_class`: MNIST-only opt-in. When true, `train_samples` and
+  `test_samples` must be divisible by the selected class count and the catalog
+  samples the same number of examples from each class in each split.
 
 When `test_samples` is omitted or zero, bundles include only `x_train` and
 `x_test` remains `None`.

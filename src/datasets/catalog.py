@@ -227,6 +227,7 @@ def _build_mnist_bundle(
     threshold = float(params.get("threshold", 0.4))
     raw_classes = params.get("classes")
     classes = None if raw_classes is None else [int(label) for label in raw_classes]
+    balanced_per_class = bool(params.get("balanced_per_class", False))
     data_dir = params.get("data_dir", "./data")
 
     ds = MNISTDataset(
@@ -236,12 +237,24 @@ def _build_mnist_bundle(
         classes=classes,
         data_dir=data_dir,
     )
-    x_train = ds.generate(n_samples=train_samples, seed=data_seed, split="train")
-    x_test = None
-    if test_samples > 0:
-        x_test = ds.generate(n_samples=test_samples, seed=data_seed, split="test")
+    if balanced_per_class:
+        selected_classes = classes if classes is not None else list(range(10))
+        n_classes = len(selected_classes)
+        if test_samples <= 0:
+            raise ValueError("balanced_per_class MNIST requires positive test_samples")
+        if train_samples % n_classes != 0 or test_samples % n_classes != 0:
+            raise ValueError("balanced_per_class MNIST requires train_samples and test_samples divisible by n_classes")
+        x_train = ds.generate_balanced(train_samples // n_classes, seed=data_seed, split="train")
+        x_test = ds.generate_balanced(test_samples // n_classes, seed=data_seed, split="test")
         ds.data = x_train
         ds.active_split = "train"
+    else:
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed, split="train")
+        x_test = None
+        if test_samples > 0:
+            x_test = ds.generate(n_samples=test_samples, seed=data_seed, split="test")
+            ds.data = x_train
+            ds.active_split = "train"
 
     return DatasetBundle(
         dataset_name=(
