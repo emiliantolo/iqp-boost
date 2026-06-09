@@ -450,8 +450,8 @@ def compute_sigma(config: dict, x_train: np.ndarray,
 
     Resolution order:
     1. ``sigma_heuristic`` object/string  -> use specified method
-    2. ``sigma_factor`` present           -> median * factors (backward compat)
-    3. ``sigma`` present                  -> use literal value(s)
+    2. ``sigma`` present                  -> use literal value(s)
+    3. ``sigma_factor`` present           -> median * factors (backward compat)
     4. fallback                           -> median * 0.4
     """
     heuristic = config.get('sigma_heuristic')
@@ -500,14 +500,14 @@ def compute_sigma(config: dict, x_train: np.ndarray,
 
         raise ValueError(f"Unknown sigma_heuristic method: {method}")
 
+    # --- Direct sigma value ---
+    if 'sigma' in config:
+        return config['sigma']
+
     # --- Legacy: sigma_factor ---
     if 'sigma_factor' in config:
         return compute_sigma_median(x_train, sigma_factor=config['sigma_factor'],
                                     seed=seed)
-
-    # --- Direct sigma value ---
-    if 'sigma' in config:
-        return config['sigma']
 
     # --- Fallback ---
     return compute_sigma_median(x_train, sigma_factor=0.4, seed=seed)
