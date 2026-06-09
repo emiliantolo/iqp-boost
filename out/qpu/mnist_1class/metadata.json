@@ -1,0 +1,58 @@
+{
+  "allocation_strategy": "fcfw",
+  "backend_name": "ibm_marrakesh",
+  "backend_num_qubits": 156,
+  "completed_at_utc": "2026-06-09T07:45:11.255152+00:00",
+  "config": {
+    "backend": {
+      "min_qubits": 156
+    },
+    "circuit": {
+      "n_qubits": 100,
+      "params_path": "../iqp-boost/out/hpo/mnist_100q_1class_20260608_155253/trials/trial_0011/ensemble.json",
+      "total_shots": 512
+    },
+    "error_mitigation": {},
+    "estimator": false,
+    "experiment": "experiments/iqp_sampler.py",
+    "framework": "qiskit",
+    "label": "mnist-1class-hpo-best",
+    "output": {},
+    "session": {},
+    "shots": 512,
+    "transpilation": {
+      "optimization_level": 3
+    }
+  },
+  "counts_file": "results/hardware_runs/20260609_094455_ibm_marrakesh_mnist-1class-hpo-best/ensemble_mixture/counts.json",
+  "ensemble_weights": [
+    0.05230499810981615,
+    0.1962682854177411,
+    0.07411316523449439,
+    0.07974018132329962,
+    0.09901586214774971,
+    0.1363601095664966,
+    0.11474540322479296,
+    0.09707714404787005,
+    0.0903319168794963,
+    0.060042934048243124
+  ],
+  "label": "ensemble_mixture",
+  "n_models": 10,
+  "per_model_shots": [
+    26,
+    107,
+    37,
+    40,
+    50,
+    69,
+    58,
+    49,
+    46,
+    30
+  ],
+  "samples_file": "results/hardware_runs/20260609_094455_ibm_marrakesh_mnist-1class-hpo-best/ensemble_mixture/samples.npz",
+  "saved_at_utc": "2026-06-09T07:45:11.272817+00:00",
+  "started_at_utc": "2026-06-09T07:44:55.085122+00:00",
+  "total_shots": 512
+}
