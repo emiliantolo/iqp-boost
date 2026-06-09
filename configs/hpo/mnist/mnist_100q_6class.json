@@ -1,6 +1,6 @@
 {
   "study_name": "mnist_100q_6class",
-  "n_trials": 15,
+  "n_trials": 60,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
   "objective_metric": "test_mmd",
@@ -100,5 +100,13 @@
         8192
       ]
     }
+  },
+  "best_retrains": {
+    "n_seeds": 5,
+    "seed_start": 0,
+    "baseline": "standalone",
+    "report_fcfw": true,
+    "skip_sampling": true,
+    "final_eval_sampling": false
   }
 }

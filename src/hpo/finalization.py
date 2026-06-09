@@ -10,6 +10,7 @@ import optuna
 
 from src.hpo.best_model_evaluation import evaluate_best_model
 from src.hpo.best_retrains import resolve_best_retrain_spec, run_best_retrains
+from src.hpo.retrain_plots import plot_best_retrain_summary
 
 
 NO_COMPLETED_TRIALS_MESSAGE = "No completed trials; all trials failed or stopped before completion."
@@ -104,9 +105,17 @@ def finalize_study(
         else None
     )
     if retrain_summary is not None:
+        is_mnist = hpo_spec.get("dataset", {}).get("name") == "mnist"
+        plot_paths = plot_best_retrain_summary(
+            retrain_summary,
+            hpo_dir,
+            metric_filter="mmd" if is_mnist else None,
+            include_weight_distribution=not is_mnist,
+        )
         summary["best_retrains"] = {
             "summary_path": str(hpo_dir / "best_retrains" / "summary.json"),
             "aggregates": retrain_summary.get("aggregates", {}),
+            "plots": plot_paths,
         }
 
     (hpo_dir / "study_summary.json").write_text(json.dumps(summary, indent=2, default=json_default))

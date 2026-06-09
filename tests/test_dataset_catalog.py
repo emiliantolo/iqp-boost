@@ -295,6 +295,14 @@ def test_mnist_hpo_configs_optimize_test_mmd_and_request_test_samples():
             "type": "categorical",
             "choices": [2048, 4096, 8192],
         }
+        assert spec["best_retrains"] == {
+            "n_seeds": 5,
+            "seed_start": 0,
+            "baseline": "standalone",
+            "report_fcfw": True,
+            "skip_sampling": True,
+            "final_eval_sampling": False,
+        }
 
 
 @pytest.mark.parametrize("dataset_name", ["bas", "parity", "fashion_mnist"])

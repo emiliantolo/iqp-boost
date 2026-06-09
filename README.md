@@ -213,6 +213,10 @@ out/hpo/<study_name>_<timestamp>/
         seed_000/
         seed_001/
         ...
+    plots/                    # best-retrain comparison plots, when configured
+        metrics_comparison.pdf
+        metric_trends.pdf
+        weight_distribution.pdf  # omitted for MNIST MMD-only retrain plots
 ```
 
 ## Config Schema

@@ -43,6 +43,10 @@ def test_finalize_study_writes_best_artifacts_metrics_and_retrains(monkeypatch, 
         "src.hpo.finalization.run_best_retrains",
         lambda *args, **kwargs: {"aggregates": {"final_stats": {"mmd": {"mean": 0.2}}}},
     )
+    monkeypatch.setattr(
+        "src.hpo.finalization.plot_best_retrain_summary",
+        lambda *args, **kwargs: {"metrics_comparison_pdf": "plots/metrics_comparison.pdf"},
+    )
 
     hpo_spec = {"dataset": {"name": "hamming_balls"}}
     summary = finalize_study(
@@ -61,6 +65,9 @@ def test_finalize_study_writes_best_artifacts_metrics_and_retrains(monkeypatch, 
     assert summary["best_config_path"] == str(tmp_path / "best_config.json")
     assert summary["hamming_balls_metrics"] == {"ensemble": {"recall": 1.0}}
     assert summary["best_retrains"]["aggregates"]["final_stats"]["mmd"]["mean"] == 0.2
+    assert summary["best_retrains"]["plots"] == {
+        "metrics_comparison_pdf": "plots/metrics_comparison.pdf"
+    }
     assert json.loads((tmp_path / "study_summary.json").read_text())["best_value"] == 0.25
 
 
@@ -86,6 +93,7 @@ def test_finalize_study_without_best_config_uses_null_config_path(monkeypatch, t
         lambda *args, **kwargs: SimpleNamespace(output_subdir="best_retrains"),
     )
     monkeypatch.setattr("src.hpo.finalization.run_best_retrains", fake_run_best_retrains)
+    monkeypatch.setattr("src.hpo.finalization.plot_best_retrain_summary", lambda *args, **kwargs: {})
 
     summary = finalize_study(
         study=_study(_best_trial(run_dir, model_path)),
@@ -102,6 +110,42 @@ def test_finalize_study_without_best_config_uses_null_config_path(monkeypatch, t
     assert "best_retrains" not in summary
     assert calls["best_config_path"] is None
     assert calls["retrain_best_config_path"] is None
+
+
+def test_finalize_study_uses_mmd_only_retrain_plots_for_mnist(monkeypatch, tmp_path):
+    run_dir = tmp_path / "trial_0007"
+    run_dir.mkdir()
+    model_path = run_dir / "ensemble.json"
+    model_path.write_text(json.dumps({"models": [], "weights": []}))
+    (run_dir / "config.json").write_text(json.dumps({"rng_seed": 7}))
+    calls = {}
+
+    monkeypatch.setattr("src.hpo.finalization.evaluate_best_model", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "src.hpo.finalization.resolve_best_retrain_spec",
+        lambda *args, **kwargs: SimpleNamespace(output_subdir="best_retrains"),
+    )
+    monkeypatch.setattr(
+        "src.hpo.finalization.run_best_retrains",
+        lambda *args, **kwargs: {"aggregates": {"final_stats": {"mmd": {"mean": 0.2}}}},
+    )
+
+    def fake_plot_best_retrain_summary(summary, hpo_dir, metric_filter=None, include_weight_distribution=True):
+        calls["metric_filter"] = metric_filter
+        calls["include_weight_distribution"] = include_weight_distribution
+        return {"metrics_comparison_pdf": "plots/metrics_comparison.pdf"}
+
+    monkeypatch.setattr("src.hpo.finalization.plot_best_retrain_summary", fake_plot_best_retrain_summary)
+
+    finalize_study(
+        study=_study(_best_trial(run_dir, model_path)),
+        hpo_spec={"dataset": {"name": "mnist"}},
+        config_path=tmp_path / "hpo.json",
+        hpo_dir=tmp_path,
+        objective_metric="test_mmd",
+    )
+
+    assert calls == {"metric_filter": "mmd", "include_weight_distribution": False}
 
 
 def test_write_no_completed_trials_summary_writes_null_best_artifacts(tmp_path):
