@@ -56,13 +56,16 @@
     "keep_models_for_diagnosis": true,
     "stop_on_reject": false,
     "rng_seed": 42,
-    "turbo": 10,
+    "turbo": 32,
     "circuit_config": {
       "topology": "aachen_heavy_hex",
       "n_ancilla": 0,
       "num_layers": 1
     },
-    "n_models": 10
+    "n_models": 10,
+    "monitor_interval": null,
+    "compute_snr": false,
+    "clear_jax_caches": true
   },
   "search_space": {
     "learning_rate": {
@@ -111,6 +114,12 @@
     "baseline": "standalone",
     "report_fcfw": true,
     "skip_sampling": true,
-    "final_eval_sampling": false
+    "final_eval_sampling": false,
+    "config_overrides": {
+      "turbo": 10,
+      "monitor_interval": 10,
+      "compute_snr": true,
+      "clear_jax_caches": true
+    }
   }
 }

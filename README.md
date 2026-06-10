@@ -118,7 +118,9 @@ Available HPO configs by dataset:
 - `configs/hpo/mnist/mnist_100q_10class.json`
 
 MNIST HPO configs optimize `test_mmd`, request held-out test samples, and keep
-`sigma` fixed as an explicit array.
+`sigma` fixed as an explicit array. They run lean Optuna trials with diagnostic
+monitoring disabled, then restore monitoring during the final 5-seed best-config
+retraining pass.
 
 ### HPO Config Schema
 
@@ -201,10 +203,18 @@ After the best trial is found, the winning config can be re-run across multiple 
     "baseline": "standalone",
     "report_fcfw": true,
     "skip_sampling": true,
-    "final_eval_sampling": true
+    "final_eval_sampling": true,
+    "config_overrides": {
+      "turbo": 10,
+      "monitor_interval": 10
+    }
   }
 }
 ```
+
+`config_overrides` are deep-merged into the winning trial config before each
+seed retrain. Seed, baseline, sampling, and FCFW settings from `best_retrains`
+take precedence over `config_overrides`.
 
 ### HPO Output Structure
 

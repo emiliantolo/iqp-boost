@@ -333,6 +333,10 @@ def test_mnist_hpo_configs_optimize_test_mmd_and_request_test_samples():
         assert spec["fixed_config"]["sigma"] == [5.0, 2.5, 1.5, 1.0]
         assert spec["fixed_config"]["n_models"] == 10
         assert spec["fixed_config"]["n_samples"] == 2048
+        assert spec["fixed_config"]["turbo"] == 32
+        assert spec["fixed_config"]["monitor_interval"] is None
+        assert spec["fixed_config"]["compute_snr"] is False
+        assert spec["fixed_config"]["clear_jax_caches"] is True
         assert "n_ops" not in spec["fixed_config"]
         assert "sigma_heuristic" not in spec["fixed_config"]
         assert "n_models" not in spec["search_space"]
@@ -375,6 +379,12 @@ def test_mnist_hpo_configs_optimize_test_mmd_and_request_test_samples():
             "report_fcfw": True,
             "skip_sampling": True,
             "final_eval_sampling": False,
+            "config_overrides": {
+                "turbo": 10,
+                "monitor_interval": 10,
+                "compute_snr": True,
+                "clear_jax_caches": True,
+            },
         }
 
 

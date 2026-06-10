@@ -8,6 +8,7 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean, pstdev
+from typing import Any
 
 import numpy as np
 
@@ -26,6 +27,7 @@ class BestRetrainSpec:
     skip_sampling: bool = True
     final_eval_sampling: bool = True
     output_subdir: str = "best_retrains"
+    config_overrides: dict[str, Any] | None = None
 
 
 def json_default(obj):
@@ -51,6 +53,7 @@ def resolve_best_retrain_spec(hpo_spec: dict) -> BestRetrainSpec | None:
         skip_sampling=bool(retrain_spec.get("skip_sampling", True)),
         final_eval_sampling=bool(retrain_spec.get("final_eval_sampling", True)),
         output_subdir=retrain_spec.get("output_subdir", "best_retrains"),
+        config_overrides=copy.deepcopy(retrain_spec.get("config_overrides", {})),
     )
 
 
@@ -72,6 +75,7 @@ def run_best_retrains(
     for seed_idx in range(spec.n_seeds):
         seed = spec.seed_start + seed_idx
         run_config = copy.deepcopy(best_config)
+        run_config = _deep_merge(run_config, spec.config_overrides or {})
         run_config["rng_seed"] = seed
         run_config["data_seed"] = seed
         run_config["baseline"] = spec.baseline
@@ -127,6 +131,17 @@ def run_best_retrains(
     }
     (output_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=json_default))
     return summary
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override into a copied base dict."""
+    result = copy.deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = copy.deepcopy(value)
+    return result
 
 
 def _aggregate_seed_metrics(per_seed: list[dict]) -> dict:

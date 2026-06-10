@@ -180,6 +180,39 @@ def test_data_only_step_uses_same_module_without_changing_lambda(monkeypatch):
     assert ensemble.lambda_dual == 0.0
 
 
+def test_compute_snr_false_skips_gradient_snr_report(monkeypatch):
+    monkeypatch.setattr(boosting_step, "train_candidate_model", _candidate(alpha=0.4))
+
+    def fail_report(*args, **kwargs):
+        raise AssertionError("SNR diagnostics should be skipped")
+
+    monkeypatch.setattr(boosting_step, "_report_step_snr", fail_report)
+
+    result = run_boosting_step(
+        _context(
+            training_mmd=0.5,
+            config={"compute_snr": False},
+            compute_snr=False,
+        )
+    )
+
+    assert result.accepted is True
+
+
+def test_cleanup_respects_clear_jax_caches_flag(monkeypatch):
+    calls = {"clear": 0, "gc": 0}
+    monkeypatch.setattr(boosting_step.jax, "clear_caches", lambda: calls.__setitem__("clear", calls["clear"] + 1))
+    monkeypatch.setattr(boosting_step.gc, "collect", lambda: calls.__setitem__("gc", calls["gc"] + 1))
+
+    boosting_step._cleanup_after_step(2, clear_jax_caches=False)
+
+    assert calls == {"clear": 0, "gc": 1}
+
+    boosting_step._cleanup_after_step(2, clear_jax_caches=True)
+
+    assert calls == {"clear": 1, "gc": 2}
+
+
 def test_step_exact_metrics_are_only_added_when_steps_phase_enabled(monkeypatch):
     monkeypatch.setattr(boosting_step, "train_candidate_model", _candidate(alpha=0.4))
     ensemble = FakeEnsemble()

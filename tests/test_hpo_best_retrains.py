@@ -61,13 +61,32 @@ def test_run_best_retrains_writes_seed_artifacts_and_aggregates(monkeypatch, tmp
                 "skip_sampling": True,
                 "final_eval_sampling": True,
                 "report_fcfw": False,
+                "turbo": 32,
+                "monitor_interval": None,
+                "compute_snr": False,
+                "clear_jax_caches": True,
+                "nested": {"keep": "base", "value": 1},
             }
         )
     )
     hpo_spec = {
         "dataset": {"name": "hamming_balls", "params": {"n_qubits": 4}},
         "plot": {"kind": "none"},
-        "best_retrains": {"n_seeds": 5, "baseline": "standalone", "report_fcfw": True},
+        "best_retrains": {
+            "n_seeds": 5,
+            "baseline": "standalone",
+            "report_fcfw": True,
+            "skip_sampling": True,
+            "final_eval_sampling": False,
+            "config_overrides": {
+                "turbo": 10,
+                "monitor_interval": 10,
+                "compute_snr": True,
+                "clear_jax_caches": True,
+                "skip_sampling": False,
+                "nested": {"value": 2, "added": "override"},
+            },
+        },
     }
 
     spec = resolve_best_retrain_spec(hpo_spec)
@@ -76,6 +95,13 @@ def test_run_best_retrains_writes_seed_artifacts_and_aggregates(monkeypatch, tmp
     assert len(captured_configs) == 5
     assert all(config["baseline"] == "standalone" for config in captured_configs)
     assert all(config["report_fcfw"] is True for config in captured_configs)
+    assert all(config["skip_sampling"] is True for config in captured_configs)
+    assert all(config["final_eval_sampling"] is False for config in captured_configs)
+    assert all(config["turbo"] == 10 for config in captured_configs)
+    assert all(config["monitor_interval"] == 10 for config in captured_configs)
+    assert all(config["compute_snr"] is True for config in captured_configs)
+    assert all(config["clear_jax_caches"] is True for config in captured_configs)
+    assert captured_configs[0]["nested"] == {"keep": "base", "value": 2, "added": "override"}
     assert captured_configs[0]["rng_seed"] == 0
     assert captured_configs[4]["data_seed"] == 4
     assert (tmp_path / "best_retrains" / "seed_000" / "ensemble.json").exists()
@@ -107,6 +133,7 @@ def test_resolve_best_retrain_spec_applies_defaults():
     assert spec.skip_sampling is True
     assert spec.final_eval_sampling is True
     assert spec.output_subdir == "best_retrains"
+    assert spec.config_overrides == {}
 
 
 def test_run_best_retrains_skips_missing_best_config(tmp_path):

@@ -211,7 +211,7 @@ def run_boosting_step(context: BoostingStepContext) -> BoostingStepResult:
     if context.compute_snr:
         key = _report_step_snr(context, key)
     if context.run_cleanup:
-        _cleanup_after_step(step)
+        _cleanup_after_step(step, clear_jax_caches=context.config.get('clear_jax_caches', True))
 
     return BoostingStepResult(
         key=key,
@@ -712,9 +712,9 @@ def _report_step_snr(context: BoostingStepContext, key: jax.Array) -> jax.Array:
     return key
 
 
-def _cleanup_after_step(step: int) -> None:
+def _cleanup_after_step(step: int, *, clear_jax_caches: bool = True) -> None:
     gc.collect()
-    if step % 2 == 0:
+    if clear_jax_caches and step % 2 == 0:
         jax.clear_caches()
 
 

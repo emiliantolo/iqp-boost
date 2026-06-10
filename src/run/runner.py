@@ -189,6 +189,7 @@ def run_boosting_experiment(
                     validity_fn=dataset.validity_fn,
                     coverage_fn=dataset.coverage_fn,
                     top_k_tvd_fn=dataset.top_k_tvd_fn,
+                    compute_snr=config.get('compute_snr', True),
                 )
             )
             key = step_result.key
