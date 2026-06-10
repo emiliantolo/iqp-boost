@@ -1,0 +1,12 @@
+{
+  "study_name": "hamming_balls_20q_k4_p012_local",
+  "best_trial": null,
+  "objective_metric": "tvd_exact",
+  "best_value": null,
+  "best_params": {},
+  "best_user_attrs": {},
+  "best_model_path": null,
+  "best_config_path": null,
+  "config_path": "configs/hpo/hamming_balls/local/hamming_balls_20q_k4_p012_local.json",
+  "message": "No completed trials; all trials failed or stopped before completion."
+}
