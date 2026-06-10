@@ -27,8 +27,16 @@ def _best_trial(run_dir, model_path, *, value=0.25):
 def test_finalize_study_writes_best_artifacts_metrics_and_retrains(monkeypatch, tmp_path):
     run_dir = tmp_path / "trial_0007"
     run_dir.mkdir()
-    model_path = run_dir / "ensemble.json"
-    model_path.write_text(json.dumps({"models": [], "weights": []}))
+    model_path = run_dir / "ensemble.npz"
+    np.savez_compressed(
+        model_path,
+        weights=np.array([1.0], dtype=np.float64),
+        model_0=np.zeros(4),
+        meta=json.dumps({
+            "sigma": 1.0, "n_ops": 16, "lambda_dual": 1.0,
+            "wires": None, "n_models": 1, "training_losses": [],
+        }),
+    )
     (run_dir / "config.json").write_text(json.dumps({"rng_seed": 7}))
 
     monkeypatch.setattr(
@@ -57,7 +65,7 @@ def test_finalize_study_writes_best_artifacts_metrics_and_retrains(monkeypatch, 
         objective_metric="mmd",
     )
 
-    assert (tmp_path / "best_model.json").exists()
+    assert (tmp_path / "best_model.npz").exists()
     assert json.loads((tmp_path / "best_config.json").read_text()) == {"rng_seed": 7}
     assert json.loads((tmp_path / "hpo_config.json").read_text()) == hpo_spec
     assert (tmp_path / "best_hamming_balls_metrics.json").exists()
@@ -74,8 +82,16 @@ def test_finalize_study_writes_best_artifacts_metrics_and_retrains(monkeypatch, 
 def test_finalize_study_without_best_config_uses_null_config_path(monkeypatch, tmp_path):
     run_dir = tmp_path / "trial_0007"
     run_dir.mkdir()
-    model_path = run_dir / "ensemble.json"
-    model_path.write_text(json.dumps({"models": [], "weights": []}))
+    model_path = run_dir / "ensemble.npz"
+    np.savez_compressed(
+        model_path,
+        weights=np.array([1.0], dtype=np.float64),
+        model_0=np.zeros(4),
+        meta=json.dumps({
+            "sigma": 1.0, "n_ops": 16, "lambda_dual": 1.0,
+            "wires": None, "n_models": 1, "training_losses": [],
+        }),
+    )
     calls = {}
 
     def fake_evaluate_best_model(hpo_spec, best_config_path, best_model_path, fcfw_weights_list):
@@ -103,7 +119,7 @@ def test_finalize_study_without_best_config_uses_null_config_path(monkeypatch, t
         objective_metric="mmd",
     )
 
-    assert (tmp_path / "best_model.json").exists()
+    assert (tmp_path / "best_model.npz").exists()
     assert not (tmp_path / "best_config.json").exists()
     assert summary["best_config_path"] is None
     assert "hamming_balls_metrics" not in summary
@@ -115,8 +131,16 @@ def test_finalize_study_without_best_config_uses_null_config_path(monkeypatch, t
 def test_finalize_study_uses_mmd_only_retrain_plots_for_mnist(monkeypatch, tmp_path):
     run_dir = tmp_path / "trial_0007"
     run_dir.mkdir()
-    model_path = run_dir / "ensemble.json"
-    model_path.write_text(json.dumps({"models": [], "weights": []}))
+    model_path = run_dir / "ensemble.npz"
+    np.savez_compressed(
+        model_path,
+        weights=np.array([1.0], dtype=np.float64),
+        model_0=np.zeros(4),
+        meta=json.dumps({
+            "sigma": 1.0, "n_ops": 16, "lambda_dual": 1.0,
+            "wires": None, "n_models": 1, "training_losses": [],
+        }),
+    )
     (run_dir / "config.json").write_text(json.dumps({"rng_seed": 7}))
     calls = {}
 

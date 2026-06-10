@@ -156,32 +156,63 @@ class BoostedEnsemble:
             return samples, counts, per_model_samples
         return samples
 
+    def _serialize_training_losses(self) -> list:
+        """Convert training_losses to JSON-serializable dicts preserving float64."""
+        serialized = []
+        for loss_dict in self.training_losses:
+            item = {}
+            for k, v in loss_dict.items():
+                if v is None:
+                    item[k] = None
+                elif isinstance(v, np.ndarray):
+                    item[k] = v.astype(np.float64).tolist()
+                else:
+                    item[k] = float(v)
+            serialized.append(item)
+        return serialized
+
+    @staticmethod
+    def _deserialize_training_losses(serialized: list) -> list:
+        """Restore training_losses from JSON-serialized dicts with float64 arrays."""
+        deserialized = []
+        for loss_dict in serialized:
+            item = {}
+            for k, v in loss_dict.items():
+                if v is None:
+                    item[k] = None
+                elif k in ("total", "data_hist", "ens_hist", "hist_epochs"):
+                    item[k] = np.array(v, dtype=np.float64)
+                else:
+                    item[k] = float(v)
+            deserialized.append(item)
+        return deserialized
+
     def save(self, path: str) -> None:
+        """Save ensemble as compressed .npz (models, weights, metadata, training_losses)."""
         import json
-        data = {
-            "weights": self.weights,
-            "models": [m.tolist() for m in self.models],
-            "sigma": self.sigma,
-            "n_ops": self.n_ops,
-            "lambda_dual": self.lambda_dual,
-            "wires": self.wires,
+        kwargs = {
+            "weights": np.array(self.weights, dtype=np.float64),
         }
-        with open(path, 'w') as f:
-            json.dump(data, f)
+        for i, model in enumerate(self.models):
+            kwargs[f"model_{i}"] = np.array(model)
+        kwargs["meta"] = json.dumps(
+            {
+                "sigma": self.sigma,
+                "n_ops": self.n_ops,
+                "lambda_dual": self.lambda_dual,
+                "wires": self.wires,
+                "n_models": len(self.models),
+                "training_losses": self._serialize_training_losses(),
+            },
+            default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o),
+        )
+        np.savez_compressed(path, **kwargs)
 
     @classmethod
-    def load(cls, path: str, iqp_circuit, n_samples: int, max_batch_ops: int = None, max_batch_samples: int = None):
-        """Reconstruct a BoostedEnsemble from a JSON saved by ``save()``.
-
-        Args:
-            path: Path to the JSON file.
-            iqp_circuit: IqpSimulator instance (must match the original circuit).
-            n_samples: Number of circuit shots to use for trace estimates.
-            max_batch_ops: Optional batching limit for operators.
-            max_batch_samples: Optional batching limit for samples.
-        """
+    def _load_json(cls, path: str, iqp_circuit, n_samples: int, max_batch_ops: int = None, max_batch_samples: int = None):
+        """Deprecated JSON loader kept for backward compatibility."""
         import json
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             data = json.load(f)
         sigma = data["sigma"]
         n_ops = int(data["n_ops"])
@@ -200,4 +231,45 @@ class BoostedEnsemble:
         )
         instance.weights = [float(w) for w in data["weights"]]
         instance.models = [np.array(m) for m in data["models"]]
+        return instance
+
+    @classmethod
+    def load(cls, path: str, iqp_circuit, n_samples: int, max_batch_ops: int = None, max_batch_samples: int = None):
+        """Reconstruct a BoostedEnsemble from a .npz saved by ``save()``.
+
+        Args:
+            path: Path to the .npz file (or legacy .json file).
+            iqp_circuit: IqpSimulator instance (must match the original circuit).
+            n_samples: Number of circuit shots to use for trace estimates.
+            max_batch_ops: Optional batching limit for operators.
+            max_batch_samples: Optional batching limit for samples.
+        """
+        import json
+        import warnings
+
+        if path.endswith(".json"):
+            warnings.warn(
+                "Loading from .json is deprecated. Re-save the ensemble as .npz for efficiency.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return cls._load_json(path, iqp_circuit, n_samples, max_batch_ops, max_batch_samples)
+
+        data = np.load(path)
+        meta = json.loads(str(data["meta"]))
+        instance = cls(
+            iqp_circuit=iqp_circuit,
+            n_models=meta["n_models"],
+            sigma=meta["sigma"],
+            n_ops=meta["n_ops"],
+            n_samples=n_samples,
+            lambda_dual=meta["lambda_dual"],
+            wires=meta["wires"],
+            max_batch_ops=max_batch_ops,
+            max_batch_samples=max_batch_samples,
+        )
+        instance.weights = data["weights"].tolist()
+        instance.models = [data[f"model_{i}"] for i in range(meta["n_models"])]
+        if meta.get("training_losses"):
+            instance.training_losses = cls._deserialize_training_losses(meta["training_losses"])
         return instance

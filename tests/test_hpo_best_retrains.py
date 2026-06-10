@@ -9,7 +9,16 @@ from src.hpo.best_retrains import resolve_best_retrain_spec, run_best_retrains
 
 class FakeEnsemble:
     def save(self, path):
-        Path(path).write_text(json.dumps({"models": [], "weights": []}))
+        import json
+        np.savez_compressed(
+            path,
+            weights=np.array([1.0], dtype=np.float64),
+            model_0=np.zeros(4),
+            meta=json.dumps({
+                "sigma": 1.0, "n_ops": 16, "lambda_dual": 1.0,
+                "wires": None, "n_models": 1, "training_losses": [],
+            }),
+        )
 
 
 def test_run_best_retrains_writes_seed_artifacts_and_aggregates(monkeypatch, tmp_path):
@@ -104,7 +113,7 @@ def test_run_best_retrains_writes_seed_artifacts_and_aggregates(monkeypatch, tmp
     assert captured_configs[0]["nested"] == {"keep": "base", "value": 2, "added": "override"}
     assert captured_configs[0]["rng_seed"] == 0
     assert captured_configs[4]["data_seed"] == 4
-    assert (tmp_path / "best_retrains" / "seed_000" / "ensemble.json").exists()
+    assert (tmp_path / "best_retrains" / "seed_000" / "ensemble.npz").exists()
     assert (tmp_path / "best_retrains" / "seed_000" / "final_stats.json").exists()
     assert (tmp_path / "best_retrains" / "summary.json").exists()
     assert summary["aggregates"]["final_stats"]["tvd"]["mean"] == pytest.approx(2.1)

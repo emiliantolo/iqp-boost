@@ -60,7 +60,7 @@ def finalize_study(
     best = study.best_trial
 
     best_model_src = Path(best.user_attrs["model_path"])
-    best_model_dst = hpo_dir / "best_model.json"
+    best_model_dst = hpo_dir / "best_model.npz"
     shutil.copyfile(best_model_src, best_model_dst)
 
     best_config_src = Path(best.user_attrs["output_dir"]) / "config.json"

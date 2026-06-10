@@ -75,7 +75,7 @@ def test_run_hpo_writes_summary_and_hamming_balls_metrics(monkeypatch, tmp_path)
     assert study.best_value == 0.25
     assert (hpo_dir / "study_summary.json").exists()
     assert (hpo_dir / "hpo_config.json").exists()
-    assert (hpo_dir / "best_model.json").exists()
+    assert (hpo_dir / "best_model.npz").exists()
     assert (hpo_dir / "best_config.json").exists()
     assert (hpo_dir / "best_hamming_balls_metrics.json").exists()
 

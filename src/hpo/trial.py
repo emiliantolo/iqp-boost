@@ -54,7 +54,7 @@ def run_trial(trial: optuna.Trial, context: HpoTrialContext) -> float:
     metric_value = context.objective.final_value(final_stats, trial.number)
 
     output_dir = Path(result["output_dir"])
-    model_path = output_dir / "ensemble.json"
+    model_path = output_dir / "ensemble.npz"
     result["ensemble"].save(str(model_path))
 
     trial.set_user_attr("final_stats", final_stats)

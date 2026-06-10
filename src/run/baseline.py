@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import iqpopt as iqp
 import jax
@@ -292,3 +293,23 @@ def _select_reference(
             print(f"Baseline used as reference: {label}")
             return label, stats
     return None, None
+
+
+def save_baseline_artifacts(result: BaselineResult, output_dir: Path) -> None:
+    """Save baseline training curves and parameters for post-hoc analysis."""
+    artifacts = {
+        "standalone_train_losses": np.array(result.standalone_train_losses or [], dtype=np.float64),
+    }
+    if result.standalone_params is not None:
+        artifacts["standalone_params"] = np.array(result.standalone_params)
+    if result.standalone_samples is not None:
+        artifacts["standalone_samples"] = result.standalone_samples
+    if result.data_only_ensemble is not None:
+        result.data_only_ensemble.save(str(output_dir / "data_only_ensemble.npz"))
+    if result.data_only_history is not None:
+        artifacts["data_only_history"] = json.dumps(result.data_only_history)
+    if result.data_only_stats is not None:
+        artifacts["data_only_stats"] = json.dumps(result.data_only_stats)
+    if result.standalone_stats is not None:
+        artifacts["standalone_stats"] = json.dumps(result.standalone_stats)
+    np.savez_compressed(output_dir / "baseline_artifacts.npz", **artifacts)

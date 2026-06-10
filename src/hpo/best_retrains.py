@@ -107,7 +107,7 @@ def _run_single_retrain(
         skip_plots=False,
     )
     run_dir = Path(result["output_dir"])
-    model_path = run_dir / "ensemble.json"
+    model_path = run_dir / "ensemble.npz"
     result["ensemble"].save(str(model_path))
     final_stats = result["final_stats"]
     fcfw_stats = result.get("ensemble_fcfw_stats")
@@ -125,6 +125,17 @@ def _run_single_retrain(
     fcfw_weights = result.get("ensemble_fcfw_weights")
     if fcfw_weights is not None:
         payload["ensemble_fcfw_weights"] = np.asarray(fcfw_weights, dtype=np.float64).tolist()
+
+    # Artifact paths for post-hoc analysis
+    payload["artifacts"] = {
+        "ensemble": str(model_path),
+        "baseline_artifacts": str(run_dir / "baseline_artifacts.npz") if (run_dir / "baseline_artifacts.npz").exists() else None,
+        "data_only_ensemble": str(run_dir / "data_only_ensemble.npz") if (run_dir / "data_only_ensemble.npz").exists() else None,
+        "samples": str(run_dir / "samples.npz") if (run_dir / "samples.npz").exists() else None,
+        "results_csv": str(run_dir / "results.csv") if (run_dir / "results.csv").exists() else None,
+        "config": str(run_dir / "config.json") if (run_dir / "config.json").exists() else None,
+    }
+
     (run_dir / "final_stats.json").write_text(
         json.dumps(payload, indent=2, default=json_default)
     )
@@ -204,6 +215,22 @@ def run_best_retrains(
         "aggregates": _aggregate_seed_metrics(per_seed),
     }
     (output_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=json_default))
+
+    # Write artifact manifest for easy post-hoc discovery
+    manifest = {
+        "n_seeds": spec.n_seeds,
+        "summary": str(output_dir / "summary.json"),
+        "seeds": [
+            {
+                "seed_index": seed.get("seed_index"),
+                "seed": seed.get("seed"),
+                "run_dir": seed.get("run_dir"),
+                "artifacts": seed.get("artifacts", {}),
+            }
+            for seed in per_seed
+        ],
+    }
+    (output_dir / "retrain_artifacts.json").write_text(json.dumps(manifest, indent=2, default=json_default))
     return summary
 
 

@@ -45,7 +45,7 @@ def evaluate_best_model_hamming_balls(
         print("[Postprocess] best_config.json missing, skipping HammingBalls metrics")
         return None
     if not best_model_path.exists():
-        print("[Postprocess] best_model.json missing, skipping HammingBalls metrics")
+        print("[Postprocess] best_model.npz missing, skipping HammingBalls metrics")
         return None
 
     best_cfg = json.loads(best_config_path.read_text())

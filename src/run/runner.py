@@ -140,6 +140,8 @@ def run_boosting_experiment(
                 baseline_epochs=baseline_epochs,
             )
         )
+        from src.run.baseline import save_baseline_artifacts
+        save_baseline_artifacts(baseline_result, output.run_dir)
         key = baseline_result.key
 
         # 3. Initialize Ensemble
@@ -286,6 +288,17 @@ def run_boosting_experiment(
             except Exception as e:
                 print(f"[ARTIFACTS] Failed to save circuit artifact: {e}")
 
+        # Save final evaluation samples when available
+        if final_evaluation.final_ensemble_samples is not None:
+            samples_path = output.get_path('samples.npz')
+            kwargs = {
+                'final_ensemble_samples': final_evaluation.final_ensemble_samples,
+            }
+            if final_evaluation.per_model_samples:
+                kwargs['per_model_samples'] = np.stack(final_evaluation.per_model_samples)
+            np.savez_compressed(samples_path, **kwargs)
+            print(f"  Saved samples to {samples_path}")
+
         return {
             'final_stats': final_evaluation.final_stats,
             'ensemble_metrics_history': ensemble_metrics_history,
@@ -297,4 +310,6 @@ def run_boosting_experiment(
             'output_dir': str(output.run_dir),
             'weights': np.asarray(ensemble.weights, dtype=np.float64),
             'n_models_accepted': len(ensemble.models),
+            'final_ensemble_samples': final_evaluation.final_ensemble_samples,
+            'per_model_samples': final_evaluation.per_model_samples,
         }

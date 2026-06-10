@@ -10,7 +10,16 @@ from src.hpo.trial import HpoTrialContext, run_trial
 
 class FakeEnsemble:
     def save(self, path):
-        Path(path).write_text(json.dumps({"models": [], "weights": []}))
+        import json
+        np.savez_compressed(
+            path,
+            weights=np.array([1.0], dtype=np.float64),
+            model_0=np.zeros(4),
+            meta=json.dumps({
+                "sigma": 1.0, "n_ops": 16, "lambda_dual": 1.0,
+                "wires": None, "n_models": 1, "training_losses": [],
+            }),
+        )
 
 
 class FakeTrial:

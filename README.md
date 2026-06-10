@@ -144,11 +144,14 @@ and keep importance-sampling hyperparameters in their search spaces.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `study_name` | string | file stem | Optuna study name |
-| `n_trials` | int | 60 | Number of Optuna trials |
-| `sampler_seed` | int | 42 | RNG seed for TPESampler |
+| `n_trials` | int | 80 | Number of Optuna trials |
+| `n_jobs` | int | 16 | Parallel workers (spawns processes) |
+| `sampler` | string | `"gp"` | Optuna sampler (`gp` or `tpe`) |
+| `sampler_seed` | int | 42 | RNG seed for sampler |
+| `n_startup_trials` | int | 16 | Random trials before GP takes over |
 | `objective_metric` | string | `"tvd"` | Metric to optimize (`tvd`, `tvd_exact`, `test_mmd`) |
 | `direction` | string | `"minimize"` | Optuna direction (`minimize` or `maximize`) |
-| `storage` | string or null | `sqlite:///<hpo_dir>/study.db` | Optuna storage URL |
+| `storage` | string or null | `journal.log` (if `n_jobs>1`) | Optuna storage backend |
 | `output_dir` | string | `"out/hpo"` | Base output directory |
 | `dataset` | dict | **required** | Dataset spec with `name` and `params` |
 | `plot` | dict | `{}` | Plot config (e.g. `{"kind": "none"}`) |
@@ -233,23 +236,106 @@ After the best trial is found, the winning config can be re-run across multiple 
 seed retrain. Seed, baseline, sampling, and FCFW settings from `best_retrains`
 take precedence over `config_overrides`.
 
+### Parallel CPU Optimization
+
+When running HPO with `n_jobs > 1` on a multi-core CPU (e.g., AMD Ryzen AI MAX+ 395), set these environment variables before launching:
+
+```bash
+export XLA_FLAGS="--xla_cpu_max_isa=AVX512 --xla_cpu_enable_fast_math=true"
+export XLA_PYTHON_CLIENT_PREALLOCATE=false
+```
+
+- `xla_cpu_max_isa=AVX512`: Enables AVX-512 vectorization on Zen 5 CPUs.
+- `xla_cpu_enable_fast_math=true`: Unsafe math optimizations (trade tiny accuracy for speed).
+- `XLA_PYTHON_CLIENT_PREALLOCATE=false`: Prevents JAX from greedily grabbing memory; critical with many workers.
+
+**Memory scaling note:** The saved `.npz` files are small (polynomial in qubit count, not exponential). Runtime memory scales with `n_ops × n_qubits` per worker, but this is transient during training and not persisted. With `n_jobs=16` at 100q, total runtime memory is typically well under 1GB. Saved ensemble files remain small (~1-10MB) regardless of qubit count because only model parameters are stored, not the full `2^n` state space.
+
+### Inspecting HPO Results
+
+After a study completes, reconnect to the data programmatically:
+
+```python
+import optuna
+from pathlib import Path
+
+hpo_dir = Path("out/hpo/mnist_100q_1class_20260610_150000")
+storage = optuna.storages.JournalStorage(
+    optuna.storages.journal.JournalFileBackend(str(hpo_dir / "journal.log"))
+)
+study = optuna.create_study(study_name="mnist_100q_1class", storage=storage, load_if_exists=True)
+
+# Best trial
+print(study.best_trial.number, study.best_value, study.best_params)
+
+# All trials as DataFrame
+df = study.trials_dataframe()
+```
+
+Or use the JSON summary:
+
+```bash
+cat out/hpo/<study>_*/study_summary.json | jq '.best_trial, .best_value'
+```
+
+### Model Format (.npz)
+
+Ensembles are saved as compressed `.npz` files containing:
+
+- `weights`: `np.float64` array of mixture weights
+- `model_0`, `model_1`, ...: parameter arrays per model
+- `meta`: JSON string with `sigma`, `n_ops`, `lambda_dual`, `wires`, `n_models`, and `training_losses`
+
+Load a saved ensemble:
+
+```python
+from src.core import BoostedEnsemble
+ensemble = BoostedEnsemble.load("best_model.npz", iqp_circuit=circuit, n_samples=512)
+```
+
+**Note:** The old `.json` format is deprecated. `load()` will still read it but emits a `DeprecationWarning`.
+
+### Artifact Manifest (`retrain_artifacts.json`)
+
+After best-retrain completes, a manifest file is generated to make post-hoc discovery easier:
+
+```python
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("out/hpo/.../best_retrains/retrain_artifacts.json").read_text())
+for seed in manifest["seeds"]:
+    print(seed["seed"], seed["artifacts"]["ensemble"])
+```
+
+Each seed entry includes paths to `ensemble.npz`, `baseline_artifacts.npz`, `samples.npz`, `results.csv`, and `config.json`.
+
 ### HPO Output Structure
 
 ```
 out/hpo/<study_name>_<timestamp>/
     hpo_config.json           # copy of input config
-    study.db                  # Optuna SQLite database
+    journal.log               # Optuna JournalStorage (if n_jobs > 1)
     study_summary.json        # best trial summary
-    best_model.json           # best ensemble model
+    best_model.npz            # best ensemble model (compressed numpy)
     best_config.json          # best trial's full config
     best_hamming_balls_metrics.json  # (hamming_balls only)
     trials/                   # per-trial output directories
         trial_0000/
+            ensemble.npz          # model weights + training_losses
+            baseline_artifacts.npz  # baseline curves + params
+            config.json
+            results.csv
         trial_0001/
         ...
     best_retrains/            # (if best_retrains configured)
         summary.json
+        retrain_artifacts.json    # manifest of all per-seed artifact paths
         seed_000/
+            ensemble.npz
+            baseline_artifacts.npz
+            samples.npz         # final ensemble samples (when final_eval_sampling=true)
+            final_stats.json    # includes artifact paths
         seed_001/
         ...
     plots/                    # best-retrain comparison plots, when configured
