@@ -337,7 +337,7 @@ def test_mnist_hpo_configs_optimize_test_mmd_and_request_test_samples():
         assert spec["fixed_config"]["monitor_interval"] is None
         assert spec["fixed_config"]["compute_snr"] is False
         assert spec["fixed_config"]["clear_jax_caches"] is True
-        assert "n_ops" not in spec["fixed_config"]
+        assert spec["fixed_config"]["n_ops"] == 4096
         assert "sigma_heuristic" not in spec["fixed_config"]
         assert "n_models" not in spec["search_space"]
         assert spec["search_space"]["learning_rate"] == {
@@ -368,10 +368,7 @@ def test_mnist_hpo_configs_optimize_test_mmd_and_request_test_samples():
             "high": 10.0,
             "log": True,
         }
-        assert spec["search_space"]["n_ops"] == {
-            "type": "categorical",
-            "choices": [2048, 4096, 8192],
-        }
+        assert "n_ops" not in spec["search_space"]
         assert spec["best_retrains"] == {
             "n_seeds": 5,
             "seed_start": 0,

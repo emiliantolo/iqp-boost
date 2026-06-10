@@ -59,7 +59,8 @@
     "n_models": 10,
     "monitor_interval": null,
     "compute_snr": false,
-    "clear_jax_caches": true
+    "clear_jax_caches": true,
+    "n_ops": 4096
   },
   "search_space": {
     "learning_rate": {
@@ -92,14 +93,6 @@
       "low": 0.01,
       "high": 10.0,
       "log": true
-    },
-    "n_ops": {
-      "type": "categorical",
-      "choices": [
-        2048,
-        4096,
-        8192
-      ]
     }
   },
   "best_retrains": {

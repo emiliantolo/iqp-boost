@@ -74,7 +74,7 @@ def test_hamming_balls_hpo_configs_are_split_by_topology_and_not_duplicated_at_r
             assert search["sigma"]["type"] == "bodyness_sigma"
             assert search["sigma"]["n_sigmas_choices"] == [1, 2, 3]
             assert search["learning_rate"]["log"] is True
-            assert search["n_ops"]["choices"] == [512, 1024, 2048]
+            assert fixed["n_ops"] == 1024
             assert search["dynamic_is"] == {"type": "categorical", "choices": [False, True]}
             assert search["dynamic_is_beta"] == {
                 "type": "float",

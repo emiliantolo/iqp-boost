@@ -56,7 +56,8 @@
     },
     "monitor_interval": null,
     "compute_snr": false,
-    "clear_jax_caches": true
+    "clear_jax_caches": true,
+    "n_ops": 1024
   },
   "search_space": {
     "learning_rate": {
@@ -89,14 +90,6 @@
       "low": 0.01,
       "high": 10.0,
       "log": true
-    },
-    "n_ops": {
-      "type": "categorical",
-      "choices": [
-        512,
-        1024,
-        2048
-      ]
     },
     "sigma": {
       "type": "bodyness_sigma",

@@ -38,7 +38,7 @@ def _run_hpo_worker(config_path: str, n_trials: int, storage: str, study_name: s
     study = optuna.create_study(
         study_name=study_name,
         direction=direction,
-        sampler=optuna.samplers.TPESampler(seed=sampler_seed),
+        sampler=optuna.samplers.TPESampler(seed=sampler_seed, multivariate=True),
         pruner=optuna.pruners.NopPruner(),
         storage=storage,
         load_if_exists=True,
@@ -78,7 +78,7 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
     study = optuna.create_study(
         study_name=spec.study_name,
         direction=spec.direction,
-        sampler=optuna.samplers.TPESampler(seed=spec.sampler_seed),
+        sampler=optuna.samplers.TPESampler(seed=spec.sampler_seed, multivariate=True),
         pruner=optuna.pruners.NopPruner(),
         storage=storage,
         load_if_exists=True,
