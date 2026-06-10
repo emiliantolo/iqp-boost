@@ -1,6 +1,7 @@
 {
   "study_name": "hamming_balls_20q_k4_p012_local",
   "n_trials": 60,
+  "n_jobs": 8,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
   "objective_metric": "tvd_exact",
