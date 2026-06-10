@@ -44,7 +44,7 @@
     "keep_models_for_diagnosis": true,
     "stop_on_reject": false,
     "rng_seed": 42,
-    "turbo": 10,
+    "turbo": 32,
     "circuit_config": {
       "topology": "grid2d",
       "height": 5,
@@ -52,7 +52,10 @@
       "distance": 1,
       "max_weight": 2,
       "n_ancilla": 0
-    }
+    },
+    "monitor_interval": null,
+    "compute_snr": false,
+    "clear_jax_caches": true
   },
   "search_space": {
     "learning_rate": {
@@ -113,6 +116,12 @@
     "baseline": "standalone",
     "report_fcfw": true,
     "skip_sampling": true,
-    "final_eval_sampling": true
+    "final_eval_sampling": true,
+    "config_overrides": {
+      "turbo": 10,
+      "monitor_interval": 10,
+      "compute_snr": true,
+      "clear_jax_caches": true
+    }
   }
 }

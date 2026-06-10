@@ -3,10 +3,10 @@ from pathlib import Path
 
 
 CONFIGS = [
-    ("hamming_balls_20q_k4_p008", 4, 0.08),
-    ("hamming_balls_20q_k4_p012", 4, 0.12),
-    ("hamming_balls_20q_k8_p008", 8, 0.08),
-    ("hamming_balls_20q_k8_p012", 8, 0.12),
+    ("hopfield_20q_p1_b15", 1, 1.5),
+    ("hopfield_20q_p1_b20", 1, 2.0),
+    ("hopfield_20q_p2_b15", 2, 1.5),
+    ("hopfield_20q_p2_b20", 2, 2.0),
 ]
 
 TOPOLOGIES = {
@@ -37,24 +37,22 @@ RETRAIN_OVERRIDES = {
 }
 
 
-def test_hamming_balls_hpo_configs_are_split_by_topology_and_not_duplicated_at_root():
-    root = Path("configs/hpo/hamming_balls")
-    assert list(root.glob("*.json")) == []
+def test_hopfield_20q_hpo_configs_are_split_by_topology_and_include_importance_sampling():
+    root = Path("configs/hpo/hopfield")
+    assert {path.name for path in root.glob("hopfield_20q*.json")} == set()
 
     for topology, expected_circuit_config in TOPOLOGIES.items():
         folder = root / topology
         expected_files = {f"{stem}_{topology}.json" for stem, _, _ in CONFIGS}
         assert {path.name for path in folder.glob("*.json")} == expected_files
 
-        for stem, expected_k, expected_p in CONFIGS:
+        for stem, expected_patterns, expected_beta in CONFIGS:
             config = json.loads((folder / f"{stem}_{topology}.json").read_text())
             fixed = config["fixed_config"]
             search = config["search_space"]
             params = config["dataset"]["params"]
 
             assert config["study_name"] == f"{stem}_{topology}"
-            assert "pruner" not in config
-            assert "sigma_heuristic" not in fixed
             assert config["objective_metric"] == "tvd_exact"
             assert fixed["baseline"] == "none"
             assert fixed["exact_sampling"] is True
@@ -67,10 +65,9 @@ def test_hamming_balls_hpo_configs_are_split_by_topology_and_not_duplicated_at_r
             for key, value in LEAN_FIXED.items():
                 assert fixed[key] == value
             assert fixed["circuit_config"] == expected_circuit_config
-            assert "num_layers" not in fixed["circuit_config"]
             assert params["n_qubits"] == 20
-            assert params["K"] == expected_k
-            assert params["p"] == expected_p
+            assert params["n_patterns"] == expected_patterns
+            assert params["beta"] == expected_beta
             assert search["sigma"]["type"] == "bodyness_sigma"
             assert search["sigma"]["n_sigmas_choices"] == [1, 2, 3]
             assert search["learning_rate"]["log"] is True

@@ -74,19 +74,33 @@ uv run main.py --config configs/datasets/hamming_balls/hamming_balls_20q_K4_p008
 Optuna HPO configs live under `configs/hpo/` and use the HPO entrypoint:
 
 ```bash
-python3 -m src.hpo --config configs/hpo/hopfield/hopfield_20q_p1_b15.json
+python3 -m src.hpo --config configs/hpo/hopfield/heavy_hex/hopfield_20q_p1_b15_heavy_hex.json
 
 # or via uv
-uv run python3 -m src.hpo --config configs/hpo/hopfield/hopfield_20q_p1_b15.json
+uv run python3 -m src.hpo --config configs/hpo/hopfield/heavy_hex/hopfield_20q_p1_b15_heavy_hex.json
 ```
 
 Available HPO configs by dataset:
 
-**Hopfield:**
-- `configs/hpo/hopfield/hopfield_20q_p1_b15.json`
-- `configs/hpo/hopfield/hopfield_20q_p1_b20.json`
-- `configs/hpo/hopfield/hopfield_20q_p2_b15.json`
-- `configs/hpo/hopfield/hopfield_20q_p2_b20.json`
+**Hopfield (local topology):**
+- `configs/hpo/hopfield/local/hopfield_20q_p1_b15_local.json`
+- `configs/hpo/hopfield/local/hopfield_20q_p1_b20_local.json`
+- `configs/hpo/hopfield/local/hopfield_20q_p2_b15_local.json`
+- `configs/hpo/hopfield/local/hopfield_20q_p2_b20_local.json`
+
+**Hopfield (grid 2D topology):**
+- `configs/hpo/hopfield/grid_2d/hopfield_20q_p1_b15_grid_2d.json`
+- `configs/hpo/hopfield/grid_2d/hopfield_20q_p1_b20_grid_2d.json`
+- `configs/hpo/hopfield/grid_2d/hopfield_20q_p2_b15_grid_2d.json`
+- `configs/hpo/hopfield/grid_2d/hopfield_20q_p2_b20_grid_2d.json`
+
+**Hopfield (heavy hex topology):**
+- `configs/hpo/hopfield/heavy_hex/hopfield_20q_p1_b15_heavy_hex.json`
+- `configs/hpo/hopfield/heavy_hex/hopfield_20q_p1_b20_heavy_hex.json`
+- `configs/hpo/hopfield/heavy_hex/hopfield_20q_p2_b15_heavy_hex.json`
+- `configs/hpo/hopfield/heavy_hex/hopfield_20q_p2_b20_heavy_hex.json`
+
+**Hopfield (45q heavy hex):**
 - `configs/hpo/hopfield/hopfield_45q_p2_b15.json`
 - `configs/hpo/hopfield/hopfield_45q_p2_b20.json`
 - `configs/hpo/hopfield/hopfield_45q_p4_b15.json`
@@ -121,6 +135,9 @@ MNIST HPO configs optimize `test_mmd`, request held-out test samples, and keep
 `sigma` fixed as an explicit array. They run lean Optuna trials with diagnostic
 monitoring disabled, then restore monitoring during the final 5-seed best-config
 retraining pass.
+
+The 20q Hamming Balls and Hopfield HPO configs use the same lean trial pattern
+and keep importance-sampling hyperparameters in their search spaces.
 
 ### HPO Config Schema
 
