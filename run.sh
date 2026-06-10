@@ -13,8 +13,22 @@ run_and_commit() {
   name=$(basename "$config" .json)
   echo ">>> $name"
   uv run python3 -m src.hpo --config "$config"
-  git add -A
-  git commit -m "hpo: $name results"
+
+  # Find the latest study directory just created
+  local study_dir
+  study_dir=$(ls -td out/hpo/"${name}"_* 2>/dev/null | head -n 1)
+
+  if [ -n "$study_dir" ] && [ -d "$study_dir" ]; then
+    echo "  Committing plots from $study_dir"
+    # Find all plot files (pdf, png) in the study directory and add them
+    find "$study_dir" -type f \( -name "*.pdf" -o -name "*.png" \) -print0 | while IFS= read -r -d '' plot; do
+      git add "$plot"
+    done
+    git commit -m "hpo: $name plots" || echo "  No new plots to commit"
+  else
+    echo "  No study directory found, skipping commit"
+  fi
+
   git push
 }
 

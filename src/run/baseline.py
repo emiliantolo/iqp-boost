@@ -297,8 +297,9 @@ def _select_reference(
 
 def save_baseline_artifacts(result: BaselineResult, output_dir: Path) -> None:
     """Save baseline training curves and parameters for post-hoc analysis."""
+    stl = result.standalone_train_losses
     artifacts = {
-        "standalone_train_losses": np.array(result.standalone_train_losses or [], dtype=np.float64),
+        "standalone_train_losses": np.array(stl if stl is not None else [], dtype=np.float64),
     }
     if result.standalone_params is not None:
         artifacts["standalone_params"] = np.array(result.standalone_params)
