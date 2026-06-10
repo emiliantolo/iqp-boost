@@ -49,6 +49,7 @@ def run_trial(trial: optuna.Trial, context: HpoTrialContext) -> float:
         log_dir=str(context.hpo_dir),
         log_filename="hpo.log",
         append_log=True,
+        save_detailed_artifacts=False,
     )
     final_stats = result["final_stats"]
     metric_value = context.objective.final_value(final_stats, trial.number)

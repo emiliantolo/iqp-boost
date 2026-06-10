@@ -35,6 +35,7 @@ def run_boosting_experiment(
     log_filename: str = 'log.txt',
     append_log: bool = False,
     skip_plots: bool = True,
+    save_detailed_artifacts: bool = True,
 ):
     """Run a complete ensemble boosting experiment."""
     np.random.seed(config['rng_seed'])
@@ -140,8 +141,9 @@ def run_boosting_experiment(
                 baseline_epochs=baseline_epochs,
             )
         )
-        from src.run.baseline import save_baseline_artifacts
-        save_baseline_artifacts(baseline_result, output.run_dir)
+        if save_detailed_artifacts:
+            from src.run.baseline import save_baseline_artifacts
+            save_baseline_artifacts(baseline_result, output.run_dir)
         key = baseline_result.key
 
         # 3. Initialize Ensemble
@@ -225,6 +227,7 @@ def run_boosting_experiment(
                 metric_configs=metric_configs,
             ),
             skip_plots=skip_plots,
+            save_detailed_artifacts=save_detailed_artifacts,
         )
 
         # Custom Visualization -- always attempt if a viz callback is set.
@@ -289,7 +292,7 @@ def run_boosting_experiment(
                 print(f"[ARTIFACTS] Failed to save circuit artifact: {e}")
 
         # Save final evaluation samples when available
-        if final_evaluation.final_ensemble_samples is not None:
+        if save_detailed_artifacts and final_evaluation.final_ensemble_samples is not None:
             samples_path = output.get_path('samples.npz')
             kwargs = {
                 'final_ensemble_samples': final_evaluation.final_ensemble_samples,

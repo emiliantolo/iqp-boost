@@ -63,11 +63,11 @@ class FinalComparison:
     table_title: str
 
 
-def run_final_evaluation(context: FinalEvaluationContext, skip_plots: bool = True) -> FinalEvaluationResult:
+def run_final_evaluation(context: FinalEvaluationContext, skip_plots: bool = True, save_detailed_artifacts: bool = True) -> FinalEvaluationResult:
     """Produce final comparison metrics, plots, and CSV output for an experiment run."""
     result = build_final_result(context)
     comparison = build_comparison(context, result)
-    publish_final_outputs(context, result, comparison, skip_plots=skip_plots)
+    publish_final_outputs(context, result, comparison, skip_plots=skip_plots, save_detailed_artifacts=save_detailed_artifacts)
     if not skip_plots:
         _save_dataset_metrics(context, result)
     return result
@@ -95,10 +95,12 @@ def publish_final_outputs(
     result: FinalEvaluationResult,
     comparison: FinalComparison,
     skip_plots: bool = True,
+    save_detailed_artifacts: bool = True,
 ) -> None:
     _add_test_metrics(context, result)
     report_metrics_table(context.reference_stats, result.final_stats, comparison.model_rows, comparison.table_title)
-    _save_results_csv(context, result)
+    if save_detailed_artifacts:
+        _save_results_csv(context, result)
     if not skip_plots:
         _plot_final_progression(context)
 
