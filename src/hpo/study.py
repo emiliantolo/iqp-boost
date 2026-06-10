@@ -16,8 +16,23 @@ from src.hpo.trial import HpoTrialContext, run_trial
 from src.hpo.trial_config import deep_merge
 
 
+def _make_sampler(spec):
+    """Build an Optuna sampler from the HPO spec."""
+    if spec.sampler == "tpe":
+        return optuna.samplers.TPESampler(
+            seed=spec.sampler_seed,
+            multivariate=True,
+            n_startup_trials=spec.n_startup_trials,
+        )
+    return optuna.samplers.GPSampler(
+        seed=spec.sampler_seed,
+        n_startup_trials=spec.n_startup_trials,
+    )
+
+
 def _run_hpo_worker(config_path: str, n_trials: int, storage: str, study_name: str,
-                     direction: str, sampler_seed: int, hpo_dir: str, trials_dir: str) -> None:
+                     direction: str, sampler_seed: int, sampler_name: str, n_startup_trials: int,
+                     hpo_dir: str, trials_dir: str) -> None:
     """Self-contained worker that re-connects to the shared study and runs trials.
 
     This function is designed to be called inside a fresh ``spawn``-ed process
@@ -35,17 +50,23 @@ def _run_hpo_worker(config_path: str, n_trials: int, storage: str, study_name: s
     base_config = deep_merge(DEFAULT_RUN_CONFIG, spec.fixed_config)
     objective_spec = spec.objective
 
+    # Reconstruct sampler in the worker
+    if sampler_name == "tpe":
+        sampler = optuna.samplers.TPESampler(
+            seed=sampler_seed,
+            multivariate=True,
+            n_startup_trials=n_startup_trials,
+        )
+    else:
+        sampler = optuna.samplers.GPSampler(
+            seed=sampler_seed,
+            n_startup_trials=n_startup_trials,
+        )
+
     study = optuna.create_study(
         study_name=study_name,
         direction=direction,
-        sampler=optuna.samplers.TPESampler(
-            seed=sampler_seed,
-            multivariate=True,
-            constant_liar=spec.constant_liar,
-            group=spec.group,
-            n_ei_candidates=spec.n_ei_candidates,
-            n_startup_trials=spec.n_startup_trials,
-        ),
+        sampler=sampler,
         pruner=optuna.pruners.NopPruner(),
         storage=storage,
         load_if_exists=True,
@@ -78,21 +99,19 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
 
     storage = spec.storage
     if storage is None:
-        storage = f"sqlite:///{hpo_dir / 'study.db'}"
+        if spec.n_jobs > 1:
+            storage = optuna.storages.JournalStorage(
+                optuna.storages.journal.JournalFileBackend(str(hpo_dir / "journal.log"))
+            )
+        else:
+            storage = f"sqlite:///{hpo_dir / 'study.db'}"
 
     base_config = deep_merge(DEFAULT_RUN_CONFIG, spec.fixed_config)
 
     study = optuna.create_study(
         study_name=spec.study_name,
         direction=spec.direction,
-        sampler=optuna.samplers.TPESampler(
-            seed=spec.sampler_seed,
-            multivariate=True,
-            constant_liar=spec.constant_liar,
-            group=spec.group,
-            n_ei_candidates=spec.n_ei_candidates,
-            n_startup_trials=spec.n_startup_trials,
-        ),
+        sampler=_make_sampler(spec),
         pruner=optuna.pruners.NopPruner(),
         storage=storage,
         load_if_exists=True,
@@ -127,6 +146,8 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
                     spec.study_name,
                     spec.direction,
                     spec.sampler_seed,
+                    spec.sampler,
+                    spec.n_startup_trials,
                     str(hpo_dir),
                     str(trials_dir),
                 ),

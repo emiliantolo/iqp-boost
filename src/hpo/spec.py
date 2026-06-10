@@ -14,11 +14,9 @@ ALLOWED_TOP_LEVEL_KEYS = {
     "study_name",
     "n_trials",
     "n_jobs",
+    "sampler",
     "sampler_seed",
     "n_startup_trials",
-    "n_ei_candidates",
-    "constant_liar",
-    "group",
     "objective_metric",
     "direction",
     "storage",
@@ -48,11 +46,9 @@ class HpoSpec:
     study_name: str
     n_trials: int
     n_jobs: int
+    sampler: str
     sampler_seed: int
     n_startup_trials: int
-    n_ei_candidates: int
-    constant_liar: bool
-    group: bool
     objective: ObjectiveSpec
     output_base: Path
     storage: str | None
@@ -69,17 +65,19 @@ def load_hpo_spec(path: Path) -> HpoSpec:
     """Load, validate, and resolve a JSON or TOML HPO spec."""
     raw = _load_raw_config(path)
     _validate_hpo_spec(raw)
+    sampler = str(raw.get("sampler", "gp")).lower()
+    if sampler not in {"tpe", "gp"}:
+        raise ValueError(f"Unsupported sampler: {sampler!r}. Use 'tpe' or 'gp'.")
+
     return HpoSpec(
         raw=raw,
         config_path=path,
         study_name=str(raw.get("study_name", path.stem)),
         n_trials=int(raw.get("n_trials", 60)),
         n_jobs=int(raw.get("n_jobs", 1)),
+        sampler=sampler,
         sampler_seed=int(raw.get("sampler_seed", 42)),
         n_startup_trials=int(raw.get("n_startup_trials", 16)),
-        n_ei_candidates=int(raw.get("n_ei_candidates", 48)),
-        constant_liar=bool(raw.get("constant_liar", True)),
-        group=bool(raw.get("group", True)),
         objective=resolve_objective_spec(raw),
         output_base=Path(raw.get("output_dir", "out/hpo")),
         storage=raw.get("storage"),

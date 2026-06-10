@@ -1,7 +1,7 @@
 {
   "study_name": "hamming_balls_20q_k4_p012_grid_2d",
   "n_trials": 80,
-  "n_jobs": 4,
+  "n_jobs": 16,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
   "objective_metric": "tvd_exact",
@@ -118,8 +118,6 @@
       "clear_jax_caches": true
     }
   },
-  "constant_liar": true,
-  "group": true,
-  "n_ei_candidates": 48,
-  "n_startup_trials": 16
+  "n_startup_trials": 16,
+  "sampler": "gp"
 }
