@@ -1,0 +1,240 @@
+{
+  "study_name": "hamming_balls_20q_k4_p008_heavy_hex",
+  "best_trial": 67,
+  "objective_metric": "tvd_exact",
+  "best_value": 0.31615137308199215,
+  "best_params": {
+    "learning_rate": 0.012372930398979536,
+    "dynamic_is": true,
+    "dynamic_is_beta": 0.031024404795969174,
+    "lambda_schedule.gamma": 0.9735066608555298,
+    "lambda_schedule.tau": 0.8485122921981919,
+    "sigma.n_sigmas": 3,
+    "sigma.bodyness_raw_0": 0.16702671096981397,
+    "sigma.bodyness_raw_1": 0.7851759613930136,
+    "sigma.bodyness_raw_2": 0.19967378215835974
+  },
+  "best_user_attrs": {
+    "sampled_config": {
+      "learning_rate": 0.012372930398979536,
+      "dynamic_is": true,
+      "dynamic_is_beta": 0.031024404795969174,
+      "lambda_schedule.gamma": 0.9735066608555298,
+      "lambda_schedule.tau": 0.8485122921981919,
+      "sigma.n_sigmas": 3,
+      "sigma.bodyness_targets": [
+        1.5689709502068094,
+        3.2779122058135024,
+        8.525126152915288
+      ],
+      "sigma.values": [
+        1.7116350391468296,
+        1.1219871174942946,
+        0.5111079098128691
+      ]
+    },
+    "final_stats": {
+      "mmd": 0.003302505239844322,
+      "kl": 9.470577075552207,
+      "jsd": 0.5736853720271164,
+      "tvd": 0.5901703197111985,
+      "validity": NaN,
+      "coverage": NaN,
+      "precision": NaN,
+      "recall": NaN,
+      "support_match": NaN,
+      "f_score": NaN,
+      "corr_fro": 2.093041069789109,
+      "kl_exact": 0.4129722574834779,
+      "jsd_exact": 0.32377396773356026,
+      "tvd_exact": 0.31615137308199215
+    },
+    "output_dir": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/trials/trial_0067",
+    "model_path": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/trials/trial_0067/ensemble.json",
+    "n_models_accepted": 10,
+    "weights": [
+      0.09345203017456574,
+      0.10397210096329587,
+      0.10250300237162328,
+      0.10155843141998669,
+      0.10086407837316079,
+      0.1003159300348996,
+      0.0998635553270646,
+      0.09947872378199782,
+      0.0991440543620388,
+      0.09884809319136695
+    ],
+    "ensemble_fcfw_weights": [
+      5.068060279616526e-19,
+      0.030061975212840045,
+      0.09695051011049535,
+      0.07279038463471992,
+      0.06502344762619429,
+      0.07413498240123342,
+      0.16646517996716842,
+      0.1793840205607441,
+      0.1635982772731547,
+      0.15159122221344973
+    ]
+  },
+  "best_model_path": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/best_model.json",
+  "best_config_path": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/best_config.json",
+  "config_path": "configs/hpo/hamming_balls/heavy_hex/hamming_balls_20q_k4_p008_heavy_hex.json",
+  "hamming_balls_metrics": {
+    "ensemble": {
+      "recall_distance": 2.382,
+      "coverage": 1.0,
+      "per_center_coverage": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "per_center_hit_counts": [
+        231,
+        143,
+        190,
+        175
+      ],
+      "mean_distance_to_nearest_center": 2.382,
+      "median_distance_to_nearest_center": 2.0
+    },
+    "ensemble_fcfw": {
+      "recall_distance": 1.739,
+      "coverage": 1.0,
+      "per_center_coverage": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "per_center_hit_counts": [
+        229,
+        215,
+        232,
+        205
+      ],
+      "mean_distance_to_nearest_center": 1.739,
+      "median_distance_to_nearest_center": 1.0
+    }
+  },
+  "best_retrains": {
+    "summary_path": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/best_retrains/summary.json",
+    "aggregates": {
+      "final_stats": {
+        "corr_fro": {
+          "mean": 1.5110997731112246,
+          "std": 0.23312398746929733
+        },
+        "jsd": {
+          "mean": 0.577085702167574,
+          "std": 0.00795405349653805
+        },
+        "jsd_exact": {
+          "mean": 0.35068874527485555,
+          "std": 0.015343774444076672
+        },
+        "kl": {
+          "mean": 9.750324491536391,
+          "std": 0.22866511121575964
+        },
+        "kl_exact": {
+          "mean": 0.5204385117024523,
+          "std": 0.06227627041359576
+        },
+        "mmd": {
+          "mean": 0.0023475805918375652,
+          "std": 0.0008523469734159416
+        },
+        "tvd": {
+          "mean": 0.5883907455623816,
+          "std": 0.015924870400655634
+        },
+        "tvd_exact": {
+          "mean": 0.3452816792675913,
+          "std": 0.017657124013193394
+        }
+      },
+      "baseline_stats": {
+        "corr_fro": {
+          "mean": 6.671348804622683,
+          "std": 0.05926844953745751
+        },
+        "jsd": {
+          "mean": 0.8110397524056843,
+          "std": 0.0016541496922921166
+        },
+        "jsd_exact": {
+          "mean": 0.7357570968474144,
+          "std": 0.0015358816687646422
+        },
+        "kl": {
+          "mean": 20.103679800757376,
+          "std": 0.8845975651767775
+        },
+        "kl_exact": {
+          "mean": 4.675523566782231,
+          "std": 0.02649225688380552
+        },
+        "mmd": {
+          "mean": 0.038996853927771254,
+          "std": 0.0013666702550155947
+        },
+        "training_loss": {
+          "mean": 0.04071446655713506,
+          "std": 0.001185130642885244
+        },
+        "tvd": {
+          "mean": 0.9745267450932885,
+          "std": 0.0022474143837480933
+        },
+        "tvd_exact": {
+          "mean": 0.8821276434935053,
+          "std": 0.001996353426274604
+        }
+      },
+      "ensemble_fcfw_stats": {
+        "corr_fro": {
+          "mean": 0.8297471908005826,
+          "std": 0.12429808456181655
+        },
+        "jsd": {
+          "mean": 0.5385070272345884,
+          "std": 0.005405212306105735
+        },
+        "jsd_exact": {
+          "mean": 0.3012143836014754,
+          "std": 0.022793635596068177
+        },
+        "kl": {
+          "mean": 9.289795236338113,
+          "std": 0.24505451130983144
+        },
+        "kl_exact": {
+          "mean": 0.46041511204186103,
+          "std": 0.09540321781211512
+        },
+        "mmd": {
+          "mean": -0.00012777000665664673,
+          "std": 0.0002108683986545009
+        },
+        "tvd": {
+          "mean": 0.537859738925014,
+          "std": 0.01206375858260533
+        },
+        "tvd_exact": {
+          "mean": 0.29241056359380047,
+          "std": 0.019217655255405367
+        }
+      }
+    },
+    "plots": {
+      "metrics_comparison_pdf": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/plots/metrics_comparison.pdf",
+      "metrics_comparison_png": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/plots/metrics_comparison.png",
+      "metric_trends_pdf": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/plots/metric_trends.pdf",
+      "metric_trends_png": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/plots/metric_trends.png",
+      "weight_distribution_pdf": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/plots/weight_distribution.pdf",
+      "weight_distribution_png": "out/hpo/hamming_balls_20q_k4_p008_heavy_hex_20260610_142450/plots/weight_distribution.png"
+    }
+  }
+}
