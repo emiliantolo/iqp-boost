@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import multiprocessing
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean, pstdev
@@ -28,6 +29,7 @@ class BestRetrainSpec:
     final_eval_sampling: bool = True
     output_subdir: str = "best_retrains"
     config_overrides: dict[str, Any] | None = None
+    n_jobs: int = 1
 
 
 def json_default(obj):
@@ -43,6 +45,8 @@ def resolve_best_retrain_spec(hpo_spec: dict) -> BestRetrainSpec | None:
     retrain_spec = hpo_spec.get("best_retrains")
     if retrain_spec is None:
         return None
+    # n_jobs can be overridden inside best_retrains; fall back to top-level n_jobs.
+    top_n_jobs = int(hpo_spec.get("n_jobs", 1))
     return BestRetrainSpec(
         dataset_spec=hpo_spec["dataset"],
         plot_spec=hpo_spec.get("plot", {"kind": "none"}),
@@ -54,7 +58,77 @@ def resolve_best_retrain_spec(hpo_spec: dict) -> BestRetrainSpec | None:
         final_eval_sampling=bool(retrain_spec.get("final_eval_sampling", True)),
         output_subdir=retrain_spec.get("output_subdir", "best_retrains"),
         config_overrides=copy.deepcopy(retrain_spec.get("config_overrides", {})),
+        n_jobs=int(retrain_spec.get("n_jobs", top_n_jobs)),
     )
+
+
+def _run_single_retrain(
+    run_config: dict,
+    seed_idx: int,
+    seed: int,
+    dataset_spec: dict,
+    plot_spec: dict,
+    output_dir: str,
+    hpo_dir: str,
+    log_filename: str,
+    baseline: str,
+    report_fcfw: bool,
+    skip_sampling: bool,
+    final_eval_sampling: bool,
+) -> dict:
+    """Self-contained retrain worker intended for ``spawn``-ed processes.
+
+    Each worker runs a single seed end-to-end, saves the model, and returns a
+    JSON-serializable payload.  JAX is isolated per-process so there is no
+    risk of compilation-cache corruption.
+    """
+    run_config["rng_seed"] = seed
+    run_config["data_seed"] = seed
+    run_config["baseline"] = baseline
+    run_config["report_fcfw"] = report_fcfw
+    run_config["skip_sampling"] = skip_sampling
+    run_config["final_eval_sampling"] = final_eval_sampling
+
+    bundle = build_dataset_bundle(
+        dataset_spec=dataset_spec,
+        config=run_config,
+        plot_spec=plot_spec,
+    )
+    run_name = f"seed_{seed_idx:03d}"
+    result = run_boosting_experiment(
+        config=run_config,
+        dataset=bundle,
+        dataset_spec=dataset_spec,
+        output_base_dir=output_dir,
+        run_name=run_name,
+        log_dir=hpo_dir,
+        log_filename=log_filename,
+        append_log=True,
+        skip_plots=False,
+    )
+    run_dir = Path(result["output_dir"])
+    model_path = run_dir / "ensemble.json"
+    result["ensemble"].save(str(model_path))
+    final_stats = result["final_stats"]
+    fcfw_stats = result.get("ensemble_fcfw_stats")
+    payload = {
+        "seed_index": seed_idx,
+        "seed": seed,
+        "run_dir": str(run_dir),
+        "model_path": str(model_path),
+        "final_stats": final_stats,
+        "baseline_stats": result.get("baseline_stats"),
+        "ensemble_fcfw_stats": fcfw_stats,
+        "n_models_accepted": int(result["n_models_accepted"]),
+        "weights": np.asarray(result["weights"], dtype=np.float64).tolist(),
+    }
+    fcfw_weights = result.get("ensemble_fcfw_weights")
+    if fcfw_weights is not None:
+        payload["ensemble_fcfw_weights"] = np.asarray(fcfw_weights, dtype=np.float64).tolist()
+    (run_dir / "final_stats.json").write_text(
+        json.dumps(payload, indent=2, default=json_default)
+    )
+    return payload
 
 
 def run_best_retrains(
@@ -72,55 +146,55 @@ def run_best_retrains(
 
     best_config = json.loads(best_config_path.read_text())
     per_seed = []
-    for seed_idx in range(spec.n_seeds):
-        seed = spec.seed_start + seed_idx
-        run_config = copy.deepcopy(best_config)
-        run_config = _deep_merge(run_config, spec.config_overrides or {})
-        run_config["rng_seed"] = seed
-        run_config["data_seed"] = seed
-        run_config["baseline"] = spec.baseline
-        run_config["report_fcfw"] = spec.report_fcfw
-        run_config["skip_sampling"] = spec.skip_sampling
-        run_config["final_eval_sampling"] = spec.final_eval_sampling
 
-        bundle = build_dataset_bundle(
-            dataset_spec=spec.dataset_spec,
-            config=run_config,
-            plot_spec=spec.plot_spec,
-        )
-        run_name = f"seed_{seed_idx:03d}"
-        result = run_boosting_experiment(
-            config=run_config,
-            dataset=bundle,
-            dataset_spec=spec.dataset_spec,
-            output_base_dir=str(output_dir),
-            run_name=run_name,
-            log_dir=str(hpo_dir),
-            log_filename="best_retrains.log",
-            append_log=True,
-            skip_plots=False,
-        )
-        run_dir = Path(result["output_dir"])
-        model_path = run_dir / "ensemble.json"
-        result["ensemble"].save(str(model_path))
-        final_stats = result["final_stats"]
-        fcfw_stats = result.get("ensemble_fcfw_stats")
-        payload = {
-            "seed_index": seed_idx,
-            "seed": seed,
-            "run_dir": str(run_dir),
-            "model_path": str(model_path),
-            "final_stats": final_stats,
-            "baseline_stats": result.get("baseline_stats"),
-            "ensemble_fcfw_stats": fcfw_stats,
-            "n_models_accepted": int(result["n_models_accepted"]),
-            "weights": np.asarray(result["weights"], dtype=np.float64).tolist(),
-        }
-        fcfw_weights = result.get("ensemble_fcfw_weights")
-        if fcfw_weights is not None:
-            payload["ensemble_fcfw_weights"] = np.asarray(fcfw_weights, dtype=np.float64).tolist()
-        (run_dir / "final_stats.json").write_text(json.dumps(payload, indent=2, default=json_default))
-        per_seed.append(payload)
+    if spec.n_jobs > 1:
+        print(f"[Best retrains] Running {spec.n_seeds} seeds across {spec.n_jobs} workers")
+        # Build argument list for starmap.
+        args_list = []
+        for seed_idx in range(spec.n_seeds):
+            seed = spec.seed_start + seed_idx
+            run_config = copy.deepcopy(best_config)
+            run_config = _deep_merge(run_config, spec.config_overrides or {})
+            args_list.append(
+                (
+                    run_config,
+                    seed_idx,
+                    seed,
+                    spec.dataset_spec,
+                    spec.plot_spec,
+                    str(output_dir),
+                    str(hpo_dir),
+                    "best_retrains.log",
+                    spec.baseline,
+                    spec.report_fcfw,
+                    spec.skip_sampling,
+                    spec.final_eval_sampling,
+                )
+            )
+
+        ctx = multiprocessing.get_context("spawn")
+        with ctx.Pool(spec.n_jobs) as pool:
+            per_seed = pool.starmap(_run_single_retrain, args_list)
+    else:
+        for seed_idx in range(spec.n_seeds):
+            seed = spec.seed_start + seed_idx
+            run_config = copy.deepcopy(best_config)
+            run_config = _deep_merge(run_config, spec.config_overrides or {})
+            payload = _run_single_retrain(
+                run_config,
+                seed_idx,
+                seed,
+                spec.dataset_spec,
+                spec.plot_spec,
+                str(output_dir),
+                str(hpo_dir),
+                "best_retrains.log",
+                spec.baseline,
+                spec.report_fcfw,
+                spec.skip_sampling,
+                spec.final_eval_sampling,
+            )
+            per_seed.append(payload)
 
     summary = {
         "n_seeds": spec.n_seeds,

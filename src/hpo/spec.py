@@ -13,6 +13,7 @@ from src.hpo.objective import ObjectiveSpec, resolve_objective_spec
 ALLOWED_TOP_LEVEL_KEYS = {
     "study_name",
     "n_trials",
+    "n_jobs",
     "sampler_seed",
     "objective_metric",
     "direction",
@@ -42,6 +43,7 @@ class HpoSpec:
     config_path: Path
     study_name: str
     n_trials: int
+    n_jobs: int
     sampler_seed: int
     objective: ObjectiveSpec
     output_base: Path
@@ -64,6 +66,7 @@ def load_hpo_spec(path: Path) -> HpoSpec:
         config_path=path,
         study_name=str(raw.get("study_name", path.stem)),
         n_trials=int(raw.get("n_trials", 60)),
+        n_jobs=int(raw.get("n_jobs", 1)),
         sampler_seed=int(raw.get("sampler_seed", 42)),
         objective=resolve_objective_spec(raw),
         output_base=Path(raw.get("output_dir", "out/hpo")),

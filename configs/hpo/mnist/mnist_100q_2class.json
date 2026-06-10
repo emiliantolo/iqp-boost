@@ -1,6 +1,7 @@
 {
   "study_name": "mnist_100q_2class",
   "n_trials": 60,
+  "n_jobs": 8,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
   "objective_metric": "test_mmd",
