@@ -1,9 +1,0 @@
-{
-    "dataset": "hopfield",
-    "final_ensemble": {
-        "energy_mean": -8.148399999999992,
-        "energy_std": 2.034870374249921,
-        "pattern_proximity": 4.303999900817871,
-        "pattern_coverage": 1.0
-    }
-}

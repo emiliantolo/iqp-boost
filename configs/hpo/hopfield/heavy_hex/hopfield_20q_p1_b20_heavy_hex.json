@@ -1,6 +1,6 @@
 {
   "study_name": "hopfield_20q_p1_b20_heavy_hex",
-  "n_trials": 60,
+  "n_trials": 80,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
   "objective_metric": "tvd_exact",
@@ -112,5 +112,10 @@
       "compute_snr": true,
       "clear_jax_caches": true
     }
-  }
+  },
+  "n_jobs": 4,
+  "constant_liar": true,
+  "group": true,
+  "n_ei_candidates": 48,
+  "n_startup_trials": 16
 }

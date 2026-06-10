@@ -1,7 +1,0 @@
-{
-    "dataset": "hamming_balls",
-    "final_ensemble": {
-        "recall_distance": 2.9100000858306885,
-        "coverage": 0.286
-    }
-}

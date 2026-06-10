@@ -1,6 +1,6 @@
 {
   "study_name": "hopfield_45q_p2_b15",
-  "n_trials": 60,
+  "n_trials": 80,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
   "dataset": {
@@ -77,5 +77,10 @@
       "log": true
     }
   },
-  "objective_metric": "test_mmd"
+  "objective_metric": "test_mmd",
+  "n_jobs": 4,
+  "constant_liar": true,
+  "group": true,
+  "n_ei_candidates": 48,
+  "n_startup_trials": 16
 }
