@@ -121,6 +121,56 @@ def test_run_best_retrains_writes_seed_artifacts_and_aggregates(monkeypatch, tmp
     assert summary["aggregates"]["ensemble_fcfw_stats"]["tvd"]["mean"] == pytest.approx(2.05)
 
 
+def test_run_best_retrains_caps_parallel_workers(monkeypatch, tmp_path):
+    pool_sizes = []
+
+    class FakePool:
+        def __init__(self, size):
+            pool_sizes.append(size)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return False
+
+        def starmap(self, fn, args_list):
+            return [
+                {
+                    "seed_index": args[1],
+                    "seed": args[2],
+                    "run_dir": str(tmp_path / "best_retrains" / f"seed_{args[1]:03d}"),
+                    "model_path": "model.npz",
+                    "final_stats": {"mmd": float(args[1])},
+                    "baseline_stats": None,
+                    "ensemble_fcfw_stats": None,
+                    "n_models_accepted": 1,
+                    "weights": [1.0],
+                    "artifacts": {},
+                }
+                for args in args_list
+            ]
+
+    class FakeContext:
+        Pool = FakePool
+
+    monkeypatch.setattr("src.hpo.best_retrains.multiprocessing.get_context", lambda name: FakeContext())
+
+    best_config_path = tmp_path / "best_config.json"
+    best_config_path.write_text(json.dumps({"rng_seed": 42}))
+    spec = resolve_best_retrain_spec(
+        {
+            "n_jobs": 16,
+            "dataset": {"name": "hamming_balls", "params": {"n_qubits": 4}},
+            "best_retrains": {"n_seeds": 5, "n_jobs": 16},
+        }
+    )
+
+    run_best_retrains(spec, best_config_path, tmp_path)
+
+    assert pool_sizes == [5]
+
+
 def test_resolve_best_retrain_spec_returns_none_without_config():
     assert resolve_best_retrain_spec({"dataset": {"name": "hamming_balls"}}) is None
 
@@ -143,6 +193,7 @@ def test_resolve_best_retrain_spec_applies_defaults():
     assert spec.final_eval_sampling is True
     assert spec.output_subdir == "best_retrains"
     assert spec.config_overrides == {}
+    assert spec.n_jobs == 1
 
 
 def test_run_best_retrains_skips_missing_best_config(tmp_path):

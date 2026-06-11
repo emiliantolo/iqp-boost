@@ -45,8 +45,8 @@ def resolve_best_retrain_spec(hpo_spec: dict) -> BestRetrainSpec | None:
     retrain_spec = hpo_spec.get("best_retrains")
     if retrain_spec is None:
         return None
-    # n_jobs can be overridden inside best_retrains; fall back to top-level n_jobs.
-    top_n_jobs = int(hpo_spec.get("n_jobs", 1))
+    # Best retrains run after HPO finalization and can involve JAX-heavy
+    # shutdown paths. Keep them sequential unless explicitly configured.
     return BestRetrainSpec(
         dataset_spec=hpo_spec["dataset"],
         plot_spec=hpo_spec.get("plot", {"kind": "none"}),
@@ -58,7 +58,7 @@ def resolve_best_retrain_spec(hpo_spec: dict) -> BestRetrainSpec | None:
         final_eval_sampling=bool(retrain_spec.get("final_eval_sampling", True)),
         output_subdir=retrain_spec.get("output_subdir", "best_retrains"),
         config_overrides=copy.deepcopy(retrain_spec.get("config_overrides", {})),
-        n_jobs=int(retrain_spec.get("n_jobs", top_n_jobs)),
+        n_jobs=int(retrain_spec.get("n_jobs", 1)),
     )
 
 
@@ -158,8 +158,9 @@ def run_best_retrains(
     best_config = json.loads(best_config_path.read_text())
     per_seed = []
 
-    if spec.n_jobs > 1:
-        print(f"[Best retrains] Running {spec.n_seeds} seeds across {spec.n_jobs} workers")
+    n_workers = min(spec.n_jobs, spec.n_seeds)
+    if n_workers > 1:
+        print(f"[Best retrains] Running {spec.n_seeds} seeds across {n_workers} workers")
         # Build argument list for starmap.
         args_list = []
         for seed_idx in range(spec.n_seeds):
@@ -184,7 +185,7 @@ def run_best_retrains(
             )
 
         ctx = multiprocessing.get_context("spawn")
-        with ctx.Pool(spec.n_jobs) as pool:
+        with ctx.Pool(n_workers) as pool:
             per_seed = pool.starmap(_run_single_retrain, args_list)
     else:
         for seed_idx in range(spec.n_seeds):

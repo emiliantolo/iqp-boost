@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import math
 import multiprocessing
-from datetime import datetime
 from pathlib import Path
 
 import optuna
@@ -16,23 +14,38 @@ from src.hpo.trial import HpoTrialContext, run_trial
 from src.hpo.trial_config import deep_merge
 
 
-def _make_sampler(spec):
-    """Build an Optuna sampler from the HPO spec."""
-    if spec.sampler == "tpe":
+def _make_sampler_from_settings(sampler_name: str, sampler_seed: int, n_startup_trials: int):
+    """Build an Optuna sampler from explicit HPO sampler settings."""
+    if sampler_name == "tpe":
         return optuna.samplers.TPESampler(
-            seed=spec.sampler_seed,
+            seed=sampler_seed,
             multivariate=True,
-            n_startup_trials=spec.n_startup_trials,
+            n_startup_trials=n_startup_trials,
         )
     return optuna.samplers.GPSampler(
-        seed=spec.sampler_seed,
-        n_startup_trials=spec.n_startup_trials,
+        seed=sampler_seed,
+        n_startup_trials=n_startup_trials,
     )
+
+
+def _make_sampler(spec):
+    """Build an Optuna sampler from the HPO spec."""
+    return _make_sampler_from_settings(spec.sampler, spec.sampler_seed, spec.n_startup_trials)
+
+
+def _worker_sampler_seed(sampler_seed: int, worker_idx: int) -> int:
+    """Derive a deterministic, distinct sampler seed for one parallel worker."""
+    return int(sampler_seed) + int(worker_idx)
+
+
+def _completed_trial_count(study: optuna.study.Study) -> int:
+    """Count completed trials in a study."""
+    return sum(1 for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE)
 
 
 def _run_hpo_worker(config_path: str, n_trials: int, storage: str, study_name: str,
                      direction: str, sampler_seed: int, sampler_name: str, n_startup_trials: int,
-                     hpo_dir: str, trials_dir: str) -> None:
+                     hpo_dir: str, trials_dir: str, worker_idx: int = 0) -> None:
     """Self-contained worker that re-connects to the shared study and runs trials.
 
     This function is designed to be called inside a fresh ``spawn``-ed process
@@ -50,18 +63,13 @@ def _run_hpo_worker(config_path: str, n_trials: int, storage: str, study_name: s
     base_config = deep_merge(DEFAULT_RUN_CONFIG, spec.fixed_config)
     objective_spec = spec.objective
 
-    # Reconstruct sampler in the worker
-    if sampler_name == "tpe":
-        sampler = optuna.samplers.TPESampler(
-            seed=sampler_seed,
-            multivariate=True,
-            n_startup_trials=n_startup_trials,
-        )
-    else:
-        sampler = optuna.samplers.GPSampler(
-            seed=sampler_seed,
-            n_startup_trials=n_startup_trials,
-        )
+    # Each spawned process has its own sampler.  If every worker reuses the
+    # same seed, their startup/random suggestions are identical.
+    sampler = _make_sampler_from_settings(
+        sampler_name,
+        _worker_sampler_seed(sampler_seed, worker_idx),
+        n_startup_trials,
+    )
 
     study = optuna.create_study(
         study_name=study_name,
@@ -92,8 +100,7 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
     spec = load_hpo_spec(config_path)
     objective_spec = spec.objective
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    hpo_dir = spec.output_base / f"{spec.study_name}_{timestamp}"
+    hpo_dir = spec.output_base / f"{spec.study_name}"
     trials_dir = hpo_dir / "trials"
     trials_dir.mkdir(parents=True, exist_ok=True)
 
@@ -118,7 +125,17 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
     )
 
     n_jobs = spec.n_jobs
-    n_trials = spec.n_trials
+    target_completed_trials = spec.n_trials
+    completed_trials = _completed_trial_count(study)
+    n_trials = max(0, target_completed_trials - completed_trials)
+
+    if n_trials == 0:
+        print(
+            f"[HPO] Study already has {completed_trials} completed trial(s); "
+            f"target is {target_completed_trials}. Skipping optimization."
+        )
+        if (hpo_dir / "study_summary.json").exists():
+            return study
 
     if n_jobs > 1:
         # Distribute trials across workers.  Give the first *remainder* workers
@@ -150,6 +167,7 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
                     spec.n_startup_trials,
                     str(hpo_dir),
                     str(trials_dir),
+                    worker_idx,
                 ),
             )
             p.start()
@@ -157,6 +175,10 @@ def run_hpo(config_path: Path) -> optuna.study.Study:
 
         for p in processes:
             p.join()
+
+        failed_exitcodes = [p.exitcode for p in processes if p.exitcode != 0]
+        if failed_exitcodes:
+            raise RuntimeError(f"{len(failed_exitcodes)} HPO worker(s) failed with exit codes: {failed_exitcodes}")
     else:
         trial_context = HpoTrialContext(
             base_config=base_config,
