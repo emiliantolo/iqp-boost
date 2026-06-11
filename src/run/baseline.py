@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import json
+
 import iqpopt as iqp
 import jax
 import numpy as np

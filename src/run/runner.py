@@ -298,7 +298,8 @@ def run_boosting_experiment(
                 'final_ensemble_samples': final_evaluation.final_ensemble_samples,
             }
             if final_evaluation.per_model_samples:
-                kwargs['per_model_samples'] = np.stack(final_evaluation.per_model_samples)
+                for i, samples in enumerate(final_evaluation.per_model_samples):
+                    kwargs[f'per_model_samples_{i}'] = samples
             np.savez_compressed(samples_path, **kwargs)
             print(f"  Saved samples to {samples_path}")
 
