@@ -295,6 +295,23 @@ ensemble = BoostedEnsemble.load("best_model.npz", iqp_circuit=circuit, n_samples
 
 **Note:** The old `.json` format is deprecated. `load()` will still read it but emits a `DeprecationWarning`.
 
+### Disk Space Optimization
+
+By default, HPO trials save only the **essential** artifacts (`ensemble.npz` + `config.json` + `log.txt`) to reduce disk usage. Detailed artifacts (`baseline_artifacts.npz`, `samples.npz`, `results.csv`) are only saved during:
+
+- **Best-retrain seeds** (5 seeds per study)
+- **Single experiments** (via `src.experiments.suite`)
+
+This is controlled internally by the `save_detailed_artifacts` parameter. HPO trials pass `False`; best-retrain and standalone experiments use the default `True`.
+
+**Expected disk usage per study (80 trials, 16 workers, 5 best-retrain seeds):**
+
+| Phase | Before | After (optimized) |
+|-------|--------|-------------------|
+| HPO trials (80×) | ~400-800MB | ~80-160MB |
+| Best-retrain seeds (5×) | ~25-50MB | ~25-50MB |
+| **Total** | ~425-850MB | **~105-210MB** |
+
 ### Artifact Manifest (`retrain_artifacts.json`)
 
 After best-retrain completes, a manifest file is generated to make post-hoc discovery easier:
