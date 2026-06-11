@@ -1,6 +1,6 @@
 {
   "study_name": "hopfield_20q_p1_b15_local",
-  "n_trials": 80,
+  "n_trials": 160,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
   "objective_metric": "tvd_exact",

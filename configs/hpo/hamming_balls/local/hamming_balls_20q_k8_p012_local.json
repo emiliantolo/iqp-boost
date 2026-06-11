@@ -1,6 +1,6 @@
 {
   "study_name": "hamming_balls_20q_k8_p012_local",
-  "n_trials": 80,
+  "n_trials": 160,
   "n_jobs": 16,
   "sampler_seed": 42,
   "output_dir": "out/hpo",
