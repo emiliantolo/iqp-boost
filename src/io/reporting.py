@@ -110,8 +110,34 @@ def save_circuit_plot(circuit, output_manager, filename: str = 'circuit_structur
         if fig is not None:
             plt.close(fig)
 
-def report_kernel(sigma: float | list, n_ops: int, n_qubits: int):
+def report_kernel(sigma: float | list | dict, n_ops: int, n_qubits: int):
     """Report kernel configuration."""
+    if isinstance(sigma, dict) and sigma.get('type') == 'spatial_gaussian_mixture':
+        lam = sigma.get('lambda', 0.0)
+        grid_shape = tuple(sigma['grid_shape'])
+        max_pw = sigma.get('max_patch_width', 3)
+        max_ph = sigma.get('max_patch_height', 3)
+        kernel = sigma.get('kernel', 'parity')
+        print(f"Using Spatial Gaussian Mixture Kernel (n_ops={n_ops}, n_qubits={n_qubits}):")
+        print(f"  - kernel={kernel}, lambda={lam:.4f}, grid={grid_shape[0]}x{grid_shape[1]}")
+        print(f"  - max_patch: {max_pw}x{max_ph}")
+        gauss_sigma = sigma['sigma']
+        if isinstance(gauss_sigma, (int, float)):
+            gauss_list = [gauss_sigma]
+        else:
+            gauss_list = list(gauss_sigma)
+        print(f"  - Gaussian component: sigmas={gauss_list}")
+        return
+    if isinstance(sigma, dict) and sigma.get('type') == 'mkl':
+        alphas = sigma.get('mkl_weights', [])
+        base_kernels = sigma.get('mkl_base_kernels', [])
+        print(f"Using MKL Kernel Dictionary (n_ops={n_ops}, n_qubits={n_qubits}):")
+        print(f"  - base kernels: {base_kernels}")
+        print(f"  - weights: {[f'{a:.4f}' for a in alphas]}")
+        gauss_sigma = sigma.get('sigma', None)
+        if gauss_sigma is not None:
+            print(f"  - Gaussian component sigmas: {gauss_sigma}")
+        return
     sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
     print(f"Using Gaussian Kernel (n_ops={n_ops}, n_qubits={n_qubits}):")
     for s in sigmas:

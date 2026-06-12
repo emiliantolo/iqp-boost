@@ -22,7 +22,7 @@ from src.core.metrics import (
 def evaluate_samples(
     ground_truth: np.ndarray,
     samples: np.ndarray,
-    sigma: float | list,
+    sigma: float | list | dict,
     validity_fn: Callable | None = None,
     coverage_fn: Callable | None = None,
     exact_probs: np.ndarray | None = None,
@@ -39,8 +39,12 @@ def evaluate_samples(
 
     if validity_fn is not None and coverage_fn is not None:
         metrics = compute_metrics(ground_truth, samples, validity_fn, coverage_fn)
-        sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
-        prf_metrics = compute_precision_recall_f1(ground_truth, samples, sigmas[0])
+        if isinstance(sigma, dict):
+            prf_sigma = sigma['sigma'] if isinstance(sigma['sigma'], (int, float)) else sigma['sigma'][0]
+        else:
+            sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
+            prf_sigma = sigmas[0]
+        prf_metrics = compute_precision_recall_f1(ground_truth, samples, prf_sigma)
     else:
         metrics = {"validity_rate": float("nan"), "coverage": float("nan")}
         prf_metrics = {
@@ -201,7 +205,7 @@ class EvaluationPolicy:
     """Owns sampling flags, seeds, and metric context for an experiment run."""
 
     x_train: np.ndarray
-    sigma: float | list
+    sigma: float | list | dict
     shots: int
     rng_seed: int
     skip_sampling: bool = False

@@ -16,14 +16,68 @@ import numpy as np
 
 from iqpopt import IqpSimulator
 
-from src.core.importance_sampling import make_ops_from_pmf, sigma_to_binomial_pmf, is_pmf_like
+from src.core.importance_sampling import (
+    make_ops_from_pmf, sigma_to_binomial_pmf, is_pmf_like,
+    build_spatial_mixture_ops, _resolve_pmfs,
+)
+from src.core.mkl import build_mkl_ops
 
 
-def _make_ops(key: Array, sigma: float, n_ops: int, n_qubits: int, wires: list):
-    """Legacy 2-value sampler for backward compat. Uses per-bit Bernoulli.
+def _make_ops(key: Array, sigma: float | dict, n_ops: int, n_qubits: int, wires: list):
+    """Produce (all_ops, visible_ops) from sigma.
 
-    Returns (all_ops, visible_ops).
+    For a float/list sigma: legacy per-bit Bernoulli sampler (backward compat).
+    For a dict sigma of type ``"spatial_gaussian_mixture"``: samples from the
+    spatial Gaussian mixture via ``build_spatial_mixture_ops``.
+    For a dict sigma of type ``"mkl"``: samples from the α-weighted MKL
+    kernel dictionary via ``build_mkl_ops``.
     """
+    if isinstance(sigma, dict):
+        stype = sigma.get('type', '')
+        n_visible = len(wires)
+        grid_shape = tuple(sigma['grid_shape'])
+        lam = sigma.get('lambda', 0.0)
+        kernel = sigma.get('kernel', 'parity')
+        max_pw = sigma.get('max_patch_width', 3)
+        max_ph = sigma.get('max_patch_height', 3)
+        if stype == 'mkl':
+            alphas = sigma['mkl_weights']
+            base_kernels = sigma['mkl_base_kernels']
+            gauss_pmfs = _resolve_pmfs(sigma['sigma'], n_visible)
+            P_gauss = np.mean([np.asarray(p) for p in gauss_pmfs], axis=0)
+            P_gauss = P_gauss / max(P_gauss.sum(), 1e-30)
+
+            has_gauss_in_dict = "gaussian_mixture" in base_kernels
+            k_a, k_b, k_c = jax.random.split(key, 3)
+
+            all_ops_mkl, vis_mkl, _ = build_mkl_ops(
+                k_a, jnp.array(alphas), base_kernels, grid_shape,
+                n_ops, n_qubits, wires,
+                gaussian_pmf=jnp.asarray(P_gauss) if has_gauss_in_dict else None,
+                max_pw=max_pw, max_ph=max_ph)
+
+            if has_gauss_in_dict:
+                # Gaussian is already in the MKL dictionary — skip λ blending
+                return all_ops_mkl, vis_mkl
+
+            all_ops_gauss, vis_gauss, _ = build_spatial_mixture_ops(
+                k_b, P_gauss, 0.0, grid_shape, max_pw, max_ph,
+                n_ops, n_qubits, wires, kernel=kernel)
+            is_mkl = jax.random.bernoulli(k_c, lam, shape=(n_ops,))
+            mask = is_mkl[:, None].astype(jnp.float64)
+            visible_ops = mask * vis_mkl + (1.0 - mask) * vis_gauss
+            op_weights_k = jnp.sum(visible_ops, axis=1).astype(int)
+            all_ops = jnp.zeros((n_ops, n_qubits), dtype=jnp.float64)
+            wire_indices = jnp.array(wires, dtype=int)
+            all_ops = all_ops.at[:, wire_indices].set(visible_ops)
+            return all_ops, visible_ops
+        gauss_pmfs = _resolve_pmfs(sigma['sigma'], n_visible)
+        P_gauss = np.mean([np.asarray(p) for p in gauss_pmfs], axis=0)
+        P_gauss = P_gauss / max(P_gauss.sum(), 1e-30)
+        all_ops, visible_ops, _ = build_spatial_mixture_ops(
+            key, P_gauss, lam, grid_shape, max_pw, max_ph,
+            n_ops, n_qubits, wires, kernel=kernel)
+        return all_ops, visible_ops
     n_visible = len(wires)
     P = sigma_to_binomial_pmf(float(sigma), n_visible)
     all_ops, visible_ops, _ = make_ops_from_pmf(key, P, n_ops, n_qubits, wires, within_shell="bernoulli")
@@ -131,6 +185,48 @@ class EnsembleTerms:
             wires = list(range(iqp_circuit.n_qubits))
         n_visible = len(wires)
 
+        if isinstance(sigma, dict):
+            stype = sigma.get('type', '')
+            grid_shape = tuple(sigma['grid_shape'])
+            lam = sigma.get('lambda', 0.0)
+            kernel = sigma.get('kernel', 'parity')
+            max_pw = sigma.get('max_patch_width', 3)
+            max_ph = sigma.get('max_patch_height', 3)
+            gauss_pmfs = _resolve_pmfs(sigma['sigma'], n_visible)
+            P_gauss = np.mean([np.asarray(p) for p in gauss_pmfs], axis=0)
+            P_gauss = P_gauss / max(P_gauss.sum(), 1e-30)
+
+            if stype == 'mkl':
+                alphas = sigma['mkl_weights']
+                base_kernels = sigma['mkl_base_kernels']
+                has_gauss_in_dict = "gaussian_mixture" in base_kernels
+                k_a, k_b, k_c = jax.random.split(key, 3)
+                mkl_ops = build_mkl_ops(
+                    k_a, jnp.array(alphas), base_kernels, grid_shape,
+                    n_ops, iqp_circuit.n_qubits, wires,
+                    gaussian_pmf=jnp.asarray(P_gauss) if has_gauss_in_dict else None,
+                    max_pw=max_pw, max_ph=max_ph)
+                if has_gauss_in_dict:
+                    all_ops, visible_ops, op_weights_k = mkl_ops
+                else:
+                    gauss = build_spatial_mixture_ops(
+                        k_b, P_gauss, 0.0, grid_shape, max_pw, max_ph,
+                        n_ops, iqp_circuit.n_qubits, wires, kernel=kernel)
+                    is_mkl = jax.random.bernoulli(k_c, lam, shape=(n_ops,))
+                    m = is_mkl[:, None].astype(jnp.float64)
+                    all_ops = m * mkl_ops[0] + (1.0 - m) * gauss[0]
+                    visible_ops = m * mkl_ops[1] + (1.0 - m) * gauss[1]
+                    op_weights_k = jnp.where(is_mkl, mkl_ops[2], gauss[2]).astype(int)
+            else:
+                all_ops, visible_ops, op_weights_k = build_spatial_mixture_ops(
+                    key, P_gauss, lam, grid_shape, max_pw, max_ph,
+                    n_ops, iqp_circuit.n_qubits, wires, kernel=kernel)
+            self.ops.clear()
+            self.op_weights_k.clear()
+            self.ops[0] = (all_ops, visible_ops)
+            self.op_weights_k[0] = op_weights_k
+            return
+
         if pmfs is not None:
             entries_pmf = [np.asarray(p, dtype=np.float64) for p in pmfs]
         else:
@@ -159,7 +255,9 @@ class EnsembleTerms:
         if wires is None:
             wires = list(range(iqp_circuit.n_qubits))
 
-        if isinstance(sigma, (int, float)):
+        if isinstance(sigma, dict):
+            sigmas = [sigma]
+        elif isinstance(sigma, (int, float)):
             sigmas = [sigma]
         else:
             sigmas = list(sigma)
@@ -283,7 +381,9 @@ def dual_mmd_loss(params: jnp.ndarray, iqp_circuit: IqpSimulator, ground_truth: 
     if len(weights) == 0:
         lambda_dual = 0.0
 
-    if isinstance(sigma, (int, float)):
+    if isinstance(sigma, dict):
+        sigmas = [sigma]
+    elif isinstance(sigma, (int, float)):
         sigmas = [sigma]
     else:
         sigmas = list(sigma)
@@ -306,7 +406,9 @@ def dual_mmd_loss(params: jnp.ndarray, iqp_circuit: IqpSimulator, ground_truth: 
         # 1. Operators
         if not stochastic_ops and ensemble_terms is not None and sigma_idx in ensemble_terms.ops:
             all_ops, visible_ops = ensemble_terms.ops[sigma_idx]
-        elif qt_list is not None and sigma_idx < len(qt_list) and qt_list[sigma_idx] is not None:
+        elif (not isinstance(s, dict)
+              and qt_list is not None and sigma_idx < len(qt_list)
+              and qt_list[sigma_idx] is not None):
             # Dynamic IS: per-call sampling from Q_t (the proposal that
             # generated the importance weights). Independent of caching_level.
             key, subkey = jax.random.split(key, 2)

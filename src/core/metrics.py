@@ -218,8 +218,176 @@ def compute_metrics(
     return {'validity_rate': validity_rate, 'coverage': coverage}
 
 
-def compute_mmd(ground_truth: np.ndarray, samples: np.ndarray, sigma: float | list) -> float:
-    """Compute UNBIASED MMD^2 for Gaussian kernel, averaged over sigmas."""
+def _enumerate_rect_masks(nq: int, H: int, W: int,
+                           max_pw: int, max_ph: int) -> list[np.ndarray]:
+    """Return list of bool masks (nq,) for all valid centered odd rectangles."""
+    rows = np.arange(nq) // W
+    cols = np.arange(nq) % W
+    rects = []
+    for w in range(1, max_pw + 1, 2):
+        for h in range(1, max_ph + 1, 2):
+            half_w = (w - 1) // 2
+            half_h = (h - 1) // 2
+            for cx in range(half_w, W - half_w):
+                for cy in range(half_h, H - half_h):
+                    r0 = cy - half_h
+                    r1 = cy + half_h + 1
+                    c0 = cx - half_w
+                    c1 = cx + half_w + 1
+                    mask = (rows >= r0) & (rows < r1) & (cols >= c0) & (cols < c1)
+                    rects.append(mask)
+    return rects
+
+
+def _kernel_conv_parity(
+    gt: np.ndarray, samples: np.ndarray,
+    rects: list[np.ndarray],
+) -> np.ndarray:
+    """K_conv(x,y) = E_rect[(-1)^popcount(x⊕y within rect)].
+
+    Uses the parity trick: returns an (m, n) kernel matrix.
+    """
+    m, n = len(gt), len(samples)
+    n_rects = len(rects)
+    if n_rects == 0:
+        return np.ones((m, n))
+
+    gt_bits = np.asarray(gt, dtype=np.uint8)
+    sample_bits = np.asarray(samples, dtype=np.uint8)
+
+    def parities(bits):
+        P = np.empty((bits.shape[0], n_rects), dtype=bool)
+        for r_idx, mask in enumerate(rects):
+            pop = bits[:, mask].sum(axis=1)
+            P[:, r_idx] = (pop % 2).astype(bool)
+        return P
+
+    P_gt = parities(gt_bits)
+    P_s = parities(samples)
+    H_rect = (P_gt[:, None, :] ^ P_s[None, :, :]).sum(axis=-1)
+    return 1.0 - 2.0 * H_rect.astype(np.float64) / n_rects
+
+
+def _kernel_conv_gauss(
+    gt: np.ndarray, samples: np.ndarray,
+    rects: list[np.ndarray],
+    sigma_list: list[float],
+) -> np.ndarray:
+    """K_conv(x,y) = E_rect[exp(-d_H(x_P,y_P) / 2σ²)], averaged over sigmas.
+
+    Returns an (m, n) kernel matrix.
+    """
+    m, n = len(gt), len(samples)
+    n_rects = len(rects)
+    if n_rects == 0:
+        return np.ones((m, n))
+
+    gt_bits = np.asarray(gt, dtype=np.uint8)
+    sample_bits = np.asarray(samples, dtype=np.uint8)
+
+    K = np.zeros((m, n), dtype=np.float64)
+    for mask in rects:
+        gt_p = gt_bits[:, mask]
+        smp_p = sample_bits[:, mask]
+        H = (gt_p[:, None, :] ^ smp_p[None, :, :]).sum(axis=-1)
+        for sigma in sigma_list:
+            K += np.exp(-H.astype(np.float64) / (2.0 * sigma**2))
+    K /= n_rects * len(sigma_list)
+    return K
+
+
+def compute_mmd(ground_truth: np.ndarray, samples: np.ndarray,
+                sigma: float | list | dict) -> float:
+    """Compute UNBIASED MMD^2, averaged over sigmas.
+
+    For a dict sigma of type ``"spatial_gaussian_mixture"``, computes
+    ``λ·MMD²_conv + (1-λ)·MMD²_gauss`` where:
+
+    - If ``kernel="parity"`` (default): ``K_conv = E_rect[(-1)^{popcount}]``
+    - If ``kernel="gaussian"``: ``K_conv = E_rect[exp(-d_H / 2σ²)]``
+    """
+    if isinstance(sigma, dict):
+        stype = sigma.get('type', '')
+        if stype == 'mkl':
+            from src.core.mkl import (
+                enumerate_all_base_kernels, compute_operator_expectations,
+                compute_mmd2_from_expectations, _FORMULA_KERNEL_NAMES,
+            )
+            alphas = sigma['mkl_weights']
+            base_kernels = sigma['mkl_base_kernels']
+            grid_shape = tuple(sigma['grid_shape'])
+            nq = ground_truth.shape[1]
+            geo_kernels = [k for k in base_kernels if k not in _FORMULA_KERNEL_NAMES]
+            kernel_masks = enumerate_all_base_kernels(grid_shape[0], grid_shape[1], names=geo_kernels)
+            total = 0.0
+            for name, alpha in zip(base_kernels, alphas):
+                if alpha <= 0:
+                    continue
+                if name in _FORMULA_KERNEL_NAMES:
+                    if name == "gaussian_mixture":
+                        _sigmas = sigma.get('sigma', None)
+                        sl = _sigmas if isinstance(_sigmas, list) else ([_sigmas] if isinstance(_sigmas, (int, float)) else None)
+                        if sl is not None:
+                            total += alpha * compute_mmd(ground_truth, samples, sl)
+                    elif name == "spatial_rect":
+                        lam = sigma.get('lambda', 0.0)
+                        ker = sigma.get('kernel', 'parity')
+                        mpw = sigma.get('max_patch_width', 3)
+                        mph = sigma.get('max_patch_height', 3)
+                        rects = _enumerate_rect_masks(nq, *grid_shape, mpw, mph)
+                        if ker == "parity":
+                            K_pp = _kernel_conv_parity(ground_truth, ground_truth, rects)
+                            K_ss = _kernel_conv_parity(samples, samples, rects)
+                            K_ps = _kernel_conv_parity(ground_truth, samples, rects)
+                        else:
+                            _sl = sigma.get('sigma', [1.0])
+                            sl2 = _sl if isinstance(_sl, list) else [_sl]
+                            K_pp = _kernel_conv_gauss(ground_truth, ground_truth, rects, sl2)
+                            K_ss = _kernel_conv_gauss(samples, samples, rects, sl2)
+                            K_ps = _kernel_conv_gauss(ground_truth, samples, rects, sl2)
+                        m, n = len(ground_truth), len(samples)
+                        usp = (np.sum(K_pp) - m) / (m * (m - 1)) if m > 1 else 0.0
+                        uss = (np.sum(K_ss) - n) / (n * (n - 1)) if n > 1 else 0.0
+                        total += alpha * (usp + uss - 2 * np.mean(K_ps))
+                else:
+                    ops = kernel_masks.get(name)
+                    if ops is None or ops.shape[0] == 0:
+                        continue
+                    E_P = compute_operator_expectations(ground_truth, ops)
+                    E_Q = compute_operator_expectations(samples, ops)
+                    total += alpha * compute_mmd2_from_expectations(E_P, E_Q)
+            return total
+
+        lam = sigma.get('lambda', 0.0)
+        kernel = sigma.get('kernel', 'parity')
+        grid_shape = tuple(sigma['grid_shape'])
+        max_pw = sigma.get('max_patch_width', 3)
+        max_ph = sigma.get('max_patch_height', 3)
+        sigma_list = sigma['sigma']
+        if isinstance(sigma_list, (int, float)):
+            sigma_list = [sigma_list]
+
+        mmd_gauss = compute_mmd(ground_truth, samples, sigma_list)
+
+        nq = ground_truth.shape[1]
+        rects = _enumerate_rect_masks(nq, *grid_shape, max_pw, max_ph)
+        if kernel == "parity":
+            K_gt_gt = _kernel_conv_parity(ground_truth, ground_truth, rects)
+            K_s_s = _kernel_conv_parity(samples, samples, rects)
+            K_gt_s = _kernel_conv_parity(ground_truth, samples, rects)
+        elif kernel == "gaussian":
+            K_gt_gt = _kernel_conv_gauss(ground_truth, ground_truth, rects, sigma_list)
+            K_s_s = _kernel_conv_gauss(samples, samples, rects, sigma_list)
+            K_gt_s = _kernel_conv_gauss(ground_truth, samples, rects, sigma_list)
+        else:
+            raise ValueError(f"Unknown spatial kernel: {kernel}")
+        m, n = len(ground_truth), len(samples)
+        unbiased_self_gt = (np.sum(K_gt_gt) - m) / (m * (m - 1)) if m > 1 else 0.0
+        unbiased_self_s = (np.sum(K_s_s) - n) / (n * (n - 1)) if n > 1 else 0.0
+        mmd_conv = unbiased_self_gt + unbiased_self_s - 2 * np.mean(K_gt_s)
+
+        return lam * float(mmd_conv) + (1.0 - lam) * float(mmd_gauss)
+
     sigmas = [sigma] if isinstance(sigma, (int, float)) else sigma
 
     H_gt_gt = compute_hamming_matrix(ground_truth, ground_truth)

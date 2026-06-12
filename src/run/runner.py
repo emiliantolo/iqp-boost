@@ -19,6 +19,7 @@ from src.run.boosting_step import (
     run_boosting_step,
 )
 from src.run.final_evaluation import FinalEvaluationContext, run_final_evaluation
+from src.core.mkl import run_mkl_pipeline, BASE_KERNEL_NAMES
 import jax
 import numpy as np
 
@@ -50,9 +51,6 @@ def run_boosting_experiment(
     )
 
     with output:
-        report_config(config, dataset.dataset_name)
-        output.save_config(config)
-
         n_qubits = dataset.n_qubits
 
         # Circuit setup
@@ -65,7 +63,44 @@ def run_boosting_experiment(
             save_circuit_plot(circuit, output)
 
         # Sigma setup from config (supports median, percentile, medoids)
-        sigma = compute_sigma(config, x_train, seed=config.get('data_seed', 42))
+        cfg_sigma = config.get('sigma')
+        if isinstance(cfg_sigma, dict) and cfg_sigma.get('type') in ('spatial_gaussian_mixture', 'mkl'):
+            sigma = cfg_sigma
+        else:
+            sigma = compute_sigma(config, x_train, seed=config.get('data_seed', 42))
+
+        # MKL pre-processing: run SNR optimisation to set mkl_weights
+        if isinstance(sigma, dict) and sigma.get('type') == 'mkl' and \
+           config.get('mkl_optimize', True):
+            base_kernels = sigma.get('mkl_base_kernels', BASE_KERNEL_NAMES)
+            _sigmas = sigma.get('sigma', None)
+            sigma_list = _sigmas if isinstance(_sigmas, list) else ([_sigmas] if isinstance(_sigmas, (int, float)) else None)
+            # Subsample for memory safety (kernel matrices scale as O(n²))
+            mkl_data = x_train
+            mkl_max = config.get('mkl_max_samples', 2000)
+            if len(mkl_data) > mkl_max:
+                rng = np.random.default_rng(config.get('rng_seed', 42))
+                idx = rng.choice(len(mkl_data), mkl_max, replace=False)
+                mkl_data = mkl_data[idx]
+                print(f"  Subsampled MKL data: {len(x_train)} → {mkl_max}")
+            print("Running MKL SNR optimisation...")
+            result = run_mkl_pipeline(
+                mkl_data,
+                tuple(sigma['grid_shape']),
+                base_kernels=base_kernels,
+                qfake_method="scramble",
+                sigma_list=sigma_list,
+                max_pw=sigma.get('max_patch_width', 4),
+                max_ph=sigma.get('max_patch_height', 4),
+                n_bootstrap=80,
+                seed=config.get('rng_seed', 42),
+            )
+            sigma['mkl_weights'] = result['mkl_weights']
+            print(f"  Optimised α*: {dict(zip(result['mkl_base_kernels'],
+                                                [f'{w:.3f}' for w in result['mkl_weights']]))}")
+
+        report_config(config, dataset.dataset_name)
+        output.save_config(config)
 
         n_ops = config.get('n_ops', 1000)
         n_samples = int(config.get('n_samples', 1000))
@@ -298,8 +333,15 @@ def run_boosting_experiment(
                 'final_ensemble_samples': final_evaluation.final_ensemble_samples,
             }
             if final_evaluation.per_model_samples:
-                for i, samples in enumerate(final_evaluation.per_model_samples):
-                    kwargs[f'per_model_samples_{i}'] = samples
+                max_n = max(s.shape[0] for s in final_evaluation.per_model_samples)
+                padded = []
+                for s in final_evaluation.per_model_samples:
+                    if s.shape[0] < max_n:
+                        pad = np.full((max_n - s.shape[0], s.shape[1]), -1, dtype=s.dtype)
+                        padded.append(np.concatenate([s, pad]))
+                    else:
+                        padded.append(s)
+                kwargs['per_model_samples'] = np.stack(padded)
             np.savez_compressed(samples_path, **kwargs)
             print(f"  Saved samples to {samples_path}")
 

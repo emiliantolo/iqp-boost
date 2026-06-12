@@ -11,6 +11,10 @@ from src.datasets.boltzmann_visualization import generate_boltzmann_visualizatio
 from src.datasets.hamming_balls import HammingBallsDataset
 from src.datasets.hopfield import HopfieldDataset
 from src.datasets.mnist import MNISTDataset
+from src.datasets.fashion_mnist import FashionMNISTDataset
+from src.datasets.calorimeter import CalorimeterDataset
+from src.datasets.ising_spin_glass import IsingSpinGlassDataset
+from src.datasets.topological_syndromes import TopologicalSyndromeDataset
 from src.core import EvaluationPolicy
 
 
@@ -268,7 +272,170 @@ def _build_mnist_bundle(
     )
 
 
+def _build_fashion_mnist_bundle(
+    params: dict[str, Any],
+    config: dict[str, Any],
+    plot_spec: dict[str, Any] | None,
+) -> DatasetBundle:
+    kind = _resolve_plot_kind(_CATALOG["fashion_mnist"], plot_spec)
+    if kind != "none":
+        raise ValueError(f"Unknown plot kind '{kind}'.")
+
+    train_samples = int(config.get("train_samples", 1000))
+    test_samples = int(params.get("test_samples", 0))
+    data_seed = int(config.get("data_seed", 0))
+    rows = int(params.get("rows", 10))
+    cols = int(params.get("cols", 10))
+    threshold = float(params.get("threshold", 0.25))
+    raw_classes = params.get("classes")
+    classes = None if raw_classes is None else [int(label) for label in raw_classes]
+    balanced_per_class = bool(params.get("balanced_per_class", False))
+    data_dir = params.get("data_dir", "./data")
+
+    ds = FashionMNISTDataset(
+        rows=rows,
+        cols=cols,
+        threshold=threshold,
+        classes=classes,
+        data_dir=data_dir,
+    )
+    if balanced_per_class:
+        selected_classes = classes if classes is not None else list(range(10))
+        n_classes = len(selected_classes)
+        if test_samples <= 0:
+            raise ValueError("balanced_per_class Fashion-MNIST requires positive test_samples")
+        if train_samples % n_classes != 0 or test_samples % n_classes != 0:
+            raise ValueError("balanced_per_class Fashion-MNIST requires train_samples and test_samples divisible by n_classes")
+        x_train = ds.generate_balanced(train_samples // n_classes, seed=data_seed, split="train")
+        x_test = ds.generate_balanced(test_samples // n_classes, seed=data_seed, split="test")
+        ds.data = x_train
+        ds.active_split = "train"
+    else:
+        x_train = ds.generate(n_samples=train_samples, seed=data_seed, split="train")
+        x_test = None
+        if test_samples > 0:
+            x_test = ds.generate(n_samples=test_samples, seed=data_seed, split="test")
+            ds.data = x_train
+            ds.active_split = "train"
+
+    return DatasetBundle(
+        dataset_name=(
+            f"Fashion-MNIST ({rows}x{cols}, {_format_mnist_class_scope(classes)}, "
+            f"threshold={threshold})"
+        ),
+        x_train=x_train,
+        custom_viz_fn=None,
+        x_test=x_test,
+        dataset_obj=ds,
+    )
+
+
+def _build_calorimeter_bundle(
+    params: dict[str, Any],
+    config: dict[str, Any],
+    plot_spec: dict[str, Any] | None,
+) -> DatasetBundle:
+    train_samples = int(config.get("train_samples", 1000))
+    data_seed = int(config.get("data_seed", 0))
+    total_samples, train_split_ratio = _resolve_split(params, train_samples)
+    rows = int(params.get("rows", 10))
+    cols = int(params.get("cols", 10))
+    n_blobs = int(params.get("n_blobs", 3))
+    threshold = float(params.get("threshold", 0.3))
+    momentum_strength = float(params.get("momentum_strength", 2.0))
+
+    ds = CalorimeterDataset(
+        rows=rows,
+        cols=cols,
+        n_blobs=n_blobs,
+        threshold=threshold,
+        momentum_strength=momentum_strength,
+        train_split_ratio=train_split_ratio,
+    )
+    x_train, x_test = _generate_bundle_samples(ds, total_samples, data_seed)
+
+    return DatasetBundle(
+        dataset_name=f"Calorimeter ({rows}x{cols}, {n_blobs} blobs)",
+        x_train=x_train,
+        x_test=x_test,
+        dataset_obj=ds,
+    )
+
+
+def _build_ising_spin_glass_bundle(
+    params: dict[str, Any],
+    config: dict[str, Any],
+    plot_spec: dict[str, Any] | None,
+) -> DatasetBundle:
+    train_samples = int(config.get("train_samples", 1000))
+    data_seed = int(config.get("data_seed", 0))
+    total_samples, train_split_ratio = _resolve_split(params, train_samples)
+    rows = int(params.get("rows", 5))
+    cols = int(params.get("cols", 4))
+    beta = float(params.get("beta", 2.0))
+    coupling_seed = int(params.get("coupling_seed", 0))
+
+    ds = IsingSpinGlassDataset(
+        rows=rows,
+        cols=cols,
+        beta=beta,
+        coupling_seed=coupling_seed,
+        train_split_ratio=train_split_ratio,
+    )
+    x_train, x_test = _generate_bundle_samples(ds, total_samples, data_seed)
+
+    return DatasetBundle(
+        dataset_name=f"Ising Spin Glass ({rows}x{cols}, beta={beta})",
+        x_train=x_train,
+        x_test=x_test,
+        dataset_obj=ds,
+    )
+
+
+def _build_topological_syndromes_bundle(
+    params: dict[str, Any],
+    config: dict[str, Any],
+    plot_spec: dict[str, Any] | None,
+) -> DatasetBundle:
+    train_samples = int(config.get("train_samples", 1000))
+    data_seed = int(config.get("data_seed", 0))
+    total_samples, train_split_ratio = _resolve_split(params, train_samples)
+    rows = int(params.get("rows", 5))
+    cols = int(params.get("cols", 4))
+    error_rate = float(params.get("error_rate", 0.1))
+
+    ds = TopologicalSyndromeDataset(
+        rows=rows,
+        cols=cols,
+        error_rate=error_rate,
+        train_split_ratio=train_split_ratio,
+    )
+    x_train, x_test = _generate_bundle_samples(ds, total_samples, data_seed)
+
+    return DatasetBundle(
+        dataset_name=f"Topological Syndromes ({rows}x{cols}, p={error_rate})",
+        x_train=x_train,
+        x_test=x_test,
+        dataset_obj=ds,
+    )
+
+
 _CATALOG = {
+    "calorimeter": DatasetCatalogEntry(
+        key="calorimeter",
+        default_plot_kind="none",
+        builder=_build_calorimeter_bundle,
+    ),
+    "ising_spin_glass": DatasetCatalogEntry(
+        key="ising_spin_glass",
+        default_plot_kind="none",
+        builder=_build_ising_spin_glass_bundle,
+    ),
+    "topological_syndromes": DatasetCatalogEntry(
+        key="topological_syndromes",
+        default_plot_kind="none",
+        builder=_build_topological_syndromes_bundle,
+    ),
     "hopfield": DatasetCatalogEntry(
         key="hopfield",
         default_plot_kind="boltzmann_summary",
@@ -283,6 +450,11 @@ _CATALOG = {
         key="mnist",
         default_plot_kind="none",
         builder=_build_mnist_bundle,
+    ),
+    "fashion_mnist": DatasetCatalogEntry(
+        key="fashion_mnist",
+        default_plot_kind="none",
+        builder=_build_fashion_mnist_bundle,
     ),
 }
 
