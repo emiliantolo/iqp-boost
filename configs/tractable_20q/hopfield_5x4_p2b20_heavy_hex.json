@@ -73,6 +73,7 @@
           "num_layers": 1
         },
         "dataset_metrics": true,
+        "exact_metrics": true,
         "exact_sampling": true
       }
     }

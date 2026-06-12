@@ -1,0 +1,91 @@
+{
+  "output": {
+    "base_dir": "out_tractable_20q_mkl",
+    "suite_name": "topological_syndromes_5x4_p005_grid2d"
+  },
+  "runs": [
+    {
+      "name": "topological_syndromes_5x4_p005_grid2d",
+      "dataset": {
+        "name": "topological_syndromes",
+        "params": {
+          "rows": 5,
+          "cols": 4,
+          "error_rate": 0.05
+        }
+      },
+      "plot": {
+        "kind": "none"
+      },
+      "config": {
+        "train_samples": 1000,
+        "data_seed": 42,
+        "n_samples": 1000,
+        "n_models": 10,
+        "learning_rate": 0.01,
+        "epochs_per_step": 400,
+        "caching_level": "none",
+        "init_baseline": "covariance",
+        "init_later": "covariance",
+        "lambda_dual": 1.0,
+        "lambda_schedule": {
+          "type": "frank_wolfe",
+          "gamma": 0.5,
+          "tau": 1.0
+        },
+        "sigma": {
+          "type": "mkl",
+          "mkl_weights": [
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666
+          ],
+          "mkl_base_kernels": [
+            "density",
+            "nn_h",
+            "nn_v",
+            "nn_d",
+            "plaquette",
+            "global_anchor"
+          ],
+          "grid_shape": [
+            5,
+            4
+          ],
+          "sigma": [
+            0.5,
+            1.0,
+            2.0,
+            4.0
+          ]
+        },
+        "dynamic_is": true,
+        "n_ops": 1024,
+        "weight_strategy": "frank_wolfe",
+        "baseline": "none",
+        "shots": 1000,
+        "acceptance_metric": "training_mmd",
+        "skip_sampling": false,
+        "final_eval_sampling": true,
+        "report_fcfw": true,
+        "keep_models_for_diagnosis": true,
+        "stop_on_reject": false,
+        "rng_seed": 42,
+        "turbo": 10,
+        "circuit_config": {
+          "topology": "grid2d",
+          "height": 5,
+          "width": 4,
+          "distance": 1,
+          "max_weight": 2,
+          "n_ancilla": 0
+        },
+        "dataset_metrics": true,
+        "exact_metrics": true
+      }
+    }
+  ]
+}

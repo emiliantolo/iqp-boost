@@ -34,43 +34,20 @@ def _make_ops(key: Array, sigma: float | dict, n_ops: int, n_qubits: int, wires:
     """
     if isinstance(sigma, dict):
         stype = sigma.get('type', '')
-        n_visible = len(wires)
         grid_shape = tuple(sigma['grid_shape'])
+        if stype == 'mkl':
+            alphas = sigma['mkl_weights']
+            base_kernels = sigma['mkl_base_kernels']
+            k_a, key = jax.random.split(key)
+            all_ops, visible_ops, _ = build_mkl_ops(
+                k_a, jnp.array(alphas), base_kernels, grid_shape,
+                n_ops, n_qubits, wires)
+            return all_ops, visible_ops
+        n_visible = len(wires)
         lam = sigma.get('lambda', 0.0)
         kernel = sigma.get('kernel', 'parity')
         max_pw = sigma.get('max_patch_width', 3)
         max_ph = sigma.get('max_patch_height', 3)
-        if stype == 'mkl':
-            alphas = sigma['mkl_weights']
-            base_kernels = sigma['mkl_base_kernels']
-            gauss_pmfs = _resolve_pmfs(sigma['sigma'], n_visible)
-            P_gauss = np.mean([np.asarray(p) for p in gauss_pmfs], axis=0)
-            P_gauss = P_gauss / max(P_gauss.sum(), 1e-30)
-
-            has_gauss_in_dict = "gaussian_mixture" in base_kernels
-            k_a, k_b, k_c = jax.random.split(key, 3)
-
-            all_ops_mkl, vis_mkl, _ = build_mkl_ops(
-                k_a, jnp.array(alphas), base_kernels, grid_shape,
-                n_ops, n_qubits, wires,
-                gaussian_pmf=jnp.asarray(P_gauss) if has_gauss_in_dict else None,
-                max_pw=max_pw, max_ph=max_ph)
-
-            if has_gauss_in_dict:
-                # Gaussian is already in the MKL dictionary — skip λ blending
-                return all_ops_mkl, vis_mkl
-
-            all_ops_gauss, vis_gauss, _ = build_spatial_mixture_ops(
-                k_b, P_gauss, 0.0, grid_shape, max_pw, max_ph,
-                n_ops, n_qubits, wires, kernel=kernel)
-            is_mkl = jax.random.bernoulli(k_c, lam, shape=(n_ops,))
-            mask = is_mkl[:, None].astype(jnp.float64)
-            visible_ops = mask * vis_mkl + (1.0 - mask) * vis_gauss
-            op_weights_k = jnp.sum(visible_ops, axis=1).astype(int)
-            all_ops = jnp.zeros((n_ops, n_qubits), dtype=jnp.float64)
-            wire_indices = jnp.array(wires, dtype=int)
-            all_ops = all_ops.at[:, wire_indices].set(visible_ops)
-            return all_ops, visible_ops
         gauss_pmfs = _resolve_pmfs(sigma['sigma'], n_visible)
         P_gauss = np.mean([np.asarray(p) for p in gauss_pmfs], axis=0)
         P_gauss = P_gauss / max(P_gauss.sum(), 1e-30)
@@ -188,36 +165,21 @@ class EnsembleTerms:
         if isinstance(sigma, dict):
             stype = sigma.get('type', '')
             grid_shape = tuple(sigma['grid_shape'])
-            lam = sigma.get('lambda', 0.0)
-            kernel = sigma.get('kernel', 'parity')
-            max_pw = sigma.get('max_patch_width', 3)
-            max_ph = sigma.get('max_patch_height', 3)
-            gauss_pmfs = _resolve_pmfs(sigma['sigma'], n_visible)
-            P_gauss = np.mean([np.asarray(p) for p in gauss_pmfs], axis=0)
-            P_gauss = P_gauss / max(P_gauss.sum(), 1e-30)
-
             if stype == 'mkl':
                 alphas = sigma['mkl_weights']
                 base_kernels = sigma['mkl_base_kernels']
-                has_gauss_in_dict = "gaussian_mixture" in base_kernels
-                k_a, k_b, k_c = jax.random.split(key, 3)
-                mkl_ops = build_mkl_ops(
+                k_a, key = jax.random.split(key)
+                all_ops, visible_ops, op_weights_k = build_mkl_ops(
                     k_a, jnp.array(alphas), base_kernels, grid_shape,
-                    n_ops, iqp_circuit.n_qubits, wires,
-                    gaussian_pmf=jnp.asarray(P_gauss) if has_gauss_in_dict else None,
-                    max_pw=max_pw, max_ph=max_ph)
-                if has_gauss_in_dict:
-                    all_ops, visible_ops, op_weights_k = mkl_ops
-                else:
-                    gauss = build_spatial_mixture_ops(
-                        k_b, P_gauss, 0.0, grid_shape, max_pw, max_ph,
-                        n_ops, iqp_circuit.n_qubits, wires, kernel=kernel)
-                    is_mkl = jax.random.bernoulli(k_c, lam, shape=(n_ops,))
-                    m = is_mkl[:, None].astype(jnp.float64)
-                    all_ops = m * mkl_ops[0] + (1.0 - m) * gauss[0]
-                    visible_ops = m * mkl_ops[1] + (1.0 - m) * gauss[1]
-                    op_weights_k = jnp.where(is_mkl, mkl_ops[2], gauss[2]).astype(int)
+                    n_ops, iqp_circuit.n_qubits, wires)
             else:
+                lam = sigma.get('lambda', 0.0)
+                kernel = sigma.get('kernel', 'parity')
+                max_pw = sigma.get('max_patch_width', 3)
+                max_ph = sigma.get('max_patch_height', 3)
+                gauss_pmfs = _resolve_pmfs(sigma['sigma'], n_visible)
+                P_gauss = np.mean([np.asarray(p) for p in gauss_pmfs], axis=0)
+                P_gauss = P_gauss / max(P_gauss.sum(), 1e-30)
                 all_ops, visible_ops, op_weights_k = build_spatial_mixture_ops(
                     key, P_gauss, lam, grid_shape, max_pw, max_ph,
                     n_ops, iqp_circuit.n_qubits, wires, kernel=kernel)

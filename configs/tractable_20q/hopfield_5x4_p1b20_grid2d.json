@@ -73,6 +73,7 @@
           "n_ancilla": 0
         },
         "dataset_metrics": true,
+        "exact_metrics": true,
         "exact_sampling": true
       }
     }

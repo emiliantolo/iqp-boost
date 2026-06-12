@@ -60,12 +60,15 @@ SIGMA_CFG = {
 
 def make_run(name, dset_key, params, topo_key, topo_cfg):
     extra_exact = {}
+    extra_exact = {
+        "exact_metrics": True,
+    }
     if dset_key in EXACT_DATASETS:
-        extra_exact = {
+        extra_exact.update({
             "exact_sampling": True,
             "skip_sampling": False,
             "final_eval_sampling": True,
-        }
+        })
 
     return {
         "name": name,

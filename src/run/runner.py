@@ -73,9 +73,7 @@ def run_boosting_experiment(
         if isinstance(sigma, dict) and sigma.get('type') == 'mkl' and \
            config.get('mkl_optimize', True):
             base_kernels = sigma.get('mkl_base_kernels', BASE_KERNEL_NAMES)
-            _sigmas = sigma.get('sigma', None)
-            sigma_list = _sigmas if isinstance(_sigmas, list) else ([_sigmas] if isinstance(_sigmas, (int, float)) else None)
-            # Subsample for memory safety (kernel matrices scale as O(n²))
+            # Subsample for memory safety
             mkl_data = x_train
             mkl_max = config.get('mkl_max_samples', 2000)
             if len(mkl_data) > mkl_max:
@@ -89,9 +87,6 @@ def run_boosting_experiment(
                 tuple(sigma['grid_shape']),
                 base_kernels=base_kernels,
                 qfake_method="scramble",
-                sigma_list=sigma_list,
-                max_pw=sigma.get('max_patch_width', 4),
-                max_ph=sigma.get('max_patch_height', 4),
                 n_bootstrap=80,
                 seed=config.get('rng_seed', 42),
             )

@@ -71,7 +71,8 @@
           "n_ancilla": 0,
           "num_layers": 1
         },
-        "dataset_metrics": true
+        "dataset_metrics": true,
+        "exact_metrics": true
       }
     }
   ]

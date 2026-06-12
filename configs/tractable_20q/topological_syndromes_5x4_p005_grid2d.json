@@ -70,7 +70,8 @@
           "max_weight": 2,
           "n_ancilla": 0
         },
-        "dataset_metrics": true
+        "dataset_metrics": true,
+        "exact_metrics": true
       }
     }
   ]

@@ -311,51 +311,22 @@ def compute_mmd(ground_truth: np.ndarray, samples: np.ndarray,
         if stype == 'mkl':
             from src.core.mkl import (
                 enumerate_all_base_kernels, compute_operator_expectations,
-                compute_mmd2_from_expectations, _FORMULA_KERNEL_NAMES,
+                compute_mmd2_from_expectations,
             )
             alphas = sigma['mkl_weights']
             base_kernels = sigma['mkl_base_kernels']
             grid_shape = tuple(sigma['grid_shape'])
-            nq = ground_truth.shape[1]
-            geo_kernels = [k for k in base_kernels if k not in _FORMULA_KERNEL_NAMES]
-            kernel_masks = enumerate_all_base_kernels(grid_shape[0], grid_shape[1], names=geo_kernels)
+            kernel_masks = enumerate_all_base_kernels(grid_shape[0], grid_shape[1], names=base_kernels)
             total = 0.0
             for name, alpha in zip(base_kernels, alphas):
                 if alpha <= 0:
                     continue
-                if name in _FORMULA_KERNEL_NAMES:
-                    if name == "gaussian_mixture":
-                        _sigmas = sigma.get('sigma', None)
-                        sl = _sigmas if isinstance(_sigmas, list) else ([_sigmas] if isinstance(_sigmas, (int, float)) else None)
-                        if sl is not None:
-                            total += alpha * compute_mmd(ground_truth, samples, sl)
-                    elif name == "spatial_rect":
-                        lam = sigma.get('lambda', 0.0)
-                        ker = sigma.get('kernel', 'parity')
-                        mpw = sigma.get('max_patch_width', 3)
-                        mph = sigma.get('max_patch_height', 3)
-                        rects = _enumerate_rect_masks(nq, *grid_shape, mpw, mph)
-                        if ker == "parity":
-                            K_pp = _kernel_conv_parity(ground_truth, ground_truth, rects)
-                            K_ss = _kernel_conv_parity(samples, samples, rects)
-                            K_ps = _kernel_conv_parity(ground_truth, samples, rects)
-                        else:
-                            _sl = sigma.get('sigma', [1.0])
-                            sl2 = _sl if isinstance(_sl, list) else [_sl]
-                            K_pp = _kernel_conv_gauss(ground_truth, ground_truth, rects, sl2)
-                            K_ss = _kernel_conv_gauss(samples, samples, rects, sl2)
-                            K_ps = _kernel_conv_gauss(ground_truth, samples, rects, sl2)
-                        m, n = len(ground_truth), len(samples)
-                        usp = (np.sum(K_pp) - m) / (m * (m - 1)) if m > 1 else 0.0
-                        uss = (np.sum(K_ss) - n) / (n * (n - 1)) if n > 1 else 0.0
-                        total += alpha * (usp + uss - 2 * np.mean(K_ps))
-                else:
-                    ops = kernel_masks.get(name)
-                    if ops is None or ops.shape[0] == 0:
-                        continue
-                    E_P = compute_operator_expectations(ground_truth, ops)
-                    E_Q = compute_operator_expectations(samples, ops)
-                    total += alpha * compute_mmd2_from_expectations(E_P, E_Q)
+                ops = kernel_masks.get(name)
+                if ops is None or ops.shape[0] == 0:
+                    continue
+                E_P = compute_operator_expectations(ground_truth, ops)
+                E_Q = compute_operator_expectations(samples, ops)
+                total += alpha * compute_mmd2_from_expectations(E_P, E_Q)
             return total
 
         lam = sigma.get('lambda', 0.0)
