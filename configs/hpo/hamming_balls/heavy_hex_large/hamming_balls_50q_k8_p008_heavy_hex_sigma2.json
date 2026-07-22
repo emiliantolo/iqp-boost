@@ -1,0 +1,112 @@
+{
+  "study_name": "hamming_balls_50q_k8_p008_heavy_hex",
+  "n_trials": 160,
+  "n_jobs": 4,
+  "sampler_seed": 42,
+  "output_dir": "out/hpo",
+  "objective_metric": "test_mmd",
+  "dataset": {
+    "name": "hamming_balls",
+    "params": {
+      "n_qubits": 50,
+      "K": 8,
+      "p": 0.08,
+      "pattern_seed": 0,
+      "radius_fraction": 0.15,
+      "test_samples": 400
+    }
+  },
+  "plot": {
+    "kind": "none"
+  },
+  "fixed_config": {
+    "train_samples": 1600,
+    "data_seed": 42,
+    "n_samples": 400,
+    "n_models": 10,
+    "epochs_per_step": 512,
+    "caching_level": "none",
+    "init_baseline": "covariance",
+    "init_later": "random",
+    "lambda_dual": 1,
+    "lambda_schedule": {
+      "type": "frank_wolfe",
+      "gamma": 0.5,
+      "tau": 1
+    },
+    "sigma_heuristic": {
+      "method": "sigma",
+      "n_sigmas": 2
+    },
+    "weight_strategy": "frank_wolfe",
+    "baseline": "none",
+    "shots": 1000,
+    "dynamic_is_within_shell": "shell_uniform",
+    "exact_sampling": true,
+    "acceptance_metric": "training_mmd",
+    "skip_sampling": true,
+    "final_eval_sampling": false,
+    "report_fcfw": true,
+    "keep_models_for_diagnosis": true,
+    "stop_on_reject": false,
+    "rng_seed": 42,
+    "turbo": 32,
+    "circuit_config": {
+      "topology": "aachen_heavy_hex",
+      "n_ancilla": 0
+    },
+    "monitor_interval": null,
+    "compute_snr": false,
+    "clear_jax_caches": true,
+    "n_ops": 2048
+  },
+  "search_space": {
+    "learning_rate": {
+      "type": "float",
+      "low": 0.001,
+      "high": 0.1,
+      "log": true
+    },
+    "dynamic_is": {
+      "type": "categorical",
+      "choices": [
+        false,
+        true
+      ]
+    },
+    "dynamic_is_beta": {
+      "type": "float",
+      "low": 0.01,
+      "high": 0.2,
+      "log": true
+    },
+    "lambda_schedule.gamma": {
+      "type": "float",
+      "low": 0.01,
+      "high": 1.0,
+      "log": true
+    },
+    "lambda_schedule.tau": {
+      "type": "float",
+      "low": 0.01,
+      "high": 10.0,
+      "log": true
+    }
+  },
+  "best_retrains": {
+    "n_seeds": 5,
+    "seed_start": 0,
+    "baseline": "standalone",
+    "report_fcfw": true,
+    "skip_sampling": true,
+    "final_eval_sampling": false,
+    "config_overrides": {
+      "turbo": 10,
+      "monitor_interval": 10,
+      "compute_snr": true,
+      "clear_jax_caches": true
+    }
+  },
+  "n_startup_trials": 16,
+  "sampler": "gp"
+}
